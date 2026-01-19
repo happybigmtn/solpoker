@@ -169,7 +169,7 @@ impl LeaveTable {
 ///
 /// Accounts:
 ///   0. [writable] Table
-///   1. [signer] Provider (entropy provider)
+///   1. [signer, writable] Provider (entropy provider, pays entropy request rent)
 ///   2. [] Config
 ///   3. [] Clock sysvar (for action deadline calculation)
 ///   4. [] Entropy program

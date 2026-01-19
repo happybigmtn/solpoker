@@ -693,6 +693,9 @@ fn process_start_hand(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if !provider_info.is_signer() {
         return Err(PokerError::MissingSigner.into());
     }
+    if !provider_info.is_writable() {
+        return Err(PokerError::AccountNotWritable.into());
+    }
 
     // Duplicate mutable accounts (AC-7.3)
     if table_info.key() == entropy_request_info.key() {
