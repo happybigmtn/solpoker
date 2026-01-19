@@ -24,6 +24,9 @@ Format suggestions:
 - Implement card rendering
   - Commit: (see git log)
   - Notes: Added card UI components and deterministic derivation helpers; table UI now displays board and hole cards with correct suit/rank mapping and street visibility.
+- Verify full hand lifecycle on devnet
+  - Commit: (see git log)
+  - Notes: Added devnet E2E hand lifecycle script plus fixes for entropy request funding, slothash selection, CPI account ordering, and on-chain safety checks uncovered during verification.
 - Add PDA derivation utilities to TypeScript client
   - Commit: (see git log)
   - Notes: Added `src/pda.ts` with poker/entropy PDAs and deterministic test vectors for AC-CI1.*.

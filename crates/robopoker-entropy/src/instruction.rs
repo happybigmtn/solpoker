@@ -115,10 +115,11 @@ impl Reveal {
 /// Accounts:
 ///   0. [writable] Request PDA
 ///   1. [signer] Requester (poker program PDA or authority)
-///   2. [] Commitment
-///   3. [] Config
-///   4. [] SlotHashes sysvar
-///   5. [] System program
+///   2. [writable, signer] Payer (funds request account creation)
+///   3. [] Commitment
+///   4. [] Config
+///   5. [] SlotHashes sysvar
+///   6. [] System program
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Request {

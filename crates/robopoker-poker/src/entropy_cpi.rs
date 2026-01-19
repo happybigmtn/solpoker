@@ -17,6 +17,7 @@ pub fn request_signed(
     entropy_program: &AccountInfo,
     request: &AccountInfo,
     requester: &AccountInfo,
+    payer: &AccountInfo,
     commitment: &AccountInfo,
     config: &AccountInfo,
     slothashes: &AccountInfo,
@@ -31,6 +32,7 @@ pub fn request_signed(
     let metas = [
         AccountMeta::writable(request.key()),
         AccountMeta::readonly_signer(requester.key()),
+        AccountMeta::writable_signer(payer.key()),
         AccountMeta::readonly(commitment.key()),
         AccountMeta::readonly(config.key()),
         AccountMeta::readonly(slothashes.key()),
@@ -43,8 +45,8 @@ pub fn request_signed(
         data: &data,
     };
 
-    let infos = [request, requester, commitment, config, slothashes, system_program, entropy_program];
-    invoke_signed::<7>(&ix, &infos, signer_seeds)
+    let infos = [request, requester, payer, commitment, config, slothashes, system_program, entropy_program];
+    invoke_signed::<8>(&ix, &infos, signer_seeds)
 }
 
 pub fn finalize(

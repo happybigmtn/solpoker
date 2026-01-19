@@ -367,19 +367,27 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidInstruction.into());
     }
 
-    let [request_info, requester_info, commitment_info, config_info, slothashes_info, system_program_info] =
+    let [request_info, requester_info, payer_info, commitment_info, config_info, slothashes_info, system_program_info] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
     // Duplicate mutable account checks (AC-7.3)
-    if request_info.key() == requester_info.key() || request_info.key() == commitment_info.key() {
+    if request_info.key() == requester_info.key()
+        || request_info.key() == commitment_info.key()
+        || request_info.key() == payer_info.key()
+    {
         return Err(EntropyError::DuplicateMutableAccount.into());
     }
 
     // Requester must sign
     if !requester_info.is_signer() {
+        return Err(EntropyError::MissingSigner.into());
+    }
+
+    // Payer must sign
+    if !payer_info.is_signer() {
         return Err(EntropyError::MissingSigner.into());
     }
 
@@ -447,16 +455,6 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     }
     drop(commitment_data);
 
-    // Prevent re-initialization of request account
-    let request_check = request_info.try_borrow_data()?;
-    if request_check.len() >= REQUEST_SIZE {
-        let existing = unsafe { state::Request::from_bytes_unchecked(&request_check) };
-        if existing.discriminator == acc_disc::REQUEST {
-            return Err(EntropyError::AlreadyInitialized.into());
-        }
-    }
-    drop(request_check);
-
     // Parse instruction data
     let ix = unsafe { instruction::Request::from_bytes_unchecked(data) };
 
@@ -467,16 +465,54 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         requester_info.key().as_ref(),
         request_id_bytes.as_slice(),
     ];
-    let (expected_request, _) = pubkey::find_program_address(&request_seeds, &crate::ID);
+    let (expected_request, bump) = pubkey::find_program_address(&request_seeds, &crate::ID);
     if request_info.key() != &expected_request {
         return Err(EntropyError::InvalidPda.into());
     }
 
-    // Get current slot and slothash
+    // Create request account if it doesn't exist (BEFORE any borrows)
+    if request_info.data_len() == 0 {
+        // Calculate rent-exempt lamports
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(REQUEST_SIZE);
+
+        // Build PDA signer seeds
+        let bump_seed = [bump];
+        let requester_key_bytes: [u8; 32] = *requester_info.key();
+        let signer_seeds = pinocchio::seeds!(b"request", &requester_key_bytes, request_id_bytes.as_slice(), &bump_seed);
+        let signer = pinocchio::instruction::Signer::from(&signer_seeds);
+
+        // Create the account (payer funds it)
+        CreateAccount {
+            from: payer_info,
+            to: request_info,
+            lamports,
+            space: REQUEST_SIZE as u64,
+            owner: &crate::ID,
+        }
+        .invoke_signed(&[signer])?;
+    } else {
+        // Account already exists, check if owned by this program
+        if !request_info.is_owned_by(&crate::ID) {
+            return Err(EntropyError::InvalidAccountOwner.into());
+        }
+
+        // Prevent re-initialization of request account
+        let request_check = request_info.try_borrow_data()?;
+        if request_check.len() >= REQUEST_SIZE {
+            let existing = unsafe { state::Request::from_bytes_unchecked(&request_check) };
+            if existing.discriminator == acc_disc::REQUEST {
+                return Err(EntropyError::AlreadyInitialized.into());
+            }
+        }
+        drop(request_check);
+    }
+
+    // Get current slot for deadline calculation
     let clock = Clock::get()?;
 
-    // Get slothash from sysvar
-    let slothash = get_recent_slothash(slothashes_info, clock.slot)?;
+    // Get most recent slothash from sysvar (current slot won't have hash yet)
+    let (slothash, _hash_slot) = get_recent_slothash(slothashes_info)?;
 
     // Calculate deadline
     let deadline_slot = clock
@@ -784,34 +820,44 @@ fn process_update_config(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult
     Ok(())
 }
 
-/// Get recent slothash from the SlotHashes sysvar
-fn get_recent_slothash(slothashes_info: &AccountInfo, slot: u64) -> Result<[u8; 32], ProgramError> {
+/// Get the most recent slothash from the SlotHashes sysvar.
+///
+/// Note: The current slot being processed won't have a hash yet (only parent
+/// slots do), so we return the hash of the most recent available slot, which
+/// is the first entry in the descending-sorted SlotHashes sysvar.
+fn get_recent_slothash(slothashes_info: &AccountInfo) -> Result<([u8; 32], u64), ProgramError> {
     let data = slothashes_info.try_borrow_data()?;
     let slot_hashes = SlotHashes::new(data)?;
-    slot_hashes
-        .get_hash(slot)
-        .copied()
-        .ok_or(EntropyError::InvalidSlothash.into())
+    // SlotHashes are sorted in descending order, so first entry is most recent
+    let entry = slot_hashes
+        .get_entry(0)
+        .ok_or(EntropyError::InvalidSlothash)?;
+    Ok((entry.hash, entry.slot()))
 }
 
-/// Transfer lamports between accounts
+/// Transfer lamports between accounts (safe checked arithmetic)
 fn transfer_lamports(
     from: &AccountInfo,
     to: &AccountInfo,
     amount: u64,
 ) -> ProgramResult {
-    // Use unsafe lamport manipulation for PDA-owned accounts
-    // In production, this would use proper checked math
     let from_lamports = from.lamports();
     let to_lamports = to.lamports();
 
-    if from_lamports < amount {
-        return Err(ProgramError::InsufficientFunds);
-    }
+    // Checked subtraction to prevent underflow
+    let new_from_lamports = from_lamports
+        .checked_sub(amount)
+        .ok_or(ProgramError::InsufficientFunds)?;
 
+    // Checked addition to prevent overflow
+    let new_to_lamports = to_lamports
+        .checked_add(amount)
+        .ok_or(EntropyError::ArithmeticOverflow)?;
+
+    // Safe: we've verified the arithmetic above
     unsafe {
-        *from.borrow_mut_lamports_unchecked() = from_lamports - amount;
-        *to.borrow_mut_lamports_unchecked() = to_lamports + amount;
+        *from.borrow_mut_lamports_unchecked() = new_from_lamports;
+        *to.borrow_mut_lamports_unchecked() = new_to_lamports;
     }
 
     Ok(())

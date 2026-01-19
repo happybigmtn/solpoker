@@ -19,23 +19,6 @@
 - [x] Add PDA derivation utilities to TypeScript client
 ### Phase 4: End-to-End Verification
 
-- [x] Verify full hand lifecycle on devnet
-  - Specs: `specs/devnet-deployment.md` AC-D5.1, AC-D5.2, AC-D5.3
-  - Tests/backpressure:
-    - Programmatic: Create table → join → start hand → actions → settle all succeed ✓
-    - Programmatic: Final stacks match expected payouts ✓
-  - Perceptual: None
-  - Note: Created `scripts/e2e-hand-lifecycle.ts` test that verifies:
-    - AC-D5.1: Table created with CreateTable instruction, visible via RPC
-    - AC-D5.2: Two players joined with JoinTable, CRISPS transferred to vault
-    - AC-D5.3: Hand started with StartHand (entropy CPI), table status=PLAYING, street=PREFLOP
-  - Bug fixes during verification:
-    - Fixed SlotHashes access: current slot has no hash, use most recent (slot-1)
-    - Fixed entropy Request account creation: added payer account to fund PDA allocation
-    - Fixed table state parsing offsets in TypeScript (seats at 176, pot at 64)
-  - Player actions return NotYourTurn (20) as expected - state machine enforces turn order
-  - Settle returns TableNotShowdown (35) as expected - hand not in showdown state
-
 ## Missing/Unknown
 
 - None

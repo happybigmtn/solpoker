@@ -375,6 +375,11 @@ fn process_join_table(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(PokerError::MissingSigner.into());
     }
 
+    // Writable account checks
+    if !table_info.is_writable() || !vault_info.is_writable() || !player_token_info.is_writable() {
+        return Err(PokerError::AccountNotWritable.into());
+    }
+
     // Duplicate mutable accounts (AC-7.3)
     if table_info.key() == vault_info.key()
         || table_info.key() == player_token_info.key()
@@ -523,6 +528,11 @@ fn process_leave_table(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult 
     // Player must sign
     if !player_info.is_signer() {
         return Err(PokerError::MissingSigner.into());
+    }
+
+    // Writable account checks
+    if !table_info.is_writable() || !vault_info.is_writable() || !player_token_info.is_writable() {
+        return Err(PokerError::AccountNotWritable.into());
     }
 
     // Duplicate mutable accounts (AC-7.3)
@@ -722,11 +732,15 @@ fn process_start_hand(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Entropy accounts must be owned by the entropy program
+    // Entropy config and commitment must be owned by the entropy program
+    // Request may be uninitialized (will be created via CPI during start_hand)
     if entropy_config_info.owner() != &entropy_program_id
         || entropy_commitment_info.owner() != &entropy_program_id
-        || entropy_request_info.owner() != &entropy_program_id
     {
+        return Err(PokerError::InvalidAccountOwner.into());
+    }
+    // Request must either be uninitialized (no data) OR owned by entropy program
+    if entropy_request_info.data_len() > 0 && entropy_request_info.owner() != &entropy_program_id {
         return Err(PokerError::InvalidAccountOwner.into());
     }
 
@@ -839,6 +853,7 @@ fn process_start_hand(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         entropy_program_info,
         entropy_request_info,
         table_info,
+        provider_info, // Provider pays for request account creation
         entropy_commitment_info,
         entropy_config_info,
         slothashes_info,
@@ -994,6 +1009,11 @@ fn find_next_active_seat(table: &Table, from: usize) -> usize {
 
 /// Extract current slot from Clock sysvar account data
 fn get_current_slot(clock_info: &AccountInfo) -> Result<u64, ProgramError> {
+    // Verify this is actually the Clock sysvar
+    if clock_info.key() != &pinocchio::sysvars::clock::CLOCK_ID {
+        return Err(PokerError::InvalidSysvar.into());
+    }
+
     // Clock sysvar layout (first 8 bytes is slot)
     let clock_data = clock_info.try_borrow_data()?;
     if clock_data.len() < 8 {
@@ -1105,6 +1125,11 @@ fn process_player_action(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult
     // Player must sign
     if !player_info.is_signer() {
         return Err(PokerError::MissingSigner.into());
+    }
+
+    // Table must be writable
+    if !table_info.is_writable() {
+        return Err(PokerError::AccountNotWritable.into());
     }
 
     // Accounts must be owned by this program
@@ -1596,13 +1621,11 @@ fn process_settle(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     let total_risked: u64 = participants[..participant_count]
         .iter()
         .map(|(_, bet, _, _)| *bet)
-        .fold(0u64, |acc, x| acc.saturating_add(x));
+        .try_fold(0u64, |acc, x| acc.checked_add(x).ok_or(PokerError::ArithmeticOverflow))?;
 
-    // Verify pot matches total risked (invariant check)
-    // Note: pot should equal total_risked at this point
+    // Verify pot matches total risked (invariant check - fail hard to catch accounting bugs)
     if table.pot != total_risked {
-        // Allow slight discrepancy due to pot tracking, but log concern
-        // For strict AC-6.2 compliance, we use total_risked as source of truth
+        return Err(PokerError::PotInvariantViolation.into());
     }
 
     // AC-3.4: Calculate and deduct rake from pot before distribution
@@ -1730,14 +1753,18 @@ fn process_settle(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
 
             for i in 0..winner_count {
                 let seat_idx = winner_indices[i];
-                winnings[seat_idx] = winnings[seat_idx].saturating_add(share);
+                winnings[seat_idx] = winnings[seat_idx]
+                    .checked_add(share)
+                    .ok_or(PokerError::ArithmeticOverflow)?;
             }
 
             // Distribute remainder (odd chips) to first winners
             for i in 0..(remainder as usize) {
                 if i < winner_count {
                     let seat_idx = winner_indices[i];
-                    winnings[seat_idx] = winnings[seat_idx].saturating_add(1);
+                    winnings[seat_idx] = winnings[seat_idx]
+                        .checked_add(1)
+                        .ok_or(PokerError::ArithmeticOverflow)?;
                 }
             }
         }
@@ -1746,9 +1773,11 @@ fn process_settle(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     }
 
     // AC-6.2: Verify total payouts = total risked (before rake)
-    let total_payout: u64 = winnings.iter().fold(0u64, |acc, x| acc.saturating_add(*x));
+    let total_payout: u64 = winnings.iter().try_fold(0u64, |acc, x| {
+        acc.checked_add(*x).ok_or(PokerError::ArithmeticOverflow)
+    })?;
     if total_payout != total_risked {
-        return Err(PokerError::ArithmeticOverflow.into());
+        return Err(PokerError::PotInvariantViolation.into());
     }
 
     // AC-3.4: Scale down winnings to account for rake deduction
@@ -1764,15 +1793,21 @@ fn process_settle(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
                     .checked_div(total_risked as u128)
                     .ok_or(PokerError::ArithmeticOverflow)? as u64;
                 winnings[i] = scaled;
-                scaled_total = scaled_total.saturating_add(scaled);
+                scaled_total = scaled_total
+                    .checked_add(scaled)
+                    .ok_or(PokerError::ArithmeticOverflow)?;
             }
         }
         // Distribute any rounding remainder to first winner with winnings
-        let remainder = distributable_pot.saturating_sub(scaled_total);
+        let remainder = distributable_pot
+            .checked_sub(scaled_total)
+            .ok_or(PokerError::ArithmeticOverflow)?;
         if remainder > 0 {
             for i in 0..MAX_SEATS {
                 if winnings[i] > 0 {
-                    winnings[i] = winnings[i].saturating_add(remainder);
+                    winnings[i] = winnings[i]
+                        .checked_add(remainder)
+                        .ok_or(PokerError::ArithmeticOverflow)?;
                     break;
                 }
             }
@@ -1786,7 +1821,9 @@ fn process_settle(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         }
 
         // Add winnings to stack
-        seat.stack = seat.stack.saturating_add(winnings[i]);
+        seat.stack = seat.stack
+            .checked_add(winnings[i])
+            .ok_or(PokerError::ArithmeticOverflow)?;
 
         // Reset hand state
         seat.current_bet = 0;
