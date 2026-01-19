@@ -119,6 +119,16 @@ const mockBuildLeaveTableData = buildLeaveTableData as ReturnType<typeof vi.fn>;
 const mockGetJoinTableAccountMetas = getJoinTableAccountMetas as ReturnType<typeof vi.fn>;
 const mockGetLeaveTableAccountMetas = getLeaveTableAccountMetas as ReturnType<typeof vi.fn>;
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('useTableAction', () => {
   const mockConfig = {
     tableAddress: 'mockTableAddress' as Address,
@@ -246,29 +256,45 @@ describe('useTableAction', () => {
     });
 
     it('sets pending state immediately on join', async () => {
+      const deferred = createDeferred<void>();
+      mockSendAndConfirmTransactionFactory.mockReturnValue(() => deferred.promise);
       const { result } = renderHook(() => useTableAction(mockConfig));
 
+      let joinPromise: Promise<unknown> = Promise.resolve();
       // Start action but don't await
       act(() => {
-        result.current.joinTable(1000000n);
+        joinPromise = result.current.joinTable(1000000n);
       });
 
       // State should be pending immediately
       expect(result.current.txState).toBe('pending');
       expect(result.current.isPending).toBe(true);
+
+      await act(async () => {
+        deferred.resolve();
+        await joinPromise;
+      });
     });
 
     it('sets pending state immediately on leave', async () => {
+      const deferred = createDeferred<void>();
+      mockSendAndConfirmTransactionFactory.mockReturnValue(() => deferred.promise);
       const { result } = renderHook(() => useTableAction(mockConfig));
 
+      let leavePromise: Promise<unknown> = Promise.resolve();
       // Start action but don't await
       act(() => {
-        result.current.leaveTable();
+        leavePromise = result.current.leaveTable();
       });
 
       // State should be pending immediately
       expect(result.current.txState).toBe('pending');
       expect(result.current.isPending).toBe(true);
+
+      await act(async () => {
+        deferred.resolve();
+        await leavePromise;
+      });
     });
 
     it('sets confirmed state on successful transaction', async () => {
