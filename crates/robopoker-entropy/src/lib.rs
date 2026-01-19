@@ -24,7 +24,7 @@ pub mod processor;
 pub mod state;
 
 // Program ID - will be replaced with actual deployed address
-pinocchio_pubkey::declare_id!("EntrPy1111111111111111111111111111111111111");
+pinocchio_pubkey::declare_id!("GG5nqvfpYHXyMF5A5yyMYjTCKQmKTDjMheJ4iCRSvTRf");
 
 pinocchio::program_entrypoint!(process_instruction);
 
