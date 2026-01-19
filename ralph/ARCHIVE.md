@@ -24,3 +24,6 @@ Format suggestions:
 - Betting rounds + action validation
   - Commit: `26b8134`
   - Notes: Reviewed betting action validation and raise/all-in handling against AC-5.1–AC-5.3.
+- Settlement + side pots
+  - Commit: `26b8134`
+  - Notes: Reviewed side-pot distribution logic and showdown eligibility handling for AC-6.1–AC-6.2.

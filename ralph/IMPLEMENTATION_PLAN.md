@@ -5,12 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Settlement + side pots
-  - Specs: `specs/onchain-poker.md` AC-6.1, AC-6.2
-  - Tests/backpressure:
-    - Programmatic: Mollusk test for multiway side-pot payout correctness
-  - Perceptual: None
-
 - [x] Security validations pass
   - Specs: `specs/onchain-poker.md` AC-7.1, AC-7.2, AC-7.3, AC-7.4
   - Tests/backpressure:
