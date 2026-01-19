@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Scaffold workspace + deterministic core crate
-  - Specs: `specs/onchain-poker.md` AC-1.1, AC-1.2, AC-1.3, AC-1.6
-  - Tests/backpressure:
-    - Programmatic: `cargo test -p robopoker-core` includes deterministic deck test
-    - Programmatic: static check that core crate has no `rand` dependency
-  - Perceptual: None
-
 - [x] Entropy program MVP + provider service
   - Specs: `specs/onchain-poker.md` AC-2.1, AC-2.2, AC-2.3, AC-2.4, AC-2.5
   - Tests/backpressure:
