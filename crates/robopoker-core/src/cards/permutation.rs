@@ -1,7 +1,6 @@
 use super::hand::Hand;
 use super::observation::Observation;
 use super::suit::Suit;
-use crate::Arbitrary;
 
 /// an array of 4 unique Suits represents
 /// any of the 4! = 24 elements in the Suit permutation group.
@@ -57,8 +56,8 @@ impl Permutation {
     /// 5. who has stronger pocket cards? redundant, tbh. due to 3.
     /// 6. who has stronger public cards?
     /// 7. tie delegates to Suit order
-    fn order(hearts: &(Suit, Hand, Hand), spades: &(Suit, Hand, Hand)) -> std::cmp::Ordering {
-        std::cmp::Ordering::Equal
+    fn order(hearts: &(Suit, Hand, Hand), spades: &(Suit, Hand, Hand)) -> core::cmp::Ordering {
+        core::cmp::Ordering::Equal
             .then_with(|| hearts.1.size().cmp(&spades.1.size()))
             .then_with(|| hearts.2.size().cmp(&spades.2.size()))
             .then_with(|| hearts.1.min_rank().cmp(&spades.1.min_rank()))
@@ -130,16 +129,9 @@ impl Permutation {
     }
 }
 
-impl Arbitrary for Permutation {
-    fn random() -> Self {
-        use rand::prelude::IndexedRandom;
-        let ref mut rng = rand::rng();
-        Self::exhaust().choose(rng).copied().unwrap()
-    }
-}
 
-impl std::fmt::Display for Permutation {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Permutation {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         Suit::all()
             .iter()
             .map(|s| writeln!(f, "{} -> {}", s, self.map(s)))
@@ -218,9 +210,8 @@ mod tests {
 
     #[test]
     fn permute_identity() {
-        use crate::Arbitrary;
         let permutation = Permutation::identity();
-        let hand = Hand::random();
+        let hand = Hand::try_from("Ac Kd Qh Js 2c 5d 8h").unwrap();
         assert!(permutation.image(&hand) == hand);
     }
 }

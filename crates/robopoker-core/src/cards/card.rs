@@ -1,5 +1,7 @@
 use super::rank::Rank;
 use super::suit::Suit;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 /// Card represents a playing card
 /// it is a tuple of Rank and Suit
@@ -68,8 +70,8 @@ impl From<Card> for u64 {
     }
 }
 
-impl std::fmt::Display for Card {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Card {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}{}", self.rank(), self.suit())
     }
 }

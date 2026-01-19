@@ -1,6 +1,10 @@
 use super::*;
 use crate::*;
-use std::cmp::Ordering;
+use alloc::collections::BTreeSet;
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 
 /// Observation represents the memoryless state of the game in between chance actions.
 ///
@@ -62,7 +66,7 @@ impl Observation {
 /// Good for database serialization. Interchangable with u64
 impl From<Observation> for i64 {
     fn from(observation: Observation) -> Self {
-        std::iter::empty::<Card>()
+        core::iter::empty::<Card>()
             .chain(observation.public.into_iter())
             .chain(observation.pocket.into_iter())
             .map(|card| 1 + u8::from(card) as u64) // distinguish 0x00 and 2c
@@ -104,10 +108,11 @@ impl From<(Hand, Hand)> for Observation {
     }
 }
 
-/// Generate a random observation for a given street
-impl From<Street> for Observation {
-    fn from(street: Street) -> Self {
+impl Observation {
+    /// Generate an observation for a given street using a seed for deterministic shuffling (AC-1.1).
+    pub fn from_street_with_seed(street: Street, seed: &[u8; 32]) -> Self {
         let mut deck = Deck::new();
+        deck.shuffle_with_seed(seed);
         let n = street.n_observed();
         let pocket = (0..2)
             .map(|_| deck.draw())
@@ -120,6 +125,13 @@ impl From<Street> for Observation {
             .map(Hand::from)
             .fold(Hand::empty(), Hand::add);
         Self::from((pocket, public))
+    }
+}
+
+/// Generate an observation for a given street using a zero seed (deterministic, for testing).
+impl From<Street> for Observation {
+    fn from(street: Street) -> Self {
+        Self::from_street_with_seed(street, &[0u8; 32])
     }
 }
 
@@ -141,11 +153,7 @@ impl From<Observation> for Hand {
 impl TryFrom<Vec<Card>> for Observation {
     type Error = String;
     fn try_from(cards: Vec<Card>) -> Result<Self, Self::Error> {
-        if cards
-            .iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            == cards.len()
+        if cards.iter().collect::<BTreeSet<_>>().len() == cards.len()
         {
             match cards.len() {
                 2 | 5 | 6 | 7 => Ok(Self::from((
@@ -176,15 +184,10 @@ impl TryFrom<&str> for Observation {
     }
 }
 
-impl Arbitrary for Observation {
-    fn random() -> Self {
-        Self::from(Street::random())
-    }
-}
 
 /// display Observation as pocket + public
-impl std::fmt::Display for Observation {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Observation {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{} {} {}", self.pocket, Self::SEPARATOR, self.public)
     }
 }
@@ -195,7 +198,8 @@ mod tests {
 
     #[test]
     fn bijective_i64() {
-        let random = Observation::random();
-        assert!(random == Observation::from(i64::from(random)));
+        // Use a known observation instead of random
+        let obs = Observation::try_from("As Kd ~ Qc Jh Ts").unwrap();
+        assert!(obs == Observation::from(i64::from(obs)));
     }
 }

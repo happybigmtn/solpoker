@@ -56,8 +56,8 @@ impl Ranking {
     }
 }
 
-impl std::fmt::Display for Ranking {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Ranking {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Ranking::MAX => unreachable!(),
             Ranking::FullHouse(r1, r2) => write!(f, "FullHouse     {}{}", r1, r2),

@@ -34,8 +34,8 @@ impl From<(Ranking, Kickers)> for Strength {
     }
 }
 
-impl std::fmt::Display for Strength {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Strength {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{:<18}{:>5}", self.value, self.kicks)
     }
 }

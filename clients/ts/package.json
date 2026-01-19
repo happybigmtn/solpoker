@@ -1,0 +1,33 @@
+{
+  "name": "@robopoker/client",
+  "version": "0.1.0",
+  "description": "TypeScript client SDK for robopoker on-chain poker program",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@solana/kit": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.0.17"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "license": "MIT"
+}

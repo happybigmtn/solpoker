@@ -168,8 +168,8 @@ impl From<i64> for Street {
     }
 }
 
-impl std::fmt::Display for Street {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Street {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Self::Pref => write!(f, "preflop"),
             Self::Flop => write!(f, "flop"),
@@ -180,97 +180,14 @@ impl std::fmt::Display for Street {
 }
 
 impl TryFrom<&str> for Street {
-    type Error = anyhow::Error;
+    type Error = &'static str;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s.to_uppercase().chars().next() {
             Some('P') => Ok(Self::Pref),
             Some('F') => Ok(Self::Flop),
             Some('T') => Ok(Self::Turn),
             Some('R') => Ok(Self::Rive),
-            _ => Err(anyhow::anyhow!("invalid street character")),
+            _ => Err("invalid street character"),
         }
-    }
-}
-
-impl crate::Arbitrary for Street {
-    fn random() -> Self {
-        match rand::random_range(0..4) {
-            0 => Self::Pref,
-            1 => Self::Flop,
-            2 => Self::Turn,
-            _ => Self::Rive,
-        }
-    }
-}
-
-#[cfg(feature = "database")]
-impl crate::save::Schema for Street {
-    fn name() -> &'static str {
-        crate::save::STREET
-    }
-    fn creates() -> &'static str {
-        const_format::concatcp!(
-            "CREATE TABLE IF NOT EXISTS ",
-            crate::save::STREET,
-            " (
-                street     SMALLINT,
-                nobs       INTEGER,
-                nabs       INTEGER
-            );
-            TRUNCATE TABLE ",
-            crate::save::STREET,
-            ";
-            CREATE OR REPLACE FUNCTION get_nabs(s SMALLINT) RETURNS INTEGER AS
-            $$ BEGIN RETURN (SELECT COUNT(*) FROM ",
-            crate::save::ABSTRACTION,
-            " a WHERE a.street = s); END; $$
-            LANGUAGE plpgsql;"
-        )
-    }
-    fn indices() -> &'static str {
-        const_format::concatcp!(
-            "CREATE INDEX IF NOT EXISTS idx_",
-            crate::save::STREET,
-            "_st ON ",
-            crate::save::STREET,
-            " (street);"
-        )
-    }
-    fn copy() -> &'static str {
-        unimplemented!("Street is derived, not loaded from files")
-    }
-    fn truncates() -> &'static str {
-        const_format::concatcp!("TRUNCATE TABLE ", crate::save::STREET, ";")
-    }
-    fn freeze() -> &'static str {
-        const_format::concatcp!(
-            "ALTER TABLE ",
-            crate::save::STREET,
-            " SET (fillfactor = 100);
-            ALTER TABLE ",
-            crate::save::STREET,
-            " SET (autovacuum_enabled = false);"
-        )
-    }
-    fn columns() -> &'static [tokio_postgres::types::Type] {
-        unimplemented!("Street is derived, not loaded from files")
-    }
-}
-
-#[cfg(feature = "database")]
-impl crate::save::Derive for Street {
-    fn exhaust() -> Vec<Self> {
-        Self::all().iter().rev().copied().collect()
-    }
-    fn inserts(&self) -> String {
-        let s = self.clone() as i16;
-        let n = self.n_isomorphisms() as i32;
-        format!(
-            "INSERT INTO {} (street, nobs, nabs) VALUES ({}, {}, get_nabs({}::SMALLINT));",
-            crate::save::STREET,
-            s,
-            n,
-            s
-        )
     }
 }

@@ -1,7 +1,8 @@
 use super::card::Card;
 use super::rank::Rank;
 use super::suit::Suit;
-use crate::Arbitrary;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 /// Hand represents an unordered set of Cards. only in the limit, it is more memory efficient than Vec<Card>, ... but also, an advantage even for small N is that we avoid heap allocation. nice to use a single word for the full Hand independent of size stored as a u64, but only needs LSB bitstring of 52 bits. Each bit represents a unique card in the (unordered) set.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,14 +53,6 @@ impl Hand {
 
     pub fn contains(&self, card: &Card) -> bool {
         self.0 & (1 << u8::from(*card)) != 0
-    }
-
-    pub fn shuffle(&self) -> Vec<Card> {
-        use rand::seq::SliceRandom;
-        let ref mut rng = rand::rng();
-        let mut cards = Vec::<Card>::from(self.clone());
-        cards.shuffle(rng);
-        cards
     }
 
     /// one-way conversion to u16 Rank masks
@@ -181,15 +174,15 @@ impl TryFrom<&str> for Hand {
     }
 }
 
-impl std::ops::Add<Self> for Hand {
+impl core::ops::Add<Self> for Hand {
     type Output = Self;
     fn add(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 }
 
-impl std::fmt::Display for Hand {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Hand {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         for card in Vec::<Card>::from(*self) {
             write!(f, "{}", card)?;
         }
@@ -197,13 +190,6 @@ impl std::fmt::Display for Hand {
     }
 }
 
-impl Arbitrary for Hand {
-    fn random() -> Self {
-        let cards = rand::random::<u64>();
-        let cards = cards & Self::mask();
-        Self(cards)
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -211,7 +197,8 @@ mod tests {
 
     #[test]
     fn bijective_u64() {
-        let hand = Hand::random();
+        // Test with a known hand instead of random
+        let hand = Hand::try_from("Ac Kd Qh Js").unwrap();
         assert_eq!(hand, Hand::from(u64::from(hand)));
     }
 

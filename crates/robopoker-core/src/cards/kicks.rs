@@ -1,4 +1,5 @@
 use super::rank::Rank;
+use alloc::vec::Vec;
 
 /// A hand's kicker cards.
 ///
@@ -51,8 +52,8 @@ impl From<Vec<Rank>> for Kickers {
     }
 }
 
-impl std::fmt::Display for Kickers {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Kickers {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         for rank in Vec::<Rank>::from(self.clone()) {
             write!(f, "{} ", rank)?;
         }

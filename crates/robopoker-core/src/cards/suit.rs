@@ -1,3 +1,6 @@
+use alloc::format;
+use alloc::string::{String, ToString};
+
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Suit {
     #[default]
@@ -71,8 +74,8 @@ impl TryFrom<&str> for Suit {
     }
 }
 
-impl std::fmt::Display for Suit {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Suit {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Suit::C => write!(f, "c"),
             Suit::D => write!(f, "d"),

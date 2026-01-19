@@ -1,5 +1,8 @@
 use crate::cards::*;
 use crate::*;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 const MASK: u32 = 0xFF;
 const BITS: u32 = MASK.count_ones();
@@ -183,8 +186,8 @@ impl TryFrom<&str> for Action {
         }
     }
 }
-impl std::fmt::Display for Action {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Action {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Action::Fold => write!(f, "FOLD"),
             Action::Check => write!(f, "CHECK"),
@@ -197,20 +200,6 @@ impl std::fmt::Display for Action {
     }
 }
 
-#[cfg(feature = "server")]
-impl From<Action> for colored::Color {
-    fn from(action: Action) -> Self {
-        match action {
-            Action::Fold => colored::Color::Red,
-            Action::Check => colored::Color::Yellow,
-            Action::Call(_) => colored::Color::Green,
-            Action::Raise(_) => colored::Color::Green,
-            Action::Shove(_) => colored::Color::Green,
-            Action::Blind(_) => colored::Color::White,
-            Action::Draw(_) => colored::Color::White,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,9 @@
 use super::*;
 use crate::cards::*;
 use crate::*;
-use std::ops::Not;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::ops::Not;
 
 type Position = usize;
 
@@ -21,8 +23,19 @@ pub struct Game {
 }
 
 impl Default for Game {
+    /// Creates a game with a zero seed (for testing/defaults).
+    /// For on-chain use, prefer `Game::with_seed` with entropy from the RNG program.
     fn default() -> Self {
+        Self::with_seed(&[0u8; 32])
+    }
+}
+
+impl Game {
+    /// Create a new game with the given 32-byte seed for deterministic deck shuffling (AC-1.1).
+    /// The seed should come from the entropy program for on-chain use.
+    pub fn with_seed(seed: &[u8; 32]) -> Self {
         let mut deck = Deck::new();
+        deck.shuffle_with_seed(seed);
         Self {
             pot: 0,
             board: Board::empty(),
@@ -191,13 +204,7 @@ impl Game {
     }
 
     fn give_chips(&mut self) {
-        for (_, (settlement, seat)) in self
-            .settlements()
-            .iter()
-            .zip(self.seats.iter_mut())
-            .enumerate()
-            .inspect(|(i, (x, s))| log::trace!("{} {} {:>7} {}", i, s.cards(), s.stack(), x.won()))
-        {
+        for (settlement, seat) in self.settlements().iter().zip(self.seats.iter_mut()) {
             seat.win(settlement.pnl().reward());
         }
         self.pot = 0;
@@ -413,7 +420,7 @@ impl Game {
             });
         let relative_raise = most_large_stake - self.actor().stake();
         let marginal_raise = most_large_stake - next_large_stake;
-        let required_raise = std::cmp::max(marginal_raise, Self::bblind());
+        let required_raise = core::cmp::max(marginal_raise, Self::bblind());
         relative_raise + required_raise
     }
 
@@ -543,8 +550,8 @@ impl Game {
     }
 }
 
-impl std::fmt::Display for Game {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Game {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         for seat in self.seats.iter() {
             writeln!(
                 f,

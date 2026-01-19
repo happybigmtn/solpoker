@@ -5,6 +5,11 @@
 /analysis
 /.vscode
 /.claude
+/ralph/target
+/clients/ui/.next
+/clients/ui/node_modules
+/clients/ts/node_modules
+/clients/ts/dist
 
 .cursorrules
 .DS_Store

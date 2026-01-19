@@ -21,8 +21,9 @@ impl PnL {
     pub fn add(&mut self, amount: Chips) {
         self.reward += amount;
     }
+    /// Returns the net profit (reward - risked). With u64 Chips, this saturates at 0 for losses.
     pub fn won(&self) -> Chips {
-        self.reward() - self.risked()
+        self.reward().saturating_sub(self.risked())
     }
     pub fn reward(&self) -> Chips {
         self.reward
@@ -35,8 +36,8 @@ impl PnL {
     }
 }
 
-impl std::fmt::Display for PnL {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for PnL {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{:+}", self.won())
     }
 }

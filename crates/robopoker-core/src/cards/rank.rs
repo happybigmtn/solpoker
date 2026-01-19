@@ -1,3 +1,6 @@
+use alloc::format;
+use alloc::string::String;
+
 #[derive(Debug, Default, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Rank {
     #[default]
@@ -102,8 +105,8 @@ impl TryFrom<&str> for Rank {
     }
 }
 
-impl std::fmt::Display for Rank {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Rank {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Rank::Two => write!(f, "2"),
             Rank::Three => write!(f, "3"),

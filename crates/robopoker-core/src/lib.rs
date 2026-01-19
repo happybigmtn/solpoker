@@ -1,8 +1,12 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 pub mod cards;
 pub mod gameplay;
 
-/// dimensional analysis types
-pub type Chips = i16;
+/// Chips and pot values use u64 across on-chain paths (AC-1.3)
+pub type Chips = u64;
 pub type Utility = f32;
 pub type Probability = f32;
 
@@ -11,8 +15,3 @@ pub const N: usize = 2;
 pub const STACK: Chips = 100;
 pub const B_BLIND: Chips = 2;
 pub const S_BLIND: Chips = 1;
-
-/// trait for random generation, mainly (strictly?) for testing
-pub trait Arbitrary {
-    fn random() -> Self;
-}

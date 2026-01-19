@@ -1,6 +1,7 @@
 use crate::Chips;
 use crate::cards::*;
 use crate::gameplay::*;
+use alloc::vec::Vec;
 
 // ephemeral data structure that is used to calculate the results of a hand by
 // iterating over hand.actions to calculate side pots, handling every edge
@@ -62,8 +63,8 @@ impl Showdown {
         self.payouts
             .iter()
             .map(|p| p.pnl().risked())
-            .map(|s| std::cmp::min(s, self.distributing))
-            .map(|s| (s - self.distributed).max(0))
+            .map(|s| core::cmp::min(s, self.distributing))
+            .map(|s| s.saturating_sub(self.distributed))
             .sum()
     }
     fn distribute(&mut self) {

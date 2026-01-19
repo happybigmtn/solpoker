@@ -1,5 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/robopoker-core"
+  "crates/robopoker-core",
+  "crates/robopoker-entropy",
+  "crates/robopoker-poker"
 ]

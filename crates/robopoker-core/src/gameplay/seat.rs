@@ -1,5 +1,6 @@
 use crate::Chips;
 use crate::cards::*;
+use alloc::format;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Seat {
@@ -68,8 +69,8 @@ impl Seat {
     }
 }
 
-impl std::fmt::Display for Seat {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Seat {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(
             f,
             "{} {} {}",
@@ -94,19 +95,19 @@ impl State {
 }
 
 impl TryFrom<&str> for State {
-    type Error = anyhow::Error;
+    type Error = &'static str;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s.to_uppercase().as_str() {
             "P" => Ok(State::Betting),
             "S" => Ok(State::Shoving),
             "F" => Ok(State::Folding),
-            _ => Err(anyhow::anyhow!("invalid state string")),
+            _ => Err("invalid state string"),
         }
     }
 }
 
-impl std::fmt::Display for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for State {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             State::Betting => write!(f, "P"),
             State::Shoving => write!(f, "S"),

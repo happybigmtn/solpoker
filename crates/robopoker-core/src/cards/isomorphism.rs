@@ -1,6 +1,5 @@
 use super::observation::Observation;
 use super::permutation::Permutation;
-use crate::Arbitrary;
 
 /// because of the equivalence of Suit,
 /// many Observations are strategically equivalent !
@@ -50,11 +49,6 @@ impl From<Isomorphism> for i64 {
     }
 }
 
-impl Arbitrary for Isomorphism {
-    fn random() -> Self {
-        Self::from(Observation::random())
-    }
-}
 
 impl Isomorphism {
     pub fn is_canonical(observation: &Observation) -> bool {
@@ -62,8 +56,8 @@ impl Isomorphism {
     }
 }
 
-impl std::fmt::Display for Isomorphism {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Isomorphism {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }

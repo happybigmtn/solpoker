@@ -1,6 +1,7 @@
 use super::*;
 use crate::Chips;
 use crate::cards::*;
+use alloc::format;
 
 /// Complete settlement including private hand strength.
 /// Used at showdown when hole cards are revealed.
@@ -34,8 +35,8 @@ impl From<(Chips, State, Strength)> for Settlement {
     }
 }
 
-impl std::fmt::Display for Settlement {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Settlement {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let strength = self.strength();
         let pnl = self.pnl().reward();
         if pnl > 0 {

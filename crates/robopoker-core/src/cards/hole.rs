@@ -1,12 +1,13 @@
 use super::card::Card;
 use super::hand::Hand;
 use super::observation::Observation;
+use alloc::string::String;
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Hole(Hand);
 
-impl std::fmt::Display for Hole {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Hole {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }

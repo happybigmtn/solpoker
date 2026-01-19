@@ -1,6 +1,9 @@
 use super::card::Card;
 use super::hand::Hand;
 use super::street::Street;
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Board(Hand);
@@ -40,8 +43,8 @@ impl From<Board> for Hand {
         board.0
     }
 }
-impl std::fmt::Display for Board {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Board {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(
             f,
             "{}",

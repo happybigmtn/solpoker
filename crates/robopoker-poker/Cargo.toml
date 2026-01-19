@@ -1,0 +1,32 @@
+[package]
+name = "robopoker-poker"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
+[features]
+default = []
+# Enable for testing with LiteSVM
+test-sbf = []
+
+[dependencies]
+pinocchio = "0.9"
+pinocchio-pubkey = "0.3"
+pinocchio-system = "0.4"
+robopoker-core = { path = "../robopoker-core", default-features = false }
+
+[target.'cfg(not(target_os = "solana"))'.dependencies]
+sha2 = "0.10"
+
+[dev-dependencies]
+litesvm = "0.9"
+mollusk-svm = "0.10"
+solana-address = "2.0"
+solana-account = "3.3"
+solana-instruction = "3.1"
