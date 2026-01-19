@@ -9,7 +9,6 @@
 
 ### Phase 2: Entropy Provider Service
 
-- [x] Implement request subscription and auto-handling
 - [x] Implement reliability (reconnect, persistence, logging)
 - [x] Implement provider CLI
 ### Phase 3: Client Integration
