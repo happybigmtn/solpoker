@@ -393,11 +393,16 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidSlothash.into());
     }
 
-    // Accounts must be owned by this program
-    if !config_info.is_owned_by(&crate::ID)
-        || !commitment_info.is_owned_by(&crate::ID)
-        || !request_info.is_owned_by(&crate::ID)
-    {
+    // Config and commitment must be owned by this program
+    if !config_info.is_owned_by(&crate::ID) || !commitment_info.is_owned_by(&crate::ID) {
+        return Err(EntropyError::InvalidAccountOwner.into());
+    }
+
+    // Request account: must be owned by this program (if re-initializing)
+    // or by system program (fresh PDA not yet allocated to program)
+    let request_owned_by_program = request_info.is_owned_by(&crate::ID);
+    let request_owned_by_system = request_info.is_owned_by(&pinocchio_system::ID);
+    if !request_owned_by_program && !request_owned_by_system {
         return Err(EntropyError::InvalidAccountOwner.into());
     }
 

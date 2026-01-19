@@ -40,3 +40,18 @@ export {
   type RevealResult,
   type CommitmentAccountData,
 } from "./reveal.js";
+
+export {
+  RequestWatcher,
+  AutoHandler,
+  createRequestProcessor,
+  fetchPendingRequests,
+  parseRequestAccount,
+  deriveRequestPda,
+  REQUEST_SIZE,
+  REQUEST_STATUS,
+  type RequestAccountData,
+  type RequestDetectedEvent,
+  type RequestHandler,
+  type RequestWatcherConfig,
+} from "./subscription.js";

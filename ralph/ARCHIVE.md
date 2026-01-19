@@ -9,6 +9,9 @@ Format suggestions:
 - Notes about learnings / follow-ups
 
 ## 2026-01-19
+- Implement request subscription and auto-handling
+  - Commit: (see git log)
+  - Notes: Added request watcher polling, auto-handler with mutex queueing, request PDA parsing helpers, and AC-EP4 tests.
 - Implement reveal flow with slot monitoring
   - Commit: (see git log)
   - Notes: Added reveal pipeline utilities with slot waiting, deadline checks, on-chain verification, and randomness derivation tests for AC-EP3.*.
