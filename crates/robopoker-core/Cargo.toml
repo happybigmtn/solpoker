@@ -1,0 +1,17 @@
+[package]
+name = "robopoker-core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[features]
+default = []
+shortdeck = []
+database = []
+server = []
+
+[dependencies]
+anyhow = "1.0"
+log = "0.4"
+rand = { version = "0.9.1", features = ["small_rng"] }
+serde = { version = "1.0", features = ["derive"] }
