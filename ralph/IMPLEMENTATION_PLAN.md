@@ -10,7 +10,7 @@
 - [x] Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
 
 ### Phase 2: Entropy On-Chain + Privacy
-- [ ] Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
+- [x] Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
 - [ ] Poker CPI to entropy + single-provider enforcement. AC-2.4 to AC-2.5. Validation: CPI integration test.
 - [ ] Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
 
