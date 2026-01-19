@@ -14,14 +14,6 @@
 - [x] Implement request subscription and auto-handling
 - [x] Implement reliability (reconnect, persistence, logging)
 - [x] Implement provider CLI
-  - Specs: `specs/entropy-provider.md` AC-EP6.1, AC-EP6.2, AC-EP6.3
-  - Tests/backpressure:
-    - Programmatic: `generate` creates chain file ✓
-    - Programmatic: `start` launches daemon ✓
-    - Programmatic: `status` outputs JSON with position and pending count ✓
-  - Perceptual: AC-PQ.EP2
-  - Note: Created `src/main.ts` with commander-based CLI; 15 tests covering all commands
-
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client

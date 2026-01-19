@@ -9,6 +9,9 @@ Format suggestions:
 - Notes about learnings / follow-ups
 
 ## 2026-01-19
+- Implement provider CLI
+  - Commit: (see git log)
+  - Notes: Added commander-based CLI (generate/start/status) with config validation and status output tests.
 - Implement reliability (reconnect, persistence, logging)
   - Commit: (see git log)
   - Notes: Added Logger + ProviderDaemon with persistence/reconnect logic and AC-EP5 tests for recovery and logging behavior.
