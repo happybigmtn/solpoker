@@ -149,3 +149,22 @@ export function emptyTableState(): TableState {
     seats: Array.from({ length: MAX_SEATS }, emptySeat),
   };
 }
+
+/**
+ * Number of board cards visible by street.
+ * AC-CI6.3: Board cards update as streets are dealt.
+ */
+export function getBoardCardCount(street: StreetValue): number {
+  switch (street) {
+    case Street.PREFLOP:
+      return 0;
+    case Street.FLOP:
+      return 3;
+    case Street.TURN:
+      return 4;
+    case Street.RIVER:
+      return 5;
+    default:
+      return 0;
+  }
+}

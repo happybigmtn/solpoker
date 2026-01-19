@@ -17,14 +17,6 @@
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
-- [x] Implement card rendering
-  - Specs: `specs/client-integration.md` AC-CI6.1, AC-CI6.2, AC-CI6.3, AC-CI6.4
-  - Tests/backpressure:
-    - Programmatic: Card index 0–51 maps to correct suit/rank ✓
-    - Programmatic: Board displays correct number of cards per street ✓
-  - Perceptual: AC-PQ.CI3
-  - Note: Created `card.tsx` with Card/CardSlot components, suit/rank mapping (rank=index/4, suit=index%4), card back display, and red/black color distinction. Created `card-derivation.ts` for deriving board/hole cards from revealed seed. Updated `poker-table.tsx` Board and SeatCard components to display cards based on street and showdown state. 28 new tests passing.
-
 ### Phase 4: End-to-End Verification
 
 - [x] Verify full hand lifecycle on devnet

@@ -7,11 +7,14 @@
  * state and turn indicator.
  * AC-3.2: Board, pot, and action history visible without scrolling on desktop.
  * AC-4.1: Uses selective subscriptions - each seat only re-renders when it changes.
+ * AC-CI6.1–AC-CI6.4: Card rendering with correct suits, ranks, and board display.
  */
 
-import { type TableStore, useSeat, usePot, useCurrentActor } from '@/hooks/use-table-subscription';
-import { MAX_SEATS, SeatStatus, type Seat as SeatType } from '@/types/table';
-import { memo } from 'react';
+import { type TableStore, useSeat, usePot, useCurrentActor, useStreet, useTableState } from '@/hooks/use-table-subscription';
+import { MAX_SEATS, SeatStatus, TableStatus, Street, getBoardCardCount, type Seat as SeatType } from '@/types/table';
+import { memo, useMemo } from 'react';
+import { Card, CardSlot } from './card';
+import { deriveBoardCards, deriveHoleCards } from '@/lib/card-derivation';
 
 interface PokerTableProps {
   store: TableStore;
@@ -33,7 +36,7 @@ export function PokerTable({ store, playerAddress }: PokerTableProps) {
 
       {/* Center area: board + pot */}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-        <Board />
+        <Board store={store} />
         <PotDisplay store={store} />
       </div>
 
@@ -47,22 +50,54 @@ export function PokerTable({ store, playerAddress }: PokerTableProps) {
  * Board display for community cards.
  *
  * AC-3.2: Board visible without scrolling.
- * Placeholder until we have card rendering.
+ * AC-CI6.1: Cards render with correct suit and rank.
+ * AC-CI6.2: Unrevealed cards display a card back.
+ * AC-CI6.3: Board cards update as streets are dealt.
  */
-function Board() {
+interface BoardProps {
+  store: TableStore;
+}
+
+const Board = memo(function Board({ store }: BoardProps) {
+  const tableState = useTableState(store);
+  const { currentStreet, revealedSeed, dealerPosition, seats, status } = tableState;
+
+  // Derive board cards if seed is revealed
+  const boardCards = useMemo(() => {
+    return deriveBoardCards(revealedSeed, dealerPosition, seats);
+  }, [revealedSeed, dealerPosition, seats]);
+
+  // Number of cards that should be visible based on street
+  const visibleCount = getBoardCardCount(currentStreet);
+
+  // Only show board during a hand (playing or showdown)
+  const isInHand = status === TableStatus.PLAYING || status === TableStatus.SHOWDOWN;
+
   return (
     <div className="flex gap-1">
       {/* 5 community card slots */}
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-14 w-10 rounded border border-zinc-400/30 bg-zinc-200/20 dark:bg-zinc-700/20"
-          aria-label={`Community card ${i + 1}`}
-        />
-      ))}
+      {Array.from({ length: 5 }).map((_, i) => {
+        const isDealt = isInHand && i < visibleCount;
+        const cardIndex = boardCards?.[i] ?? null;
+
+        if (!isDealt) {
+          // Empty slot for cards not yet dealt
+          return <CardSlot key={i} size="md" />;
+        }
+
+        // If seed is revealed, show actual card; otherwise show card back
+        return (
+          <Card
+            key={i}
+            index={cardIndex}
+            faceDown={cardIndex === null}
+            size="md"
+          />
+        );
+      })}
     </div>
   );
-}
+});
 
 /**
  * Pot display component.
@@ -96,6 +131,7 @@ function SeatsLayout({
   playerAddress?: string;
 }) {
   const currentActor = useCurrentActor(store);
+  const tableState = useTableState(store);
 
   return (
     <>
@@ -107,6 +143,7 @@ function SeatsLayout({
           isCurrentActor={currentActor === index}
           isPlayer={false} // Will be determined by seat data
           playerAddress={playerAddress}
+          tableState={tableState}
         />
       ))}
     </>
@@ -119,6 +156,7 @@ interface SeatComponentProps {
   isCurrentActor: boolean;
   isPlayer: boolean;
   playerAddress?: string;
+  tableState: ReturnType<typeof useTableState>;
 }
 
 /**
@@ -126,15 +164,25 @@ interface SeatComponentProps {
  *
  * AC-4.1: Only re-renders when this specific seat changes.
  * AC-3.1: Clear active/inactive state and turn indicator.
+ * AC-CI6.4: Shows hole cards when revealed at showdown.
  */
 const SeatComponent = memo(function SeatComponent({
   store,
   index,
   isCurrentActor,
   playerAddress,
+  tableState,
 }: SeatComponentProps) {
   const seat = useSeat(store, index);
   const isPlayer = Boolean(playerAddress && seat.player === playerAddress);
+
+  // Derive hole cards if at showdown and seed is revealed
+  const holeCards = useMemo(() => {
+    const { status, revealedSeed, dealerPosition, seats } = tableState;
+    // Only show hole cards during showdown with revealed seed
+    if (status !== TableStatus.SHOWDOWN) return null;
+    return deriveHoleCards(revealedSeed, dealerPosition, seats, index);
+  }, [tableState, index]);
 
   // Calculate position on ellipse (10 seats around the table)
   const angle = (index * 360) / MAX_SEATS - 90; // Start from top
@@ -154,6 +202,8 @@ const SeatComponent = memo(function SeatComponent({
         index={index}
         isCurrentActor={isCurrentActor}
         isPlayer={isPlayer}
+        holeCards={holeCards}
+        isShowdown={tableState.status === TableStatus.SHOWDOWN}
       />
     </div>
   );
@@ -163,22 +213,33 @@ const SeatComponent = memo(function SeatComponent({
  * Seat card visual with player info.
  *
  * AC-3.1: Shows active/inactive state and turn indicator.
+ * AC-CI6.4: Player hole cards display when revealed at showdown.
  */
 function SeatCard({
   seat,
   index,
   isCurrentActor,
   isPlayer,
+  holeCards,
+  isShowdown,
 }: {
   seat: SeatType;
   index: number;
   isCurrentActor: boolean;
   isPlayer: boolean;
+  holeCards: [number, number] | null;
+  isShowdown: boolean;
 }) {
   const isEmpty = seat.status === SeatStatus.EMPTY;
   const isFolded = seat.status === SeatStatus.FOLDED;
   const isAllIn = seat.status === SeatStatus.ALL_IN;
   const isSittingOut = seat.status === SeatStatus.SITTING_OUT;
+
+  // Determine if hole cards should be shown
+  // - During hand (not showdown): show face-down if active (not folded/empty)
+  // - At showdown: show revealed cards for non-folded players
+  const showHoleCards = !isEmpty && !isSittingOut && seat.holeCardHash;
+  const showFaceUp = isShowdown && holeCards && !isFolded;
 
   return (
     <div
@@ -209,6 +270,23 @@ function SeatCard({
         <span className="text-xs text-zinc-500">Empty</span>
       ) : (
         <>
+          {/* Hole cards (AC-CI6.4) */}
+          {showHoleCards && (
+            <div className="flex gap-0.5 mb-1">
+              {showFaceUp && holeCards ? (
+                <>
+                  <Card index={holeCards[0]} size="sm" />
+                  <Card index={holeCards[1]} size="sm" />
+                </>
+              ) : (
+                <>
+                  <Card faceDown size="sm" />
+                  <Card faceDown size="sm" />
+                </>
+              )}
+            </div>
+          )}
+
           {/* Player address (truncated) */}
           <span className="truncate text-xs font-medium max-w-20">
             {truncateAddress(seat.player)}

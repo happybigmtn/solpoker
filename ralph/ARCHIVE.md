@@ -21,6 +21,9 @@ Format suggestions:
 - Implement table list and creation UI
   - Commit: (see git log)
   - Notes: Added use-tables + use-create-table hooks, lobby/table list/create form components, and home page wiring; hooked UI to local client SDK package.
+- Implement card rendering
+  - Commit: (see git log)
+  - Notes: Added card UI components and deterministic derivation helpers; table UI now displays board and hole cards with correct suit/rank mapping and street visibility.
 - Add PDA derivation utilities to TypeScript client
   - Commit: (see git log)
   - Notes: Added `src/pda.ts` with poker/entropy PDAs and deterministic test vectors for AC-CI1.*.
