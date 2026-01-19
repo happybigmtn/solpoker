@@ -12,7 +12,7 @@
 ### Phase 2: Entropy On-Chain + Privacy
 - [x] Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
 - [x] Poker CPI to entropy + single-provider enforcement. AC-2.4 to AC-2.5. Validation: CPI integration test.
-- [ ] Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
+- [x] Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
 
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 - [ ] Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
