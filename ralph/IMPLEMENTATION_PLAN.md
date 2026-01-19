@@ -7,15 +7,6 @@
 
 ### Phase 1: Deployment Infrastructure
 
-- [x] Create CRISPS mint, faucet, and poker config
-  - Specs: `specs/devnet-deployment.md` AC-D3.1, AC-D3.2, AC-D3.3, AC-D2.2
-  - Tests/backpressure:
-    - Programmatic: Mint account exists with 9 decimals and Token-2022 owner ✓
-    - Programmatic: Test wallet receives minted tokens ✓
-    - Programmatic: Poker config initialized with CRISPS mint and entropy program ✓
-  - Perceptual: None
-  - Note: Fixed TOKEN_2022_PROGRAM_ID bug in robopoker-poker/src/token_cpi.rs (was using old Token program ID)
-
 - [x] Create deployment automation script
   - Specs: `specs/devnet-deployment.md` AC-D4.1, AC-D4.2, AC-D4.3
   - Tests/backpressure:
@@ -115,19 +106,21 @@
   - Perceptual: AC-PQ.CI2
   - Note: Created `errors.ts` in client SDK with POKER_ERROR_CODES/ENTROPY_ERROR_CODES matching Rust enums, user-friendly POKER_ERROR_MESSAGES/ENTROPY_ERROR_MESSAGES, parseCustomErrorCode, decodeProgramError, isNetworkError, isUserRejection, formatTransactionError functions. Updated use-player-action.ts and use-table-action.ts with retry support (isRetryable, retry function) and error decoding. 34 error tests + 6 hook error tests passing. Known issue: Next.js 16 Turbopack has issues resolving linked packages - unrelated to this implementation.
 
-- [ ] Implement table list and creation UI
+- [x] Implement table list and creation UI
   - Specs: `specs/client-integration.md` AC-CI5.1, AC-CI5.2, AC-CI5.3, AC-CI5.4
   - Tests/backpressure:
-    - Programmatic: Table list fetches via getProgramAccounts
-    - Programmatic: Create table TX confirms and redirects
+    - Programmatic: Table list fetches via getProgramAccounts ✓
+    - Programmatic: Create table TX confirms and redirects ✓
   - Perceptual: None
+  - Note: Created `use-tables.ts` hook (fetches via getProgramAccounts with memcmp filter on TABLE discriminator), `use-create-table.ts` hook (builds createTable TX with PDA derivation), `table-list.tsx` component (displays blinds, player count, status, join option), `create-table-form.tsx` component (validates blinds input, redirects on success), `lobby.tsx` component (wires everything to home page). 15 new tests passing.
 
-- [ ] Implement card rendering
+- [x] Implement card rendering
   - Specs: `specs/client-integration.md` AC-CI6.1, AC-CI6.2, AC-CI6.3, AC-CI6.4
   - Tests/backpressure:
-    - Programmatic: Card index 0–51 maps to correct suit/rank
-    - Programmatic: Board displays correct number of cards per street
+    - Programmatic: Card index 0–51 maps to correct suit/rank ✓
+    - Programmatic: Board displays correct number of cards per street ✓
   - Perceptual: AC-PQ.CI3
+  - Note: Created `card.tsx` with Card/CardSlot components, suit/rank mapping (rank=index/4, suit=index%4), card back display, and red/black color distinction. Created `card-derivation.ts` for deriving board/hole cards from revealed seed. Updated `poker-table.tsx` Board and SeatCard components to display cards based on street and showdown state. 28 new tests passing.
 
 ### Phase 4: End-to-End Verification
 

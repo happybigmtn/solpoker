@@ -9,6 +9,9 @@ Format suggestions:
 - Notes about learnings / follow-ups
 
 ## 2026-01-19
+- Create CRISPS mint, faucet, and poker config
+  - Commit: (see git log)
+  - Notes: Added Token-2022 CRISPS mint creation + faucet scripts, devnet verification script for AC-D3.*, and poker config PDA initialization support in-program.
 - Build and deploy programs to devnet
   - Commit: (see git log)
   - Notes: Updated on-chain program IDs for devnet deployments, aligned `robopoker-core` to edition 2021 for `cargo build-sbf`, added bytecode verification script (`scripts/verify-programs.sh`), and documented AC-D1.* in `specs/devnet-deployment.md`.

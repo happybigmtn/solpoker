@@ -5,9 +5,10 @@ use pinocchio::{
     instruction::{Seed, Signer},
     program_error::ProgramError,
     pubkey::{self, Pubkey},
+    sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
-use pinocchio_system::ID as SYSTEM_PROGRAM_ID;
+use pinocchio_system::{instructions::CreateAccount, ID as SYSTEM_PROGRAM_ID};
 use robopoker_core::cards::{Card, Deck, Hand, Strength};
 
 use crate::{
@@ -98,12 +99,12 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Config must be owned by this program
-    if !config_info.is_owned_by(&crate::ID) {
-        return Err(PokerError::InvalidAccountOwner.into());
+    // Verify config PDA and get bump
+    let config_seeds: &[&[u8]] = Config::SEEDS;
+    let (expected_config, bump) = pubkey::find_program_address(config_seeds, &crate::ID);
+    if config_info.key() != &expected_config {
+        return Err(PokerError::InvalidPda.into());
     }
-
-    verify_config_pda(config_info)?;
 
     // Verify mint is Token-2022 owned
     if crisps_mint_info.owner() != &TOKEN_2022_PROGRAM_ID {
@@ -113,15 +114,41 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     // Parse instruction data
     let ix = unsafe { instruction::Initialize::from_bytes_unchecked(data) };
 
-    // Check if already initialized
-    let config_data = config_info.try_borrow_data()?;
-    if config_data.len() >= CONFIG_SIZE {
-        let config = unsafe { Config::from_bytes_unchecked(&config_data) };
-        if config.is_initialized() {
-            return Err(PokerError::AlreadyInitialized.into());
+    // Create config account if it doesn't exist or is empty
+    if config_info.data_len() == 0 {
+        // Calculate rent-exempt lamports
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(CONFIG_SIZE);
+
+        // Create the account via CPI with PDA signer seeds
+        let bump_seed = [bump];
+        let signer_seeds = pinocchio::seeds!(b"config", &bump_seed);
+        let signer = Signer::from(&signer_seeds);
+
+        CreateAccount {
+            from: authority_info,
+            to: config_info,
+            lamports,
+            space: CONFIG_SIZE as u64,
+            owner: &crate::ID,
         }
+        .invoke_signed(&[signer])?;
+    } else {
+        // Config already exists, check if owned by this program
+        if !config_info.is_owned_by(&crate::ID) {
+            return Err(PokerError::InvalidAccountOwner.into());
+        }
+
+        // Check if already initialized
+        let config_data = config_info.try_borrow_data()?;
+        if config_data.len() >= CONFIG_SIZE {
+            let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+            if config.is_initialized() {
+                return Err(PokerError::AlreadyInitialized.into());
+            }
+        }
+        drop(config_data);
     }
-    drop(config_data);
 
     // Initialize config data
     let mut config_data = config_info.try_borrow_mut_data()?;
