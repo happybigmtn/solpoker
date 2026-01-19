@@ -48,3 +48,6 @@ Format suggestions:
 - UI layout + data subscriptions + perf
   - Commit: `cd33520`
   - Notes: Reviewed table store selective subscriptions and UI layout scaffolding for AC-3.x/AC-4.x.
+- Accessibility + interaction hygiene pass
+  - Commit: `cd33520`
+  - Notes: Reviewed command palette semantics, focus handling, and keyboard-only flows for AC-5.x.
