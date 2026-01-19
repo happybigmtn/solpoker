@@ -9,6 +9,9 @@ Format suggestions:
 - Notes about learnings / follow-ups
 
 ## 2026-01-19
+- Implement reliability (reconnect, persistence, logging)
+  - Commit: (see git log)
+  - Notes: Added Logger + ProviderDaemon with persistence/reconnect logic and AC-EP5 tests for recovery and logging behavior.
 - Implement request subscription and auto-handling
   - Commit: (see git log)
   - Notes: Added request watcher polling, auto-handler with mutex queueing, request PDA parsing helpers, and AC-EP4 tests.

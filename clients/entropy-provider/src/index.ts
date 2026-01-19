@@ -55,3 +55,17 @@ export {
   type RequestHandler,
   type RequestWatcherConfig,
 } from "./subscription.js";
+
+export {
+  Logger,
+  ProviderDaemon,
+  saveProviderState,
+  loadProviderState,
+  checkRpcHealth,
+  type LogLevel,
+  type LogEntry,
+  type LoggerConfig,
+  type PersistedState,
+  type ProviderDaemonConfig,
+  type DaemonStatus,
+} from "./reliability.js";
