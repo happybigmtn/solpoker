@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Client SDK + integration test
-  - Specs: `specs/onchain-poker.md` AC-8.1, AC-8.2, AC-8.3
-  - Tests/backpressure:
-    - Programmatic: generated TS client builds and constructs core instructions
-    - Programmatic: full-hand integration test (3+ players) passes
-  - Perceptual: None
-
 ## Missing/Unknown
 
 - None

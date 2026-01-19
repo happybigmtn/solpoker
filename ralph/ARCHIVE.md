@@ -51,3 +51,6 @@ Format suggestions:
 - Accessibility + interaction hygiene pass
   - Commit: `cd33520`
   - Notes: Reviewed command palette semantics, focus handling, and keyboard-only flows for AC-5.x.
+- Client SDK + integration test
+  - Commit: `cd33520`
+  - Notes: Reviewed generated TypeScript client build and integration test coverage for AC-8.1–AC-8.3.
