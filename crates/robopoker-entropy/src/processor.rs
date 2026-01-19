@@ -313,6 +313,11 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
+    // Duplicate mutable account checks (AC-7.3)
+    if request_info.key() == requester_info.key() || request_info.key() == commitment_info.key() {
+        return Err(EntropyError::DuplicateMutableAccount.into());
+    }
+
     // Requester must sign
     if !requester_info.is_signer() {
         return Err(EntropyError::MissingSigner.into());
@@ -376,6 +381,16 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidPda.into());
     }
     drop(commitment_data);
+
+    // Prevent re-initialization of request account
+    let request_check = request_info.try_borrow_data()?;
+    if request_check.len() >= REQUEST_SIZE {
+        let existing = unsafe { state::Request::from_bytes_unchecked(&request_check) };
+        if existing.discriminator == acc_disc::REQUEST {
+            return Err(EntropyError::AlreadyInitialized.into());
+        }
+    }
+    drop(request_check);
 
     // Parse instruction data
     let ix = unsafe { instruction::Request::from_bytes_unchecked(data) };
@@ -447,6 +462,17 @@ fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     if config_info.key() != &expected_config {
         return Err(EntropyError::InvalidPda.into());
     }
+
+    // Load and verify config
+    let config_data = config_info.try_borrow_data()?;
+    if config_data.len() < CONFIG_SIZE {
+        return Err(EntropyError::InvalidAccountDataLength.into());
+    }
+    let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+    if !config.is_initialized() {
+        return Err(EntropyError::NotInitialized.into());
+    }
+    drop(config_data);
 
     // Load commitment
     let commitment_data = commitment_info.try_borrow_data()?;
