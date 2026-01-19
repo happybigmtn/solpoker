@@ -79,3 +79,69 @@ pub fn transfer_signed<'a>(
     let account_infos = [from, to, authority, token_program];
     invoke_signed::<4>(&instruction, &account_infos, signer_seeds)
 }
+
+/// Token-2022 InitializeAccount3 instruction discriminator
+const TOKEN_INIT_ACCOUNT3_DISCRIMINATOR: u8 = 18;
+
+/// Token account size for Token-2022 (165 bytes)
+pub const TOKEN_ACCOUNT_SIZE: usize = 165;
+
+/// Create and initialize a new token account for Token-2022.
+///
+/// This creates the account via system program and then initializes it
+/// as a Token-2022 account in a single CPI call.
+///
+/// # Arguments
+/// * `payer` - Account paying for rent (signer)
+/// * `token_account` - New token account to create (writable, PDA)
+/// * `mint` - Token mint
+/// * `owner` - Owner of the new token account
+/// * `token_program` - Token-2022 program
+/// * `system_program` - System program
+/// * `signer_seeds` - Seeds for PDA signing (for token_account)
+pub fn create_token_account<'a>(
+    payer: &'a AccountInfo,
+    token_account: &'a AccountInfo,
+    mint: &'a AccountInfo,
+    owner: &'a AccountInfo,
+    token_program: &'a AccountInfo,
+    _system_program: &'a AccountInfo,
+    signer_seeds: &[Signer],
+) -> ProgramResult {
+    use pinocchio::sysvars::{rent::Rent, Sysvar};
+    use pinocchio_system::instructions::CreateAccount;
+
+    // First, create the account via system program
+    let rent = Rent::get()?;
+    let lamports = rent.minimum_balance(TOKEN_ACCOUNT_SIZE);
+
+    CreateAccount {
+        from: payer,
+        to: token_account,
+        lamports,
+        space: TOKEN_ACCOUNT_SIZE as u64,
+        owner: &TOKEN_2022_PROGRAM_ID,
+    }
+    .invoke_signed(signer_seeds)?;
+
+    // Then initialize as token account using InitializeAccount3
+    // InitializeAccount3 takes owner as instruction data, not as account
+    let mut instruction_data = [0u8; 33]; // discriminator (1) + owner pubkey (32)
+    instruction_data[0] = TOKEN_INIT_ACCOUNT3_DISCRIMINATOR;
+    instruction_data[1..33].copy_from_slice(owner.key());
+
+    let account_metas = [
+        AccountMeta::writable(token_account.key()),
+        AccountMeta::readonly(mint.key()),
+    ];
+
+    let instruction = Instruction {
+        program_id: token_program.key(),
+        accounts: &account_metas,
+        data: &instruction_data,
+    };
+
+    // We don't need signer seeds here since the account already exists
+    let account_infos = [token_account, mint, token_program];
+    invoke_signed::<3>(&instruction, &account_infos, &[])
+}

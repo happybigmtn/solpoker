@@ -23,7 +23,7 @@ export function WalletConnect() {
 
   const handleSelect = useCallback(
     async (connector: (typeof connectors)[number]) => {
-      await connect(connector);
+      await connect(connector.id);
       setIsModalOpen(false);
     },
     [connect],
@@ -111,14 +111,14 @@ export function WalletConnect() {
               ) : (
                 connectors.map((connector) => (
                   <button
-                    key={connector.metadata.name}
+                    key={connector.name}
                     onClick={() => handleSelect(connector)}
                     className="flex h-12 items-center gap-3 rounded-lg px-4 text-left transition-colors hover:bg-zinc-100 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
                   >
-                    {connector.metadata.icon && (
+                    {connector.icon && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={connector.metadata.icon}
+                        src={connector.icon}
                         alt=""
                         width={24}
                         height={24}
@@ -126,7 +126,7 @@ export function WalletConnect() {
                       />
                     )}
                     <span className="text-zinc-900 dark:text-zinc-100">
-                      {connector.metadata.name}
+                      {connector.name}
                     </span>
                   </button>
                 ))

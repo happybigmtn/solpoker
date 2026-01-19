@@ -17,14 +17,6 @@
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
-- [x] Implement table list and creation UI
-  - Specs: `specs/client-integration.md` AC-CI5.1, AC-CI5.2, AC-CI5.3, AC-CI5.4
-  - Tests/backpressure:
-    - Programmatic: Table list fetches via getProgramAccounts ✓
-    - Programmatic: Create table TX confirms and redirects ✓
-  - Perceptual: None
-  - Note: Created `use-tables.ts` hook (fetches via getProgramAccounts with memcmp filter on TABLE discriminator), `use-create-table.ts` hook (builds createTable TX with PDA derivation), `table-list.tsx` component (displays blinds, player count, status, join option), `create-table-form.tsx` component (validates blinds input, redirects on success), `lobby.tsx` component (wires everything to home page). 15 new tests passing.
-
 - [x] Implement card rendering
   - Specs: `specs/client-integration.md` AC-CI6.1, AC-CI6.2, AC-CI6.3, AC-CI6.4
   - Tests/backpressure:

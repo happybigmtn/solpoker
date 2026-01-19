@@ -205,8 +205,8 @@ fn process_create_table(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult 
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Accounts must be owned by this program where applicable
-    if !config_info.is_owned_by(&crate::ID) || !table_info.is_owned_by(&crate::ID) {
+    // Config must be owned by this program
+    if !config_info.is_owned_by(&crate::ID) {
         return Err(PokerError::InvalidAccountOwner.into());
     }
 
@@ -238,31 +238,81 @@ fn process_create_table(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult 
     // Parse instruction data
     let ix = unsafe { instruction::CreateTable::from_bytes_unchecked(data) };
 
-    // Verify table PDA
+    // Verify and derive table PDA with bump
     let table_id_bytes = ix.table_id.to_le_bytes();
     let table_seeds: &[&[u8]] = &[Table::SEEDS_PREFIX, &table_id_bytes];
-    let (expected_table, _table_bump) = pubkey::find_program_address(table_seeds, &crate::ID);
+    let (expected_table, table_bump) = pubkey::find_program_address(table_seeds, &crate::ID);
     if table_info.key() != &expected_table {
         return Err(PokerError::InvalidPda.into());
     }
 
-    // Verify vault PDA (AC-3.2: PDA-owned vault)
+    // Verify and derive vault PDA with bump (AC-3.2: PDA-owned vault)
     let vault_seeds: &[&[u8]] = &[Table::VAULT_SEEDS_PREFIX, &table_id_bytes];
-    let (expected_vault, _vault_bump) = pubkey::find_program_address(vault_seeds, &crate::ID);
+    let (expected_vault, vault_bump) = pubkey::find_program_address(vault_seeds, &crate::ID);
     if vault_info.key() != &expected_vault {
         return Err(PokerError::InvalidPda.into());
     }
 
-    // Vault token account must be Token-2022 owned and for CRISPS mint
-    if vault_info.owner() != &TOKEN_2022_PROGRAM_ID {
-        return Err(PokerError::InvalidAccountOwner.into());
+    // Create table account if it doesn't exist
+    if table_info.data_len() == 0 {
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(TABLE_SIZE);
+
+        let bump_seed = [table_bump];
+        let signer_seeds = pinocchio::seeds!(Table::SEEDS_PREFIX, &table_id_bytes, &bump_seed);
+        let signer = Signer::from(&signer_seeds);
+
+        CreateAccount {
+            from: payer_info,
+            to: table_info,
+            lamports,
+            space: TABLE_SIZE as u64,
+            owner: &crate::ID,
+        }
+        .invoke_signed(&[signer])?;
+    } else {
+        // Table already exists, check ownership and ensure not already initialized
+        if !table_info.is_owned_by(&crate::ID) {
+            return Err(PokerError::InvalidAccountOwner.into());
+        }
+        let table_data = table_info.try_borrow_data()?;
+        if table_data.len() >= TABLE_SIZE {
+            let table = unsafe { Table::from_bytes_unchecked(&table_data) };
+            if table.discriminator == acc_disc::TABLE {
+                return Err(PokerError::AlreadyInitialized.into());
+            }
+        }
+        drop(table_data);
     }
-    let (vault_mint, vault_owner) = read_token_account_mint_owner(vault_info)?;
-    if vault_mint != *crisps_mint_info.key() {
-        return Err(PokerError::InvalidMint.into());
-    }
-    if vault_owner != *vault_info.key() {
-        return Err(PokerError::InvalidAccountOwner.into());
+
+    // Create vault token account if it doesn't exist
+    if vault_info.data_len() == 0 {
+        // Create vault as a Token-2022 account owned by itself (PDA)
+        let bump_seed = [vault_bump];
+        let signer_seeds = pinocchio::seeds!(Table::VAULT_SEEDS_PREFIX, &table_id_bytes, &bump_seed);
+        let signer = Signer::from(&signer_seeds);
+
+        token_cpi::create_token_account(
+            payer_info,
+            vault_info,
+            crisps_mint_info,
+            vault_info, // Owner is the vault itself (PDA-controlled)
+            token_program,
+            system_program_info,
+            &[signer],
+        )?;
+    } else {
+        // Vault already exists, verify it's Token-2022 owned with correct mint
+        if vault_info.owner() != &TOKEN_2022_PROGRAM_ID {
+            return Err(PokerError::InvalidAccountOwner.into());
+        }
+        let (vault_mint, vault_owner) = read_token_account_mint_owner(vault_info)?;
+        if vault_mint != *crisps_mint_info.key() {
+            return Err(PokerError::InvalidMint.into());
+        }
+        if vault_owner != *vault_info.key() {
+            return Err(PokerError::InvalidAccountOwner.into());
+        }
     }
 
     // Initialize table data

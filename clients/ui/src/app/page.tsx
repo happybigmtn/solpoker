@@ -1,6 +1,12 @@
 import { WalletConnect } from '@/components/wallet-connect';
+import { Lobby } from '@/components/lobby';
+import type { Address } from '@solana/kit';
 
 export default function Home() {
+  // Read program IDs from environment variables
+  const pokerProgramId = (process.env.NEXT_PUBLIC_POKER_PROGRAM_ID || '') as Address;
+  const crispsMint = (process.env.NEXT_PUBLIC_CRISPS_MINT || '') as Address;
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Skip link for accessibility (AC-5.4) */}
@@ -16,15 +22,8 @@ export default function Home() {
         <WalletConnect />
       </header>
 
-      <main id="main" className="flex flex-1 items-center justify-center p-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-balance">
-            On-chain Multiplayer Poker
-          </h2>
-          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            Connect your wallet to get started.
-          </p>
-        </div>
+      <main id="main" className="flex-1 p-6">
+        <Lobby pokerProgramId={pokerProgramId} crispsMint={crispsMint} />
       </main>
     </div>
   );

@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Transpile the local @robopoker/client package
+  transpilePackages: ['@robopoker/client'],
 };
 
 export default nextConfig;

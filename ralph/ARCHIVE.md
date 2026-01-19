@@ -18,6 +18,9 @@ Format suggestions:
 - Implement transaction error handling
   - Commit: (see git log)
   - Notes: Added client error decoding utilities + mappings, hook-level retry support for network errors, and retry UI integration; updated tests for error decoding and retry behavior.
+- Implement table list and creation UI
+  - Commit: (see git log)
+  - Notes: Added use-tables + use-create-table hooks, lobby/table list/create form components, and home page wiring; hooked UI to local client SDK package.
 - Add PDA derivation utilities to TypeScript client
   - Commit: (see git log)
   - Notes: Added `src/pda.ts` with poker/entropy PDAs and deterministic test vectors for AC-CI1.*.
