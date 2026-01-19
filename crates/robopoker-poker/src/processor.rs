@@ -408,12 +408,17 @@ fn process_join_table(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     seat.status = seat_status::OCCUPIED;
     seat.player = *player_info.key();
     seat.stack = ix.buy_in_amount;
+    seat.current_bet = 0;
+    seat.total_bet = 0;
+    seat.has_acted = 0;
+    seat.hole_card_hash = [0; 32];
 
     // Update player count
     table.player_count = table
         .player_count
         .checked_add(1)
         .ok_or(PokerError::ArithmeticOverflow)?;
+    table.active_count = table.count_active();
 
     // Drop borrow before CPI
     drop(table_data);
@@ -488,9 +493,9 @@ fn process_leave_table(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult 
 
     verify_table_pda(table_info, table.table_id)?;
 
-    // Cannot leave during active hand
-    if table.status == table_status::PLAYING {
-        return Err(PokerError::TableIsPlaying.into());
+    // Cannot leave unless table is waiting
+    if table.status != table_status::WAITING {
+        return Err(PokerError::TableNotWaiting.into());
     }
 
     // Verify vault matches table
@@ -535,12 +540,17 @@ fn process_leave_table(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult 
     seat.status = seat_status::EMPTY;
     seat.player = Pubkey::default();
     seat.stack = 0;
+    seat.current_bet = 0;
+    seat.total_bet = 0;
+    seat.has_acted = 0;
+    seat.hole_card_hash = [0; 32];
 
     // Update player count
     table.player_count = table
         .player_count
         .checked_sub(1)
         .ok_or(PokerError::ArithmeticOverflow)?;
+    table.active_count = table.count_active();
 
     // Drop borrow before CPI
     drop(table_data);

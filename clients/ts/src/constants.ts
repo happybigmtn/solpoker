@@ -52,7 +52,8 @@ export const ACCOUNT_DISCRIMINATOR = {
 export const TABLE_STATUS = {
   WAITING: 0,
   PLAYING: 1,
-  SHOWDOWN: 2,
+  CLOSED: 2,
+  SHOWDOWN: 3,
 } as const;
 
 // Seat status values

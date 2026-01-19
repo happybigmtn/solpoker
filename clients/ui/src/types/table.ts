@@ -23,7 +23,8 @@ export type SeatStatusValue = (typeof SeatStatus)[keyof typeof SeatStatus];
 export const TableStatus = {
   WAITING: 0,
   PLAYING: 1,
-  SHOWDOWN: 2,
+  CLOSED: 2,
+  SHOWDOWN: 3,
 } as const;
 
 export type TableStatusValue = (typeof TableStatus)[keyof typeof TableStatus];
@@ -64,7 +65,7 @@ export interface Seat {
  * Mirrors the Rust `Table` struct (1,136 bytes on-chain).
  */
 export interface TableState {
-  /** Table status (waiting, playing, showdown) */
+  /** Table status (waiting, playing, closed, showdown) */
   status: TableStatusValue;
   /** Number of occupied seats */
   playerCount: number;
