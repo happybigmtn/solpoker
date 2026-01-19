@@ -11,14 +11,6 @@
 
 - [x] Implement commitment posting
 - [x] Implement reveal flow with slot monitoring
-  - Specs: `specs/entropy-provider.md` AC-EP3.1, AC-EP3.2, AC-EP3.3, AC-EP3.4
-  - Tests/backpressure:
-    - Programmatic: Provider waits for target slot before reveal ✓
-    - Programmatic: Reveal TX confirms before deadline ✓
-    - Programmatic: Randomness = preimage XOR slothash ✓
-  - Perceptual: None
-  - Note: Created `reveal.ts` with waitForSlot, revealCommitment, waitAndReveal, deriveRandomness functions
-
 - [x] Implement request subscription and auto-handling
   - Specs: `specs/entropy-provider.md` AC-EP4.1, AC-EP4.2, AC-EP4.3
   - Tests/backpressure:

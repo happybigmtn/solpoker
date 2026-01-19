@@ -27,3 +27,16 @@ export {
   type PendingCommitment,
   type CommitmentState,
 } from "./commit.js";
+
+export {
+  getCurrentSlot,
+  waitForSlot,
+  isWithinRevealWindow,
+  fetchCommitmentAccount,
+  revealCommitment,
+  waitAndReveal,
+  verifyRevealOnChain,
+  deriveRandomness,
+  type RevealResult,
+  type CommitmentAccountData,
+} from "./reveal.js";

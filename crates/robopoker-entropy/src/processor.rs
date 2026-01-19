@@ -281,6 +281,11 @@ fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::MissingSigner.into());
     }
 
+    // Commitment account must be writable
+    if !commitment_info.is_writable() {
+        return Err(EntropyError::AccountNotWritable.into());
+    }
+
     // Accounts must be owned by this program
     if !config_info.is_owned_by(&crate::ID) || !commitment_info.is_owned_by(&crate::ID) {
         return Err(EntropyError::InvalidAccountOwner.into());
