@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Rake + staking integration
-  - Specs: `specs/onchain-poker.md` AC-3.4, AC-3.5, AC-3.6
-  - Tests/backpressure:
-    - Programmatic: staking deposit/withdraw tests
-    - Programmatic: rake accumulation + claim distribution tests
-  - Perceptual: None
-
 - [x] On-chain data layout optimization pass
   - Specs: `specs/onchain-poker.md` AC-1.5
   - Tests/backpressure:

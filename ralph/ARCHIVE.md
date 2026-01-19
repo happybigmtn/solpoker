@@ -33,3 +33,6 @@ Format suggestions:
 - Privacy hybrid flow (encrypted hole cards + seed reveal)
   - Commit: `26b8134`
   - Notes: Reviewed seed commitment validation and hole-card hash checks for AC-2.6–AC-2.8.
+- Rake + staking integration
+  - Commit: `26b8134`
+  - Notes: Reviewed staking flows, Token-2022 vault checks, and rake sweep path for AC-3.4–AC-3.6.
