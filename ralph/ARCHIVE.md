@@ -11,7 +11,7 @@ Format suggestions:
 ## 2026-01-19
 - Wire player action buttons to real transactions
   - Commit: (see git log)
-  - Notes: Added use-player-action hook + UI wiring to send real fold/check/call/raise/shove transactions with pending/confirmed status updates.
+  - Notes: Added use-player-action hook + UI wiring to send real fold/check/call/raise/shove transactions with pending/confirmed status updates. Follow-up: added current bet/min-raise selectors used for action calculations.
 - Add PDA derivation utilities to TypeScript client
   - Commit: (see git log)
   - Notes: Added `src/pda.ts` with poker/entropy PDAs and deterministic test vectors for AC-CI1.*.

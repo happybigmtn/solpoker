@@ -17,7 +17,6 @@
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
-- [x] Wire player action buttons to real transactions
 - [x] Wire join/leave table actions
   - Specs: `specs/client-integration.md` AC-CI3.6, AC-CI3.7, AC-CI2.2
   - Tests/backpressure:

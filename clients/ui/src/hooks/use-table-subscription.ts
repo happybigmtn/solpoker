@@ -398,3 +398,29 @@ export function useStreet(store: TableStore): number {
     store.getStreet
   );
 }
+
+/**
+ * Hook to use the current bet with re-render only when it changes.
+ *
+ * AC-CI3.1–AC-CI3.5: Needed to compute toCall amount.
+ */
+export function useCurrentBet(store: TableStore): bigint {
+  return useSyncExternalStore(
+    store.subscribe,
+    () => store.getState().currentBet,
+    () => store.getState().currentBet
+  );
+}
+
+/**
+ * Hook to use the minimum raise with re-render only when it changes.
+ *
+ * AC-CI3.4: Needed for raise amount validation.
+ */
+export function useMinRaise(store: TableStore): bigint {
+  return useSyncExternalStore(
+    store.subscribe,
+    () => store.getState().minRaise,
+    () => store.getState().minRaise
+  );
+}
