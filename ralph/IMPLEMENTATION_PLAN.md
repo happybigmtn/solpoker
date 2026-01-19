@@ -5,12 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] On-chain data layout optimization pass
-  - Specs: `specs/onchain-poker.md` AC-1.5
-  - Tests/backpressure:
-    - Programmatic: account size snapshot tests for Table/Config/Vault structs
-  - Perceptual: None
-
 - [x] UI scaffold (Next.js App Router) with framework‑kit + wallet standard
   - Specs: `specs/ui-minimal.md` AC-1.1, AC-1.2, AC-1.3, AC-1.4, AC-1.5
   - Tests/backpressure:

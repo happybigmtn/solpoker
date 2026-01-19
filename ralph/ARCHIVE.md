@@ -36,3 +36,6 @@ Format suggestions:
 - Rake + staking integration
   - Commit: `26b8134`
   - Notes: Reviewed staking flows, Token-2022 vault checks, and rake sweep path for AC-3.4–AC-3.6.
+- On-chain data layout optimization pass
+  - Commit: `cd33520`
+  - Notes: Verified table/header sizing and client parsers updated for 1,136-byte layout.
