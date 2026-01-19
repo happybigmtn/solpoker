@@ -11,7 +11,6 @@
 
 ### Phase 3: Client Integration
 
-- [x] Add PDA derivation utilities to TypeScript client
 ### Phase 4: End-to-End Verification
 
 ## Missing/Unknown
