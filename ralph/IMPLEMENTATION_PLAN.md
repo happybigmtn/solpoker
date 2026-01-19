@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Table lifecycle + seating + timeouts
-  - Specs: `specs/onchain-poker.md` AC-4.1, AC-4.2, AC-4.3, AC-4.4
-  - Tests/backpressure:
-    - Programmatic: LiteSVM test for create/join/leave
-    - Programmatic: LiteSVM test for timeout auto-action
-  - Perceptual: None
-
 - [x] Betting rounds + action validation
   - Specs: `specs/onchain-poker.md` AC-5.1, AC-5.2, AC-5.3
   - Tests/backpressure:

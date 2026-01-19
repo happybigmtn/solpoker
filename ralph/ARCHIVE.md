@@ -18,3 +18,6 @@ Format suggestions:
 - CRISPS mint + table vault escrow flows
   - Commit: `26b8134`
   - Notes: Verified Token-2022 vault authority checks and escrow transfer flows for join/leave.
+- Table lifecycle + seating + timeouts
+  - Commit: `26b8134`
+  - Notes: Timeout actions fold deterministically; table/seat transitions validated for WAITING/PLAYING flows.
