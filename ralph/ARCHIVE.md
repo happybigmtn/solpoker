@@ -39,3 +39,6 @@ Format suggestions:
 - On-chain data layout optimization pass
   - Commit: `cd33520`
   - Notes: Verified table/header sizing and client parsers updated for 1,136-byte layout.
+- UI scaffold (Next.js App Router) with framework‑kit + wallet standard
+  - Commit: `cd33520`
+  - Notes: Confirmed framework-kit providers and wallet-standard discovery wiring.

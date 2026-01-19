@@ -5,12 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] UI scaffold (Next.js App Router) with framework‑kit + wallet standard
-  - Specs: `specs/ui-minimal.md` AC-1.1, AC-1.2, AC-1.3, AC-1.4, AC-1.5
-  - Tests/backpressure:
-    - Programmatic: UI build passes and wallet connect flow initializes without errors
-  - Perceptual: None
-
 - [x] Keyboard‑first interaction + minimal styling
   - Specs: `specs/ui-minimal.md` AC-2.1, AC-2.2, AC-2.3, AC-2.4, AC-PQ.1, AC-PQ.2, AC-PQ.3, AC-6.1, AC-6.2, AC-6.3, AC-6.4, AC-6.5, AC-6.6
   - Tests/backpressure:
