@@ -30,3 +30,6 @@ Format suggestions:
 - Security validations pass
   - Commit: `26b8134`
   - Notes: Verified PDA/owner/signer validation coverage across instructions and tests.
+- Privacy hybrid flow (encrypted hole cards + seed reveal)
+  - Commit: `26b8134`
+  - Notes: Reviewed seed commitment validation and hole-card hash checks for AC-2.6–AC-2.8.

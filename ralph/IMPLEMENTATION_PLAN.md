@@ -5,12 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Privacy hybrid flow (encrypted hole cards + seed reveal)
-  - Specs: `specs/onchain-poker.md` AC-2.6, AC-2.7, AC-2.8
-  - Tests/backpressure:
-    - Programmatic: integration test that seed reveal validates deck and hole cards
-  - Perceptual: None
-
 - [x] Rake + staking integration
   - Specs: `specs/onchain-poker.md` AC-3.4, AC-3.5, AC-3.6
   - Tests/backpressure:
