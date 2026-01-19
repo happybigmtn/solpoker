@@ -2,6 +2,16 @@
 //!
 //! All structures use fixed-size layouts suitable for on-chain storage.
 //! Fields are ordered largest-to-smallest for optimal alignment.
+//!
+//! # Account Byte Sizes (AC-1.5)
+//!
+//! | Account    | Size (bytes) | Notes                       |
+//! |------------|-------------:|-----------------------------|
+//! | Config     |           96 | Global entropy config       |
+//! | Commitment |          128 | Provider commitment record  |
+//! | Request    |          160 | Randomness request record   |
+//!
+//! Sizes are asserted in `tests/mollusk_tests.rs`.
 
 use pinocchio::pubkey::Pubkey;
 

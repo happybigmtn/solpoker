@@ -6,7 +6,7 @@
 ## Tasks (Priority Order)
 
 ### Phase 1: Core Program Architecture
-- [ ] Deterministic core crate + fixed-size layouts + size docs. AC-1.1 to AC-1.6. Validation: unit tests + size assertions.
+- [x] Deterministic core crate + fixed-size layouts + size docs. AC-1.1 to AC-1.6. Validation: unit tests + size assertions.
 - [ ] Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
 
 ### Phase 2: Entropy On-Chain + Privacy

@@ -589,3 +589,10 @@ fn test_non_provider_cannot_commit() {
     let result = mollusk.process_instruction(&commit_ix, &commit_accounts);
     assert!(result.program_result.is_err(), "Non-provider should not be able to commit");
 }
+
+#[test]
+fn test_account_size_snapshots() {
+    assert_eq!(CONFIG_SIZE, 96, "Config size snapshot");
+    assert_eq!(COMMITMENT_SIZE, 128, "Commitment size snapshot");
+    assert_eq!(REQUEST_SIZE, 160, "Request size snapshot");
+}
