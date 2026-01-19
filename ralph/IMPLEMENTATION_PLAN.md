@@ -9,14 +9,6 @@
 
 ### Phase 2: Entropy Provider Service
 
-- [x] Implement hash chain generation and persistence
-  - Specs: `specs/entropy-provider.md` AC-EP1.1, AC-EP1.2, AC-EP1.3, AC-EP1.4
-  - Tests/backpressure:
-    - Programmatic: Generated chain has correct depth ✓
-    - Programmatic: Chain loads from file and matches saved state ✓
-    - Programmatic: Hash(preimage[i]) === commitment[i-1] ✓
-  - Perceptual: None
-
 - [x] Implement commitment posting
   - Specs: `specs/entropy-provider.md` AC-EP2.1, AC-EP2.2, AC-EP2.3
   - Tests/backpressure:

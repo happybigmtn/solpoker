@@ -10,6 +10,8 @@
 /clients/ui/node_modules
 /clients/ts/node_modules
 /clients/ts/dist
+/clients/entropy-provider/node_modules
+/clients/entropy-provider/dist
 /clients/ts/scripts/.crisps-mint-address
 
 .cursorrules

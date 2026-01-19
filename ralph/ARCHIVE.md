@@ -9,6 +9,9 @@ Format suggestions:
 - Notes about learnings / follow-ups
 
 ## 2026-01-19
+- Implement hash chain generation and persistence
+  - Commit: (see git log)
+  - Notes: Added entropy-provider package scaffold with hash-chain generator, persistence helpers, and AC-EP1 test coverage.
 - Create deployment automation script
   - Commit: (see git log)
   - Notes: Added `scripts/deploy-devnet.sh` for build/deploy/init/mint/env generation and ensured init-configs can read program IDs from env for fresh deployments.

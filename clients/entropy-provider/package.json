@@ -1,0 +1,33 @@
+{
+  "name": "@robopoker/entropy-provider",
+  "version": "0.1.0",
+  "description": "Off-chain entropy provider daemon for robopoker",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "entropy-provider": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@solana/kit": "^5.4.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@noble/hashes": "^1.7.1",
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.0.17"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "license": "MIT"
+}
