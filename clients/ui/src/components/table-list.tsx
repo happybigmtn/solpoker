@@ -8,7 +8,7 @@
 
 import { useTables, type TableSummary } from '@/hooks/use-tables';
 import { TABLE_STATUS, MAX_SEATS } from '@robopoker/client';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { Address } from '@solana/kit';
 
 interface TableListProps {
@@ -75,11 +75,13 @@ function getStatusBadge(status: number): { text: string; className: string } {
 /**
  * Single table row in the list.
  */
-function TableRow({ table, onClick }: { table: TableSummary; onClick: () => void }) {
+function TableRow({ table }: { table: TableSummary }) {
   const statusBadge = getStatusBadge(table.status);
   const blindsText = `${formatTokenAmount(table.smallBlind)}/${formatTokenAmount(table.bigBlind)}`;
   const seatsText = `${table.playerCount}/${MAX_SEATS}`;
   const canJoin = table.status === TABLE_STATUS.WAITING && table.playerCount < MAX_SEATS;
+  const canNavigate = canJoin || table.status === TABLE_STATUS.PLAYING;
+  const actionLabel = canJoin ? 'Join' : table.status === TABLE_STATUS.PLAYING ? 'Watch' : 'View';
 
   return (
     <tr className="border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
@@ -103,19 +105,25 @@ function TableRow({ table, onClick }: { table: TableSummary; onClick: () => void
         {formatTokenAmount(table.pot)}
       </td>
       <td className="px-4 py-3 text-right">
-        <button
-          onClick={onClick}
-          disabled={!canJoin && table.status !== TABLE_STATUS.PLAYING}
-          className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            canJoin
-              ? 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900'
-              : table.status === TABLE_STATUS.PLAYING
-                ? 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
-                : 'bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-500'
-          }`}
-        >
-          {canJoin ? 'Join' : table.status === TABLE_STATUS.PLAYING ? 'Watch' : 'View'}
-        </button>
+        {canNavigate ? (
+          <Link
+            href={`/table/${table.address}`}
+            className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              canJoin
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900'
+                : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
+            }`}
+          >
+            {actionLabel}
+          </Link>
+        ) : (
+          <span
+            className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-500"
+            aria-disabled="true"
+          >
+            {actionLabel}
+          </span>
+        )}
       </td>
     </tr>
   );
@@ -128,11 +136,6 @@ function TableRow({ table, onClick }: { table: TableSummary; onClick: () => void
  */
 export function TableList({ pokerProgramId }: TableListProps) {
   const { tables, isLoading, error, refresh } = useTables({ pokerProgramId });
-  const router = useRouter();
-
-  const handleTableClick = (table: TableSummary) => {
-    router.push(`/table/${table.address}`);
-  };
 
   if (isLoading) {
     return (
@@ -210,11 +213,7 @@ export function TableList({ pokerProgramId }: TableListProps) {
           </thead>
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
             {tables.map((table) => (
-              <TableRow
-                key={table.address}
-                table={table}
-                onClick={() => handleTableClick(table)}
-              />
+              <TableRow key={table.address} table={table} />
             ))}
           </tbody>
         </table>

@@ -273,6 +273,7 @@ export function CommandPalette({
           <input
             ref={inputRef}
             id="command-palette-input"
+            name="command"
             type="search"
             placeholder="Type a command…"
             className="h-14 flex-1 bg-transparent px-3 text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-100 dark:placeholder:text-zinc-500"
@@ -308,32 +309,38 @@ export function CommandPalette({
             filteredCommands.map((cmd, index) => (
               <li
                 key={cmd.id}
-                id={`command-${cmd.id}`}
-                role="option"
-                aria-selected={index === selectedIndex}
-                aria-disabled={cmd.disabled}
-                className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors ${
-                  index === selectedIndex
-                    ? 'bg-zinc-100 dark:bg-zinc-800'
-                    : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                } ${cmd.disabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                onClick={() => {
-                  if (!cmd.disabled) {
-                    if (typeof cmd.action === 'function') {
-                      cmd.action();
-                    } else {
-                      onAction(cmd.action);
-                    }
-                    onClose();
-                  }
-                }}
               >
-                <span className="text-zinc-900 dark:text-zinc-100">{cmd.label}</span>
-                {cmd.shortcut && (
-                  <kbd className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-                    {cmd.shortcut}
-                  </kbd>
-                )}
+                <button
+                  type="button"
+                  id={`command-${cmd.id}`}
+                  role="option"
+                  aria-selected={index === selectedIndex}
+                  aria-disabled={cmd.disabled}
+                  disabled={cmd.disabled}
+                  tabIndex={-1}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    index === selectedIndex
+                      ? 'bg-zinc-100 dark:bg-zinc-800'
+                      : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                  } ${cmd.disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  onClick={() => {
+                    if (!cmd.disabled) {
+                      if (typeof cmd.action === 'function') {
+                        cmd.action();
+                      } else {
+                        onAction(cmd.action);
+                      }
+                      onClose();
+                    }
+                  }}
+                >
+                  <span className="text-zinc-900 dark:text-zinc-100">{cmd.label}</span>
+                  {cmd.shortcut && (
+                    <kbd className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+                      {cmd.shortcut}
+                    </kbd>
+                  )}
+                </button>
               </li>
             ))
           )}

@@ -148,6 +148,7 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
           onClick={handleClose}
           disabled={isPending}
           className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          aria-label="Close create table form"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -162,8 +163,13 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
               Small Blind (CRISPS)
             </label>
             <input
-              type="text"
+              type="number"
+              inputMode="decimal"
               id="smallBlind"
+              name="smallBlind"
+              autoComplete="off"
+              min="0"
+              step="0.000000001"
               value={smallBlindInput}
               onChange={(e) => setSmallBlindInput(e.target.value)}
               disabled={isPending}
@@ -176,8 +182,13 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
               Big Blind (CRISPS)
             </label>
             <input
-              type="text"
+              type="number"
+              inputMode="decimal"
               id="bigBlind"
+              name="bigBlind"
+              autoComplete="off"
+              min="0"
+              step="0.000000001"
               value={bigBlindInput}
               onChange={(e) => setBigBlindInput(e.target.value)}
               disabled={isPending}
