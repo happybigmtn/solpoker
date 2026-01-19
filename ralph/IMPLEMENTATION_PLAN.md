@@ -7,15 +7,6 @@
 
 ### Phase 1: Deployment Infrastructure
 
-- [x] Create deployment automation script
-  - Specs: `specs/devnet-deployment.md` AC-D4.1, AC-D4.2, AC-D4.3
-  - Tests/backpressure:
-    - Programmatic: Single command completes without error ✓
-    - Programmatic: `.env.local` contains all required addresses ✓
-    - Programmatic: Re-run does not fail ✓
-  - Perceptual: None
-  - Note: Created `scripts/deploy-devnet.sh` which builds, deploys, initializes, and writes env file
-
 ### Phase 2: Entropy Provider Service
 
 - [x] Implement hash chain generation and persistence

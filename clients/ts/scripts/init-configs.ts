@@ -7,6 +7,7 @@
  * 3. Verifies the accounts via RPC
  *
  * Usage: npx tsx scripts/init-configs.ts
+ *        ENTROPY_PROGRAM_ID=<ID> POKER_PROGRAM_ID=<ID> npx tsx scripts/init-configs.ts
  */
 
 import {
@@ -38,9 +39,11 @@ import {
 import { SYSTEM_PROGRAM_ID } from "../src/constants.js";
 import { createRpc, logRpcConfig } from "./utils/rpc.js";
 
-// Program IDs (from deployed programs)
-const ENTROPY_PROGRAM_ID = address("GG5nqvfpYHXyMF5A5yyMYjTCKQmKTDjMheJ4iCRSvTRf");
-const POKER_PROGRAM_ID = address("3oG9MCSnE7UJDQKzEoJdmHrZ3qA7Y5ADdWbYqH1KpxLv");
+// Program IDs (from deployed programs; override via env for fresh deployments)
+const DEFAULT_ENTROPY_PROGRAM_ID = "GG5nqvfpYHXyMF5A5yyMYjTCKQmKTDjMheJ4iCRSvTRf";
+const DEFAULT_POKER_PROGRAM_ID = "3oG9MCSnE7UJDQKzEoJdmHrZ3qA7Y5ADdWbYqH1KpxLv";
+const ENTROPY_PROGRAM_ID = address(process.env.ENTROPY_PROGRAM_ID ?? DEFAULT_ENTROPY_PROGRAM_ID);
+const POKER_PROGRAM_ID = address(process.env.POKER_PROGRAM_ID ?? DEFAULT_POKER_PROGRAM_ID);
 
 // Config parameters
 const ENTROPY_CONFIG = {
