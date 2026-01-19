@@ -9,7 +9,6 @@
 
 ### Phase 2: Entropy Provider Service
 
-- [x] Implement provider CLI
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
