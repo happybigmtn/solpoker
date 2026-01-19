@@ -10,13 +10,6 @@
 ### Phase 2: Entropy Provider Service
 
 - [x] Implement commitment posting
-  - Specs: `specs/entropy-provider.md` AC-EP2.1, AC-EP2.2, AC-EP2.3
-  - Tests/backpressure:
-    - Programmatic: Commit TX confirms on devnet ✓
-    - Programmatic: Commitment account exists with correct hash ✓
-  - Perceptual: None
-  - Note: Fixed AccountBorrowFailed error by dropping commitment_data borrow before Transfer CPI
-
 - [x] Implement reveal flow with slot monitoring
   - Specs: `specs/entropy-provider.md` AC-EP3.1, AC-EP3.2, AC-EP3.3, AC-EP3.4
   - Tests/backpressure:

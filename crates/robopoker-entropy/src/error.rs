@@ -40,6 +40,8 @@ pub enum EntropyError {
     InvalidSlothash = 15,
     /// Duplicate mutable accounts (AC-7.3)
     DuplicateMutableAccount = 16,
+    /// Account is not writable
+    AccountNotWritable = 17,
 }
 
 impl From<EntropyError> for ProgramError {

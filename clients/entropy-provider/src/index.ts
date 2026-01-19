@@ -16,3 +16,14 @@ export {
   DEFAULT_CHAIN_DEPTH,
   type HashChain,
 } from "./hash-chain.js";
+
+export {
+  postCommitment,
+  verifyCommitmentOnChain,
+  initCommitmentState,
+  deriveCommitmentPda,
+  COMMITMENT_SIZE,
+  type EntropyProviderConfig,
+  type PendingCommitment,
+  type CommitmentState,
+} from "./commit.js";

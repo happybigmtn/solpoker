@@ -136,6 +136,11 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::MissingSigner.into());
     }
 
+    // Commitment account must be writable
+    if !commitment_info.is_writable() {
+        return Err(EntropyError::AccountNotWritable.into());
+    }
+
     // Duplicate mutable account check (AC-7.3)
     if commitment_info.key() == provider_info.key() {
         return Err(EntropyError::DuplicateMutableAccount.into());
@@ -146,12 +151,66 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Accounts must be owned by this program
-    if !config_info.is_owned_by(&crate::ID) || !commitment_info.is_owned_by(&crate::ID) {
+    // Config must be owned by this program
+    if !config_info.is_owned_by(&crate::ID) {
         return Err(EntropyError::InvalidAccountOwner.into());
     }
 
-    // Load and verify config
+    // Parse instruction data (no borrow needed)
+    let ix = unsafe { instruction::Commit::from_bytes_unchecked(data) };
+
+    // Verify commitment PDA and get bump BEFORE any borrows
+    let sequence_bytes = ix.sequence.to_le_bytes();
+    let seeds: [&[u8]; 3] = [
+        b"commitment",
+        provider_info.key().as_ref(),
+        sequence_bytes.as_slice(),
+    ];
+    let (expected_commitment, bump) = pubkey::find_program_address(&seeds, &crate::ID);
+    if commitment_info.key() != &expected_commitment {
+        return Err(EntropyError::InvalidPda.into());
+    }
+
+    // Create commitment account if it doesn't exist (BEFORE any borrows)
+    if commitment_info.data_len() == 0 {
+        // Calculate rent-exempt lamports
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(COMMITMENT_SIZE);
+
+        // Build PDA signer seeds
+        let bump_seed = [bump];
+        let provider_key_bytes: [u8; 32] = *provider_info.key();
+        let seq_bytes = ix.sequence.to_le_bytes();
+        let signer_seeds = pinocchio::seeds!(b"commitment", &provider_key_bytes, seq_bytes.as_slice(), &bump_seed);
+        let signer = pinocchio::instruction::Signer::from(&signer_seeds);
+
+        // Use the same pattern as Initialize - pinocchio-system's CreateAccount
+        CreateAccount {
+            from: provider_info,
+            to: commitment_info,
+            lamports,
+            space: COMMITMENT_SIZE as u64,
+            owner: &crate::ID,
+        }
+        .invoke_signed(&[signer])?;
+    } else {
+        // Account already exists, check if owned by this program
+        if !commitment_info.is_owned_by(&crate::ID) {
+            return Err(EntropyError::InvalidAccountOwner.into());
+        }
+
+        // Prevent re-initialization of commitment account
+        let commitment_check = commitment_info.try_borrow_data()?;
+        if commitment_check.len() >= COMMITMENT_SIZE {
+            let existing = unsafe { Commitment::from_bytes_unchecked(&commitment_check) };
+            if existing.discriminator == acc_disc::COMMITMENT {
+                return Err(EntropyError::AlreadyInitialized.into());
+            }
+        }
+        drop(commitment_check);
+    }
+
+    // NOW load and verify config (after CPI is done)
     let config_data = config_info.try_borrow_data()?;
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
@@ -164,31 +223,6 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     // AC-2.5: Verify provider matches config
     if provider_info.key() != &config.provider {
         return Err(EntropyError::ProviderMismatch.into());
-    }
-
-    // Prevent re-initialization of commitment account
-    let commitment_check = commitment_info.try_borrow_data()?;
-    if commitment_check.len() >= COMMITMENT_SIZE {
-        let existing = unsafe { Commitment::from_bytes_unchecked(&commitment_check) };
-        if existing.discriminator == acc_disc::COMMITMENT {
-            return Err(EntropyError::AlreadyInitialized.into());
-        }
-    }
-    drop(commitment_check);
-
-    // Parse instruction data
-    let ix = unsafe { instruction::Commit::from_bytes_unchecked(data) };
-
-    // Verify commitment PDA
-    let sequence_bytes = ix.sequence.to_le_bytes();
-    let seeds: [&[u8]; 3] = [
-        b"commitment",
-        provider_info.key().as_ref(),
-        sequence_bytes.as_slice(),
-    ];
-    let (expected_commitment, _bump) = pubkey::find_program_address(&seeds, &crate::ID);
-    if commitment_info.key() != &expected_commitment {
-        return Err(EntropyError::InvalidPda.into());
     }
 
     // Check bond amount
@@ -217,6 +251,9 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     commitment.commit_slot = clock.slot;
     commitment.sequence = ix.sequence;
     commitment.preimage = [0; 32];
+
+    // Drop borrow before Transfer CPI (which needs to access account lamports)
+    drop(commitment_data);
 
     // Transfer bond from provider to commitment account
     Transfer {

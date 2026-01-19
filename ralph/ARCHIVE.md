@@ -9,6 +9,9 @@ Format suggestions:
 - Notes about learnings / follow-ups
 
 ## 2026-01-19
+- Implement commitment posting
+  - Commit: (see git log)
+  - Notes: Added entropy-provider commit flow with PDA derivation, on-chain verification helpers, and devnet integration tests for AC-EP2.*.
 - Implement hash chain generation and persistence
   - Commit: (see git log)
   - Notes: Added entropy-provider package scaffold with hash-chain generator, persistence helpers, and AC-EP1 test coverage.
