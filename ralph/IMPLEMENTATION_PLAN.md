@@ -7,7 +7,7 @@
 
 ### Phase 1: Core Program Architecture
 - [x] Deterministic core crate + fixed-size layouts + size docs. AC-1.1 to AC-1.6. Validation: unit tests + size assertions.
-- [ ] Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
+- [x] Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
 
 ### Phase 2: Entropy On-Chain + Privacy
 - [ ] Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
