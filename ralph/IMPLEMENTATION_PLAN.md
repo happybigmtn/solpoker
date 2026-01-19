@@ -5,12 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Security validations pass
-  - Specs: `specs/onchain-poker.md` AC-7.1, AC-7.2, AC-7.3, AC-7.4
-  - Tests/backpressure:
-    - Programmatic: owner/signer/PDA mismatch tests fail as expected
-  - Perceptual: None
-
 - [x] Privacy hybrid flow (encrypted hole cards + seed reveal)
   - Specs: `specs/onchain-poker.md` AC-2.6, AC-2.7, AC-2.8
   - Tests/backpressure:

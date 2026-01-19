@@ -27,3 +27,6 @@ Format suggestions:
 - Settlement + side pots
   - Commit: `26b8134`
   - Notes: Reviewed side-pot distribution logic and showdown eligibility handling for AC-6.1–AC-6.2.
+- Security validations pass
+  - Commit: `26b8134`
+  - Notes: Verified PDA/owner/signer validation coverage across instructions and tests.
