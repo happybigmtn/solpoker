@@ -174,7 +174,7 @@ describe('TableStore selective subscriptions', () => {
     expect(statusListener).toHaveBeenCalledTimes(1); // Still 1
 
     // Change status to SHOWDOWN
-    const state3 = { ...state2, status: 3 as const };
+    const state3 = { ...state2, status: 2 as const };
     store.setState(state3);
     expect(statusListener).toHaveBeenCalledTimes(2);
   });

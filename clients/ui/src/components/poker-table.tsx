@@ -178,6 +178,7 @@ function SeatCard({
   const isEmpty = seat.status === SeatStatus.EMPTY;
   const isFolded = seat.status === SeatStatus.FOLDED;
   const isAllIn = seat.status === SeatStatus.ALL_IN;
+  const isSittingOut = seat.status === SeatStatus.SITTING_OUT;
 
   return (
     <div
@@ -186,10 +187,13 @@ function SeatCard({
         transition-colors duration-150
         ${isEmpty ? 'bg-zinc-300/50 dark:bg-zinc-700/50' : 'bg-white dark:bg-zinc-800'}
         ${isFolded ? 'opacity-50' : ''}
+        ${isSittingOut ? 'opacity-60' : ''}
         ${isCurrentActor ? 'ring-2 ring-yellow-400' : ''}
         ${isPlayer ? 'ring-2 ring-blue-500' : ''}
       `}
-      aria-label={`Seat ${index + 1}${isEmpty ? ' (empty)' : ''}`}
+      aria-label={`Seat ${index + 1}${
+        isEmpty ? ' (empty)' : isSittingOut ? ' (sitting out)' : ''
+      }`}
     >
       {/* Turn indicator */}
       {isCurrentActor && (
@@ -219,6 +223,11 @@ function SeatCard({
           {isAllIn && (
             <span className="mt-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
               All In
+            </span>
+          )}
+          {isSittingOut && (
+            <span className="mt-1 rounded-full bg-zinc-400 px-2 py-0.5 text-[10px] font-medium text-zinc-900 uppercase">
+              Sitting Out
             </span>
           )}
           {isFolded && (

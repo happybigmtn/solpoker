@@ -59,8 +59,9 @@ export const TABLE_STATUS = {
 export const SEAT_STATUS = {
   EMPTY: 0,
   OCCUPIED: 1,
-  FOLDED: 2,
-  ALL_IN: 3,
+  SITTING_OUT: 2,
+  FOLDED: 3,
+  ALL_IN: 4,
 } as const;
 
 // Street values
