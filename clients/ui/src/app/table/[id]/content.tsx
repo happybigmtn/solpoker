@@ -8,19 +8,24 @@
  * AC-4.4: Uses Suspense boundaries for non-critical UI.
  * AC-4.5: Dynamic imports for heavy panels.
  * AC-7.1: URL state for panel selection (deep linkable).
+ * AC-CI2.1–AC-CI2.4: Transaction building and sending.
+ * AC-CI3.1–AC-CI3.5: Player action wiring.
  */
 
-import { Suspense, lazy, useState, useCallback } from 'react';
+import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTableSubscription } from '@/hooks/use-table-subscription';
+import { type Address } from '@solana/kit';
+import { useTableSubscription, useCurrentActor, useCurrentBet, useMinRaise } from '@/hooks/use-table-subscription';
 import { PokerTable } from '@/components/poker-table';
 import { PokerActions } from '@/components/poker-actions';
 import { CommandPalette } from '@/components/command-palette';
-import { TransactionStatus, type TransactionState } from '@/components/transaction-status';
+import { TransactionStatus } from '@/components/transaction-status';
 import { ConfirmationModal } from '@/components/confirmation-modal';
 import { WalletConnect } from '@/components/wallet-connect';
 import { useWalletConnection } from '@solana/react-hooks';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { usePlayerAction, type PlayerActionType } from '@/hooks/use-player-action';
+import { derivePokerConfigPda, deriveTablePda } from '@robopoker/client';
 
 // AC-4.5: Dynamic import for heavy panel (action history)
 const ActionHistory = lazy(() =>
@@ -32,6 +37,9 @@ interface TablePageContentProps {
   activePanel?: string;
 }
 
+// Get program IDs and addresses from environment
+const POKER_PROGRAM_ID = process.env.NEXT_PUBLIC_POKER_PROGRAM_ID as Address;
+
 export function TablePageContent({ tableId, activePanel }: TablePageContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,10 +50,60 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   // AC-4.1: Subscribe to on-chain table state
   const { store, error, isConnected: isRpcConnected } = useTableSubscription(tableId);
 
-  // Transaction state management
-  const [txState, setTxState] = useState<TransactionState>('idle');
-  const [txSignature, setTxSignature] = useState<string>();
-  const [txError, setTxError] = useState<string>();
+  // Get table state for action computation
+  const currentActor = useCurrentActor(store);
+  const currentBet = useCurrentBet(store);
+  const minRaise = useMinRaise(store);
+
+  // Async PDA derivation (simplified - in production, use a proper loading state)
+  const [derivedAddresses, setDerivedAddresses] = useState<{
+    tableAddress: Address | null;
+    configAddress: Address | null;
+  }>({ tableAddress: null, configAddress: null });
+
+  // Derive PDAs on mount/tableId change
+  useEffect(() => {
+    if (!POKER_PROGRAM_ID) return;
+
+    const derivePdas = async () => {
+      try {
+        const tableIdBigInt = BigInt(tableId);
+        const [tablePda] = await deriveTablePda(POKER_PROGRAM_ID, tableIdBigInt);
+        const [configPda] = await derivePokerConfigPda(POKER_PROGRAM_ID);
+        setDerivedAddresses({
+          tableAddress: tablePda,
+          configAddress: configPda,
+        });
+      } catch (err) {
+        console.error('Failed to derive PDAs:', err);
+      }
+    };
+
+    derivePdas();
+  }, [tableId]);
+
+  // AC-CI2.1–AC-CI3.5: Use real transaction hook for player actions
+  const {
+    executeAction,
+    txState: playerTxState,
+    txSignature: playerTxSignature,
+    txError: playerTxError,
+    resetTxState: resetPlayerTxState,
+    isPending: isPlayerActionPending,
+  } = usePlayerAction({
+    tableAddress: derivedAddresses.tableAddress ?? ('' as Address),
+    pokerProgramId: POKER_PROGRAM_ID ?? ('' as Address),
+    configAddress: derivedAddresses.configAddress ?? ('' as Address),
+  });
+
+  const txState = playerTxState;
+  const txSignature = playerTxSignature;
+  const txError = playerTxError;
+  const isPending = isPlayerActionPending;
+
+  const resetTxState = useCallback(() => {
+    resetPlayerTxState();
+  }, [resetPlayerTxState]);
 
   // AC-7.1: Update URL when panel changes
   const handlePanelChange = useCallback(
@@ -64,7 +122,35 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   // Raise amount state (controlled)
   const [raiseAmount, setRaiseAmount] = useState(100);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const isPlayerTurn = true; // TODO: Derive from store state
+
+  // Determine if it's the player's turn based on store state
+  const playerSeatIndex = useMemo(() => {
+    if (!playerAddress || !store) return -1;
+    // Find the seat index for this player
+    const seats = store.getState().seats;
+    return seats.findIndex((seat) => seat.player === playerAddress);
+  }, [playerAddress, store]);
+
+  const isPlayerTurn = currentActor === playerSeatIndex && playerSeatIndex >= 0;
+
+  // Compute toCall based on current bet and player's current bet
+  const playerCurrentBet = useMemo(() => {
+    if (playerSeatIndex < 0 || !store) return 0n;
+    return store.getState().seats[playerSeatIndex]?.currentBet ?? 0n;
+  }, [playerSeatIndex, store]);
+
+  const toCallValue = currentBet > playerCurrentBet ? currentBet - playerCurrentBet : 0n;
+  const toCall = Number(toCallValue);
+  const canCheck = toCallValue === 0n;
+
+  // Player's stack for maxRaise
+  const playerStack = useMemo(() => {
+    if (playerSeatIndex < 0 || !store) return 0n;
+    return store.getState().seats[playerSeatIndex]?.stack ?? 0n;
+  }, [playerSeatIndex, store]);
+
+  const minRaiseAmount = Number(minRaise);
+  const maxRaise = Number(playerStack);
 
   // AC-5.7: Confirmation modal state for destructive actions
   const [confirmModal, setConfirmModal] = useState<{
@@ -72,32 +158,32 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     action?: 'leaveTable' | 'fold';
   }>({ isOpen: false });
 
-  // Action handlers (placeholder - will integrate with transaction builder)
+  // AC-CI3.1–AC-CI3.5: Handle player actions via real transactions
   const handleAction = useCallback(
     async (action: string, amount?: number) => {
-      setTxState('pending');
-      setTxError(undefined);
-
-      try {
-        // TODO: Build and send transaction via @solana/kit
-        // Simulate for now
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        setTxState('confirmed');
-        setTxSignature('mock-signature-' + Date.now());
-      } catch (err) {
-        setTxState('failed');
-        setTxError(err instanceof Error ? err.message : 'Unknown error');
+      if (action === 'joinTable' || action === 'leaveTable' || action === 'startHand') {
+        console.warn(`Action ${action} not wired yet.`);
+        return;
       }
+
+      // Map string actions to PlayerActionType for player actions
+      const validActions: PlayerActionType[] = ['fold', 'check', 'call', 'raise', 'shove'];
+      if (!validActions.includes(action as PlayerActionType)) {
+        console.warn(`Unknown action type: ${action}`);
+        return;
+      }
+
+      const actionType = action as PlayerActionType;
+      const actionAmount = amount !== undefined ? BigInt(amount) : undefined;
+
+      await executeAction(actionType, actionAmount);
     },
-    []
+    [executeAction]
   );
 
   const handleDismissStatus = useCallback(() => {
-    setTxState('idle');
-    setTxSignature(undefined);
-    setTxError(undefined);
-  }, []);
+    resetTxState();
+  }, [resetTxState]);
 
   // AC-5.7: Handlers for destructive action confirmation
   const handleLeaveTableRequest = useCallback(() => {
@@ -125,7 +211,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
         case 'connectWallet': {
           const connector = connectors[0];
           if (connector) {
-            await connect(connector);
+            await connect(connector.id);
           }
           return;
         }
@@ -203,15 +289,15 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
       {/* Action buttons */}
       <div className="mx-auto w-full max-w-4xl">
         <PokerActions
-          isPlayerTurn={isPlayerTurn} // TODO: Derive from store.currentActor === playerSeatIndex
-          isSubmitting={txState === 'pending'}
-          toCall={50} // TODO: From store (amountToCall)
-          minRaise={100} // TODO: From store
-          maxRaise={5000} // TODO: From store
+          isPlayerTurn={isPlayerTurn}
+          isSubmitting={isPending}
+          toCall={toCall}
+          minRaise={minRaiseAmount}
+          maxRaise={maxRaise}
           raiseAmount={raiseAmount}
           onRaiseAmountChange={setRaiseAmount}
           onAction={handleAction}
-          canCheck={false} // TODO: From store (toCall === 0)
+          canCheck={canCheck}
         />
       </div>
 
