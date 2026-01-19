@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] CRISPS mint + table vault escrow flows
-  - Specs: `specs/onchain-poker.md` AC-3.1, AC-3.2, AC-3.3
-  - Tests/backpressure:
-    - Programmatic: LiteSVM test for join (debit player, credit vault)
-    - Programmatic: LiteSVM test for leave (credit player, debit vault)
-  - Perceptual: None
-
 - [x] Table lifecycle + seating + timeouts
   - Specs: `specs/onchain-poker.md` AC-4.1, AC-4.2, AC-4.3, AC-4.4
   - Tests/backpressure:

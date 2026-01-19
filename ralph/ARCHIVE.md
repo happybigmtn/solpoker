@@ -15,3 +15,6 @@ Format suggestions:
 - Entropy program MVP + provider service
   - Commit: `b29d729`
   - Notes: Added request re-init protection, config initialization checks in finalize, and duplicate account guardrails.
+- CRISPS mint + table vault escrow flows
+  - Commit: `26b8134`
+  - Notes: Verified Token-2022 vault authority checks and escrow transfer flows for join/leave.
