@@ -42,3 +42,6 @@ Format suggestions:
 - UI scaffold (Next.js App Router) with framework‑kit + wallet standard
   - Commit: `cd33520`
   - Notes: Confirmed framework-kit providers and wallet-standard discovery wiring.
+- Keyboard‑first interaction + minimal styling
+  - Commit: `cd33520`
+  - Notes: Reviewed keyboard shortcut mapping and raise input behavior against AC-2.x and AC-PQ requirements.
