@@ -17,13 +17,6 @@
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
-  - Specs: `specs/client-integration.md` AC-CI1.1, AC-CI1.2, AC-CI1.3, AC-CI1.4
-  - Tests/backpressure:
-    - Programmatic: TS-derived PDA matches Rust-derived PDA in test ✓
-    - Programmatic: All PDA functions exported from index.ts ✓
-  - Perceptual: None
-  - Note: Created src/pda.ts with 10 PDA derivation functions (poker: config, table, vault, staking_pool, staker, stake_vault, rewards_vault; entropy: config, commitment, request); 29 tests passing
-
 - [x] Wire player action buttons to real transactions
   - Specs: `specs/client-integration.md` AC-CI3.1–AC-CI3.5, AC-CI2.1, AC-CI2.3, AC-CI2.4
   - Tests/backpressure:

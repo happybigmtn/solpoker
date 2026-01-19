@@ -9,3 +9,4 @@ export * from "./instructions/poker.js";
 export * from "./instructions/entropy.js";
 export * from "./types.js";
 export * from "./constants.js";
+export * from "./pda.js";
