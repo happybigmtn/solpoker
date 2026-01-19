@@ -11,6 +11,3 @@ shortdeck = []
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-
-[dev-dependencies]
-rand = { version = "0.9.1", features = ["small_rng"] }
