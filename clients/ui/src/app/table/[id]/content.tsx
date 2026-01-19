@@ -10,6 +10,7 @@
  * AC-7.1: URL state for panel selection (deep linkable).
  * AC-CI2.1–AC-CI2.4: Transaction building and sending.
  * AC-CI3.1–AC-CI3.5: Player action wiring.
+ * AC-CI3.6–AC-CI3.7: Join/leave table wiring.
  */
 
 import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react';
@@ -24,8 +25,14 @@ import { ConfirmationModal } from '@/components/confirmation-modal';
 import { WalletConnect } from '@/components/wallet-connect';
 import { useWalletConnection } from '@solana/react-hooks';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useTableAction } from '@/hooks/use-table-action';
 import { usePlayerAction, type PlayerActionType } from '@/hooks/use-player-action';
-import { derivePokerConfigPda, deriveTablePda } from '@robopoker/client';
+import {
+  deriveAssociatedTokenAccount,
+  derivePokerConfigPda,
+  deriveTablePda,
+  deriveVaultPda,
+} from '@robopoker/client';
 
 // AC-4.5: Dynamic import for heavy panel (action history)
 const ActionHistory = lazy(() =>
@@ -39,6 +46,10 @@ interface TablePageContentProps {
 
 // Get program IDs and addresses from environment
 const POKER_PROGRAM_ID = process.env.NEXT_PUBLIC_POKER_PROGRAM_ID as Address;
+const CRISPS_MINT = process.env.NEXT_PUBLIC_CRISPS_MINT as Address;
+
+// Default buy-in amount (10 CRISPS with 9 decimals)
+const DEFAULT_BUY_IN_AMOUNT = 10_000_000_000n;
 
 export function TablePageContent({ tableId, activePanel }: TablePageContentProps) {
   const router = useRouter();
@@ -59,20 +70,40 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   const [derivedAddresses, setDerivedAddresses] = useState<{
     tableAddress: Address | null;
     configAddress: Address | null;
-  }>({ tableAddress: null, configAddress: null });
+    vaultAddress: Address | null;
+    playerTokenAccount: Address | null;
+  }>({
+    tableAddress: null,
+    configAddress: null,
+    vaultAddress: null,
+    playerTokenAccount: null,
+  });
 
   // Derive PDAs on mount/tableId change
   useEffect(() => {
-    if (!POKER_PROGRAM_ID) return;
+    if (!POKER_PROGRAM_ID || !CRISPS_MINT) return;
 
     const derivePdas = async () => {
       try {
         const tableIdBigInt = BigInt(tableId);
         const [tablePda] = await deriveTablePda(POKER_PROGRAM_ID, tableIdBigInt);
+        const [vaultPda] = await deriveVaultPda(POKER_PROGRAM_ID, tableIdBigInt);
         const [configPda] = await derivePokerConfigPda(POKER_PROGRAM_ID);
+
+        let playerTokenAccount: Address | null = null;
+        if (playerAddress) {
+          const [ata] = await deriveAssociatedTokenAccount(
+            playerAddress as Address,
+            CRISPS_MINT
+          );
+          playerTokenAccount = ata;
+        }
+
         setDerivedAddresses({
           tableAddress: tablePda,
           configAddress: configPda,
+          vaultAddress: vaultPda,
+          playerTokenAccount,
         });
       } catch (err) {
         console.error('Failed to derive PDAs:', err);
@@ -80,7 +111,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     };
 
     derivePdas();
-  }, [tableId]);
+  }, [tableId, playerAddress, POKER_PROGRAM_ID, CRISPS_MINT]);
 
   // AC-CI2.1–AC-CI3.5: Use real transaction hook for player actions
   const {
@@ -96,14 +127,32 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     configAddress: derivedAddresses.configAddress ?? ('' as Address),
   });
 
-  const txState = playerTxState;
-  const txSignature = playerTxSignature;
-  const txError = playerTxError;
-  const isPending = isPlayerActionPending;
+  const {
+    joinTable,
+    leaveTable,
+    txState: tableTxState,
+    txSignature: tableTxSignature,
+    txError: tableTxError,
+    resetTxState: resetTableTxState,
+    isPending: isTableActionPending,
+  } = useTableAction({
+    tableAddress: derivedAddresses.tableAddress ?? ('' as Address),
+    vaultAddress: derivedAddresses.vaultAddress ?? ('' as Address),
+    pokerProgramId: POKER_PROGRAM_ID ?? ('' as Address),
+    configAddress: derivedAddresses.configAddress ?? ('' as Address),
+    playerTokenAccount: derivedAddresses.playerTokenAccount ?? ('' as Address),
+  });
+
+  const hasTableTx = tableTxState !== 'idle';
+  const txState = hasTableTx ? tableTxState : playerTxState;
+  const txSignature = hasTableTx ? tableTxSignature : playerTxSignature;
+  const txError = hasTableTx ? tableTxError : playerTxError;
+  const isPending = isPlayerActionPending || isTableActionPending;
 
   const resetTxState = useCallback(() => {
     resetPlayerTxState();
-  }, [resetPlayerTxState]);
+    resetTableTxState();
+  }, [resetPlayerTxState, resetTableTxState]);
 
   // AC-7.1: Update URL when panel changes
   const handlePanelChange = useCallback(
@@ -161,7 +210,16 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   // AC-CI3.1–AC-CI3.5: Handle player actions via real transactions
   const handleAction = useCallback(
     async (action: string, amount?: number) => {
-      if (action === 'joinTable' || action === 'leaveTable' || action === 'startHand') {
+      if (action === 'joinTable') {
+        const buyInAmount = amount !== undefined ? BigInt(amount) : DEFAULT_BUY_IN_AMOUNT;
+        await joinTable(buyInAmount);
+        return;
+      }
+      if (action === 'leaveTable') {
+        await leaveTable();
+        return;
+      }
+      if (action === 'startHand') {
         console.warn(`Action ${action} not wired yet.`);
         return;
       }
@@ -178,7 +236,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
 
       await executeAction(actionType, actionAmount);
     },
-    [executeAction]
+    [executeAction, joinTable, leaveTable]
   );
 
   const handleDismissStatus = useCallback(() => {

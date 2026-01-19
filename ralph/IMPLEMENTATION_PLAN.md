@@ -17,14 +17,6 @@
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
-- [x] Wire join/leave table actions
-  - Specs: `specs/client-integration.md` AC-CI3.6, AC-CI3.7, AC-CI2.2
-  - Tests/backpressure:
-    - Programmatic: Join TX transfers CRISPS to vault ✓
-    - Programmatic: Leave TX returns remaining stack to player ✓
-  - Perceptual: None
-  - Note: Created `use-table-action.ts` hook with joinTable/leaveTable functions using SDK instruction builders; Added `deriveAssociatedTokenAccount` to PDA utilities for Token-2022 ATA derivation; 12 new tests passing
-
 - [x] Implement transaction error handling
   - Specs: `specs/client-integration.md` AC-CI4.1, AC-CI4.2, AC-CI4.3, AC-CI4.4
   - Tests/backpressure:
