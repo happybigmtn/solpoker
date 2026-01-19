@@ -119,6 +119,8 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     txState: playerTxState,
     txSignature: playerTxSignature,
     txError: playerTxError,
+    retry: retryPlayerAction,
+    isRetryable: isPlayerRetryable,
     resetTxState: resetPlayerTxState,
     isPending: isPlayerActionPending,
   } = usePlayerAction({
@@ -133,6 +135,8 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     txState: tableTxState,
     txSignature: tableTxSignature,
     txError: tableTxError,
+    retry: retryTableAction,
+    isRetryable: isTableRetryable,
     resetTxState: resetTableTxState,
     isPending: isTableActionPending,
   } = useTableAction({
@@ -147,6 +151,8 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   const txState = hasTableTx ? tableTxState : playerTxState;
   const txSignature = hasTableTx ? tableTxSignature : playerTxSignature;
   const txError = hasTableTx ? tableTxError : playerTxError;
+  const isRetryable = hasTableTx ? isTableRetryable : isPlayerRetryable;
+  const retryTx = hasTableTx ? retryTableAction : retryPlayerAction;
   const isPending = isPlayerActionPending || isTableActionPending;
 
   const resetTxState = useCallback(() => {
@@ -340,6 +346,8 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
           state={txState}
           signature={txSignature}
           error={txError}
+          isRetryable={isRetryable}
+          onRetry={isRetryable ? () => void retryTx() : undefined}
           onDismiss={handleDismissStatus}
         />
       </div>

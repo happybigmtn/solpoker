@@ -108,11 +108,12 @@ vi.mock('@robopoker/client', () => ({
 }));
 
 import { useWalletConnection } from '@solana/react-hooks';
+import { sendAndConfirmTransactionFactory, type Address } from '@solana/kit';
 import { buildJoinTableData, buildLeaveTableData, getJoinTableAccountMetas, getLeaveTableAccountMetas } from '@robopoker/client';
 import { useTableAction } from './use-table-action';
-import type { Address } from '@solana/kit';
 
 const mockUseWalletConnection = useWalletConnection as ReturnType<typeof vi.fn>;
+const mockSendAndConfirmTransactionFactory = sendAndConfirmTransactionFactory as ReturnType<typeof vi.fn>;
 const mockBuildJoinTableData = buildJoinTableData as ReturnType<typeof vi.fn>;
 const mockBuildLeaveTableData = buildLeaveTableData as ReturnType<typeof vi.fn>;
 const mockGetJoinTableAccountMetas = getJoinTableAccountMetas as ReturnType<typeof vi.fn>;
@@ -145,6 +146,7 @@ describe('useTableAction', () => {
       connect: vi.fn(),
       disconnect: vi.fn(),
     });
+    mockSendAndConfirmTransactionFactory.mockReturnValue(vi.fn(() => Promise.resolve()));
   });
 
   describe('joinTable (AC-CI3.6)', () => {
@@ -317,6 +319,43 @@ describe('useTableAction', () => {
       expect(result.current.txState).toBe('idle');
       expect(result.current.txSignature).toBeUndefined();
       expect(result.current.txError).toBeUndefined();
+    });
+  });
+
+  describe('error handling (AC-CI4.1–AC-CI4.3)', () => {
+    it('marks network errors as retryable and exposes retry', async () => {
+      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('Network timeout')));
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+
+      const { result } = renderHook(() => useTableAction(mockConfig));
+
+      await act(async () => {
+        await result.current.joinTable(1000000n);
+      });
+
+      expect(result.current.txState).toBe('failed');
+      expect(result.current.isRetryable).toBe(true);
+
+      mockBuildJoinTableData.mockClear();
+
+      await act(async () => {
+        await result.current.retry();
+      });
+
+      expect(mockBuildJoinTableData).toHaveBeenCalled();
+    });
+
+    it('does not mark user rejection as retryable', async () => {
+      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('User rejected')));
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+
+      const { result } = renderHook(() => useTableAction(mockConfig));
+
+      await act(async () => {
+        await result.current.leaveTable();
+      });
+
+      expect(result.current.isRetryable).toBe(false);
     });
   });
 });

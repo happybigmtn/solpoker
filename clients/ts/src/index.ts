@@ -10,3 +10,4 @@ export * from "./instructions/entropy.js";
 export * from "./types.js";
 export * from "./constants.js";
 export * from "./pda.js";
+export * from "./errors.js";

@@ -70,15 +70,22 @@ vi.mock('@robopoker/client', () => ({
     RAISE: 3,
     ALL_IN: 4,
   },
+  formatTransactionError: vi.fn(() => 'Friendly error'),
+  isNetworkError: vi.fn(() => false),
+  isUserRejection: vi.fn(() => false),
 }));
 
 import { useWalletConnection } from '@solana/react-hooks';
-import { buildPlayerActionData } from '@robopoker/client';
+import { sendAndConfirmTransactionFactory, type Address } from '@solana/kit';
+import { buildPlayerActionData, formatTransactionError, isNetworkError, isUserRejection } from '@robopoker/client';
 import { usePlayerAction, type PlayerActionType } from './use-player-action';
-import type { Address } from '@solana/kit';
 
 const mockUseWalletConnection = useWalletConnection as ReturnType<typeof vi.fn>;
+const mockSendAndConfirmTransactionFactory = sendAndConfirmTransactionFactory as ReturnType<typeof vi.fn>;
 const mockBuildPlayerActionData = buildPlayerActionData as ReturnType<typeof vi.fn>;
+const mockFormatTransactionError = formatTransactionError as ReturnType<typeof vi.fn>;
+const mockIsNetworkError = isNetworkError as ReturnType<typeof vi.fn>;
+const mockIsUserRejection = isUserRejection as ReturnType<typeof vi.fn>;
 
 describe('usePlayerAction', () => {
   const mockConfig = {
@@ -105,6 +112,7 @@ describe('usePlayerAction', () => {
       connect: vi.fn(),
       disconnect: vi.fn(),
     });
+    mockSendAndConfirmTransactionFactory.mockReturnValue(vi.fn(() => Promise.resolve()));
   });
 
   describe('action discriminators (AC-CI3.1–AC-CI3.5)', () => {
@@ -118,8 +126,52 @@ describe('usePlayerAction', () => {
       expect(mockBuildPlayerActionData).toHaveBeenCalledWith({
         actionType: ACTION_TYPE.FOLD,
         amount: 0n,
+  });
+
+  describe('error handling (AC-CI4.1–AC-CI4.3)', () => {
+    it('marks network errors as retryable and exposes retry', async () => {
+      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('Network timeout')));
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      mockFormatTransactionError.mockReturnValue('Network error. Please retry.');
+      mockIsNetworkError.mockReturnValue(true);
+      mockIsUserRejection.mockReturnValue(false);
+
+      const { result } = renderHook(() => usePlayerAction(mockConfig));
+
+      await act(async () => {
+        await result.current.executeAction('check');
       });
+
+      expect(result.current.txState).toBe('failed');
+      expect(result.current.txError).toBe('Network error. Please retry.');
+      expect(result.current.isRetryable).toBe(true);
+
+      mockBuildPlayerActionData.mockClear();
+
+      await act(async () => {
+        await result.current.retry();
+      });
+
+      expect(mockBuildPlayerActionData).toHaveBeenCalled();
     });
+
+    it('does not mark user rejection as retryable', async () => {
+      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('User rejected')));
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      mockFormatTransactionError.mockReturnValue('You cancelled the transaction.');
+      mockIsNetworkError.mockReturnValue(true);
+      mockIsUserRejection.mockReturnValue(true);
+
+      const { result } = renderHook(() => usePlayerAction(mockConfig));
+
+      await act(async () => {
+        await result.current.executeAction('check');
+      });
+
+      expect(result.current.isRetryable).toBe(false);
+    });
+  });
+});
 
     it('AC-CI3.2: check sends ACTION_TYPE.CHECK discriminator', async () => {
       const { result } = renderHook(() => usePlayerAction(mockConfig));

@@ -19,6 +19,10 @@ export interface TransactionStatusProps {
   signature?: string;
   /** Error message (for failed state) */
   error?: string;
+  /** Whether the error is retryable */
+  isRetryable?: boolean;
+  /** Callback to retry the last action */
+  onRetry?: () => void;
   /** Callback to dismiss/reset */
   onDismiss?: () => void;
 }
@@ -33,6 +37,8 @@ export const TransactionStatus = memo(function TransactionStatus({
   state,
   signature,
   error,
+  isRetryable,
+  onRetry,
   onDismiss,
 }: TransactionStatusProps) {
   if (state === 'idle') return null;
@@ -92,6 +98,15 @@ export const TransactionStatus = memo(function TransactionStatus({
               {formatErrorMessage(error)}
             </p>
           </div>
+          {isRetryable && onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="px-2 py-1 text-xs font-medium rounded bg-red-200 text-red-800 hover:bg-red-300 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
+            >
+              Retry
+            </button>
+          )}
           {onDismiss && (
             <button
               type="button"

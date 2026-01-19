@@ -17,15 +17,6 @@
 ### Phase 3: Client Integration
 
 - [x] Add PDA derivation utilities to TypeScript client
-- [x] Implement transaction error handling
-  - Specs: `specs/client-integration.md` AC-CI4.1, AC-CI4.2, AC-CI4.3, AC-CI4.4
-  - Tests/backpressure:
-    - Programmatic: Program error codes decoded to messages ✓
-    - Programmatic: Network errors trigger retry UI ✓
-    - Programmatic: Simulation errors surfaced before signing ✓
-  - Perceptual: AC-PQ.CI2
-  - Note: Created `errors.ts` in client SDK with POKER_ERROR_CODES/ENTROPY_ERROR_CODES matching Rust enums, user-friendly POKER_ERROR_MESSAGES/ENTROPY_ERROR_MESSAGES, parseCustomErrorCode, decodeProgramError, isNetworkError, isUserRejection, formatTransactionError functions. Updated use-player-action.ts and use-table-action.ts with retry support (isRetryable, retry function) and error decoding. 34 error tests + 6 hook error tests passing. Known issue: Next.js 16 Turbopack has issues resolving linked packages - unrelated to this implementation.
-
 - [x] Implement table list and creation UI
   - Specs: `specs/client-integration.md` AC-CI5.1, AC-CI5.2, AC-CI5.3, AC-CI5.4
   - Tests/backpressure:

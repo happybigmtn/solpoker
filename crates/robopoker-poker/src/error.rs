@@ -95,6 +95,12 @@ pub enum PokerError {
     StakingPoolAlreadyInitialized = 41,
     /// Entropy provider mismatch
     ProviderMismatch = 42,
+    /// Invalid sysvar account
+    InvalidSysvar = 43,
+    /// Pot invariant violation (total risked != pot)
+    PotInvariantViolation = 44,
+    /// Account is not writable
+    AccountNotWritable = 45,
 }
 
 impl From<PokerError> for ProgramError {

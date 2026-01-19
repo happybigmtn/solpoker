@@ -10,7 +10,7 @@
  * AC-PQ.CI1: Transaction submission feels immediate; no visible delay before pending state.
  */
 
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useState, useMemo, useRef } from 'react';
 import { useWalletConnection } from '@solana/react-hooks';
 import { createWalletTransactionSigner } from '@solana/client';
 import {
@@ -34,6 +34,9 @@ import {
   buildPlayerActionData,
   getPlayerActionAccountMetas,
   ACTION_TYPE,
+  formatTransactionError,
+  isNetworkError,
+  isUserRejection,
 } from '@robopoker/client';
 import type { TransactionState } from '@/components/transaction-status';
 
@@ -66,6 +69,8 @@ export interface PlayerActionResult {
   signature?: string;
   /** Error message (if failed) */
   error?: string;
+  /** Whether the error is retryable (network error) */
+  isRetryable?: boolean;
 }
 
 /**
@@ -74,12 +79,16 @@ export interface PlayerActionResult {
 export interface UsePlayerActionReturn {
   /** Execute a player action */
   executeAction: (action: PlayerActionType, amount?: bigint) => Promise<PlayerActionResult>;
+  /** Retry the last action if available */
+  retry: () => Promise<PlayerActionResult>;
   /** Current transaction state */
   txState: TransactionState;
   /** Current transaction signature */
   txSignature?: string;
   /** Current error message */
   txError?: string;
+  /** Whether the current error is retryable */
+  isRetryable: boolean;
   /** Reset transaction state */
   resetTxState: () => void;
   /** Whether a transaction is currently pending */
@@ -131,6 +140,28 @@ function mapStringRoleToAccountRole(role: string): AccountRole {
 }
 
 /**
+ * Extract transaction logs from an error object if available.
+ */
+function extractLogs(error: unknown): string[] | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const err = error as {
+    logs?: string[];
+    data?: { logs?: string[] };
+    cause?: { data?: { logs?: string[] } };
+    context?: { logs?: string[]; cause?: { data?: { logs?: string[] } } };
+  };
+  return (
+    err.logs ??
+    err.data?.logs ??
+    err.cause?.data?.logs ??
+    err.context?.logs ??
+    err.context?.cause?.data?.logs
+  );
+}
+
+/**
  * Hook for building and sending player action transactions.
  *
  * @param config - Configuration including table address and program IDs
@@ -143,6 +174,8 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
   const [txState, setTxState] = useState<TransactionState>('idle');
   const [txSignature, setTxSignature] = useState<string>();
   const [txError, setTxError] = useState<string>();
+  const [isRetryable, setIsRetryable] = useState(false);
+  const lastActionRef = useRef<{ action: PlayerActionType; amount?: bigint } | null>(null);
 
   // Create RPC clients (memoized)
   const { rpc, rpcSubscriptions } = useMemo(() => {
@@ -161,6 +194,8 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
     setTxState('idle');
     setTxSignature(undefined);
     setTxError(undefined);
+    setIsRetryable(false);
+    lastActionRef.current = null;
   }, []);
 
   const executeAction = useCallback(
@@ -170,12 +205,16 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         const error = 'Wallet not connected. Please connect your wallet to continue.';
         setTxState('failed');
         setTxError(error);
-        return { state: 'failed', error };
+        setIsRetryable(false);
+        return { state: 'failed', error, isRetryable: false };
       }
+
+      lastActionRef.current = { action, amount };
 
       // AC-PQ.CI1: Set pending state immediately
       setTxState('pending');
       setTxError(undefined);
+      setIsRetryable(false);
 
       try {
         const playerAddress = wallet.account.address;
@@ -256,22 +295,45 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         setTxSignature(signature);
         return { state: 'confirmed', signature };
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
+        const logs = extractLogs(err);
+        const userFriendlyError = formatTransactionError(
+          err instanceof Error ? err : String(err),
+          logs,
+          pokerProgramId
+        );
+        const retryable = isNetworkError(err instanceof Error ? err : String(err));
+        const userRejected = isUserRejection(err instanceof Error ? err : String(err));
+        const shouldRetry = retryable && !userRejected;
 
         setTxState('failed');
-        setTxError(errorMessage);
+        setTxError(userFriendlyError);
+        setIsRetryable(shouldRetry);
 
-        return { state: 'failed', error: errorMessage };
+        return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry };
       }
     },
     [wallet, rpc, rpcSubscriptions, tableAddress, pokerProgramId, configAddress, clockAddress]
   );
 
+  const retry = useCallback(async (): Promise<PlayerActionResult> => {
+    if (!lastActionRef.current) {
+      const error = 'No previous action to retry.';
+      setTxState('failed');
+      setTxError(error);
+      setIsRetryable(false);
+      return { state: 'failed', error, isRetryable: false };
+    }
+
+    return executeAction(lastActionRef.current.action, lastActionRef.current.amount);
+  }, [executeAction]);
+
   return {
     executeAction,
+    retry,
     txState,
     txSignature,
     txError,
+    isRetryable,
     resetTxState,
     isPending: txState === 'pending',
   };
