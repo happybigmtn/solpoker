@@ -4,10 +4,10 @@ use pinocchio::{
     account_info::AccountInfo,
     program_error::ProgramError,
     pubkey::{self, Pubkey},
-    sysvars::{clock::Clock, slot_hashes::{SlotHashes, SLOTHASHES_ID}, Sysvar},
+    sysvars::{clock::Clock, rent::Rent, slot_hashes::{SlotHashes, SLOTHASHES_ID}, Sysvar},
     ProgramResult,
 };
-use pinocchio_system::instructions::Transfer;
+use pinocchio_system::instructions::{CreateAccount, Transfer};
 
 use crate::{
     error::EntropyError,
@@ -56,14 +56,9 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Config must be owned by this program
-    if !config_info.is_owned_by(&crate::ID) {
-        return Err(EntropyError::InvalidAccountOwner.into());
-    }
-
-    // Verify config PDA
+    // Verify config PDA and get bump
     let seeds: &[&[u8]] = &[b"config"];
-    let (expected_config, _bump) = pubkey::find_program_address(seeds, &crate::ID);
+    let (expected_config, bump) = pubkey::find_program_address(seeds, &crate::ID);
     if config_info.key() != &expected_config {
         return Err(EntropyError::InvalidPda.into());
     }
@@ -71,18 +66,41 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     // Parse instruction data
     let ix = unsafe { instruction::Initialize::from_bytes_unchecked(data) };
 
-    // Check if already initialized
-    let config_data = config_info.try_borrow_data()?;
-    if config_data.len() >= CONFIG_SIZE {
-        let config = unsafe { Config::from_bytes_unchecked(&config_data) };
-        if config.is_initialized() {
-            return Err(EntropyError::AlreadyInitialized.into());
-        }
-    }
-    drop(config_data);
+    // Create config account if it doesn't exist or is empty
+    if config_info.data_len() == 0 {
+        // Calculate rent-exempt lamports
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(CONFIG_SIZE);
 
-    // Create config account if needed (via system program CPI)
-    // For now, assume account is pre-created with sufficient space
+        // Create the account via CPI with PDA signer seeds
+        let bump_seed = [bump];
+        let signer_seeds = pinocchio::seeds!(b"config", &bump_seed);
+        let signer = pinocchio::instruction::Signer::from(&signer_seeds);
+
+        CreateAccount {
+            from: authority_info,
+            to: config_info,
+            lamports,
+            space: CONFIG_SIZE as u64,
+            owner: &crate::ID,
+        }
+        .invoke_signed(&[signer])?;
+    } else {
+        // Config already exists, check if owned by this program
+        if !config_info.is_owned_by(&crate::ID) {
+            return Err(EntropyError::InvalidAccountOwner.into());
+        }
+
+        // Check if already initialized
+        let config_data = config_info.try_borrow_data()?;
+        if config_data.len() >= CONFIG_SIZE {
+            let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+            if config.is_initialized() {
+                return Err(EntropyError::AlreadyInitialized.into());
+            }
+        }
+        drop(config_data);
+    }
 
     // Initialize config data
     let mut config_data = config_info.try_borrow_mut_data()?;

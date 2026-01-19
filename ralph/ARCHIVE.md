@@ -12,6 +12,9 @@ Format suggestions:
 - Build and deploy programs to devnet
   - Commit: (see git log)
   - Notes: Updated on-chain program IDs for devnet deployments, aligned `robopoker-core` to edition 2021 for `cargo build-sbf`, added bytecode verification script (`scripts/verify-programs.sh`), and documented AC-D1.* in `specs/devnet-deployment.md`.
+- Initialize config accounts on devnet (entropy config only)
+  - Commit: (see git log)
+  - Notes: Added entropy config PDA creation via CPI in the program, plus `clients/ts` init/verify scripts with shared RPC config and `.env.example` support for AC-D2.1/AC-D2.3.
 - Scaffold workspace + deterministic core crate
   - Commit: `bada191`
   - Notes: Removed `rand` from core crate dev-dependencies to enforce deterministic, seed-driven shuffles.

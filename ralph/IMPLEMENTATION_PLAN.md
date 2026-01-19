@@ -7,14 +7,6 @@
 
 ### Phase 1: Deployment Infrastructure
 
-- [x] Initialize config accounts on devnet (entropy config only)
-  - Specs: `specs/devnet-deployment.md` AC-D2.1, AC-D2.3
-  - Tests/backpressure:
-    - Programmatic: RPC `getAccountInfo` returns initialized config data ✓
-    - Programmatic: Config deserializes to expected struct fields ✓
-  - Perceptual: None
-  - Note: AC-D2.2 (poker config) requires CRISPS mint - will be done with AC-D3
-
 - [x] Create CRISPS mint, faucet, and poker config
   - Specs: `specs/devnet-deployment.md` AC-D3.1, AC-D3.2, AC-D3.3, AC-D2.2
   - Tests/backpressure:

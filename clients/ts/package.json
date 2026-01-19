@@ -18,7 +18,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@solana/kit": "^5.4.0"
+    "@solana-program/system": "^0.10.0",
+    "@solana-program/token-2022": "^0.6.1",
+    "@solana/kit": "^5.4.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/node": "^20",
