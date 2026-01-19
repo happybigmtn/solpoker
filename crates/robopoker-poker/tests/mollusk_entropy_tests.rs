@@ -5,10 +5,12 @@ use mollusk_svm::{
     program::{create_program_account_pair_loader_v3, keyed_account_for_system_program, loader_keys},
     Mollusk,
 };
+use sha2::{Digest, Sha256};
 use solana_account::Account;
 use solana_address::Address;
 use solana_instruction::{error::InstructionError, AccountMeta, Instruction};
 
+use robopoker_core::cards::Deck;
 use robopoker_entropy;
 use robopoker_poker::{
     entropy::{
@@ -32,6 +34,12 @@ const SYSTEM_PROGRAM_ID: Address = solana_address::address!("1111111111111111111
 
 const SEAT_SIZE: usize = core::mem::size_of::<Seat>();
 const TABLE_HEADER_SIZE: usize = TABLE_SIZE - (MAX_SEATS * SEAT_SIZE);
+
+fn sha256(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().into()
+}
 
 fn new_unique_address() -> Address {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -179,6 +187,109 @@ fn build_start_hand_ix(seed_commitment: [u8; 32], hole_card_hashes: [[u8; 32]; M
     for hash in hole_card_hashes {
         data.extend_from_slice(&hash);
     }
+    data
+}
+
+fn build_reveal_seed_ix(seed: [u8; 32], revealed_hole_cards: [[u8; 2]; MAX_SEATS]) -> Vec<u8> {
+    let mut data = vec![ix_disc::REVEAL_SEED, 0, 0, 0, 0, 0, 0, 0];
+    data.extend_from_slice(&seed);
+    for cards in revealed_hole_cards {
+        data.extend_from_slice(&cards);
+    }
+    data
+}
+
+fn deal_seat_order(table: &Table) -> ([usize; MAX_SEATS], usize) {
+    let mut order = [0usize; MAX_SEATS];
+    let mut count = 0usize;
+    let mut pos = (table.dealer_position as usize + 1) % MAX_SEATS;
+    for _ in 0..MAX_SEATS {
+        if table.seats[pos].is_active() {
+            order[count] = pos;
+            count = count.saturating_add(1);
+        }
+        pos = (pos + 1) % MAX_SEATS;
+    }
+    (order, count)
+}
+
+fn derive_hole_cards(table: &Table, seed: &[u8; 32]) -> [[u8; 2]; MAX_SEATS] {
+    let mut deck = Deck::new();
+    deck.shuffle_with_seed(seed);
+
+    let (order, count) = deal_seat_order(table);
+    let mut hole_cards = [[0u8; 2]; MAX_SEATS];
+    for round in 0..2 {
+        for i in 0..count {
+            let seat_idx = order[i];
+            let card = deck.draw();
+            hole_cards[seat_idx][round] = u8::from(card);
+        }
+    }
+    hole_cards
+}
+
+fn apply_hole_card_hashes(data: &mut [u8], hashes: &[[u8; 32]; MAX_SEATS]) {
+    for i in 0..MAX_SEATS {
+        let seat_offset = TABLE_HEADER_SIZE + i * SEAT_SIZE;
+        let hash_offset = seat_offset + 64;
+        data[hash_offset..hash_offset + 32].copy_from_slice(&hashes[i]);
+    }
+}
+
+fn create_showdown_table_data(
+    table_id: u64,
+    hand_id: u64,
+    small_blind: u64,
+    big_blind: u64,
+    vault: &Address,
+    seed_commitment: [u8; 32],
+    players: &[(&Address, u64, usize)],
+) -> Vec<u8> {
+    let mut data = create_table_data_with_players(table_id, hand_id, small_blind, big_blind, vault, players);
+    data[1] = table_status::SHOWDOWN;
+    data[7] = 0;
+    data[112..144].copy_from_slice(&seed_commitment);
+    data
+}
+
+fn create_entropy_request_data(
+    requester: &Address,
+    commitment: &Address,
+    request_id: u64,
+    request_slot: u64,
+    deadline_slot: u64,
+    slothash: [u8; 32],
+) -> Vec<u8> {
+    let mut data = vec![0u8; ENTROPY_REQUEST_SIZE];
+    data[0] = entropy_disc::REQUEST;
+    data[1] = 0;
+    data[8..40].copy_from_slice(requester.as_ref());
+    data[40..72].copy_from_slice(commitment.as_ref());
+    data[72..80].copy_from_slice(&request_id.to_le_bytes());
+    data[80..88].copy_from_slice(&request_slot.to_le_bytes());
+    data[88..96].copy_from_slice(&deadline_slot.to_le_bytes());
+    data[128..160].copy_from_slice(&slothash);
+    data
+}
+
+fn create_entropy_commitment_revealed_data(
+    provider: &Address,
+    hash: [u8; 32],
+    preimage: [u8; 32],
+    bond_amount: u64,
+    commit_slot: u64,
+    sequence: u64,
+) -> Vec<u8> {
+    let mut data = vec![0u8; ENTROPY_COMMITMENT_SIZE];
+    data[0] = entropy_disc::COMMITMENT;
+    data[1] = entropy_commitment_status::REVEALED;
+    data[8..40].copy_from_slice(provider.as_ref());
+    data[40..72].copy_from_slice(&hash);
+    data[72..80].copy_from_slice(&bond_amount.to_le_bytes());
+    data[80..88].copy_from_slice(&commit_slot.to_le_bytes());
+    data[88..96].copy_from_slice(&sequence.to_le_bytes());
+    data[96..128].copy_from_slice(&preimage);
     data
 }
 
@@ -455,5 +566,306 @@ fn test_start_hand_rejects_provider_mismatch() {
     assert!(matches!(
         result.raw_result,
         Err(InstructionError::Custom(code)) if code == PokerError::ProviderMismatch as u32
+    ));
+}
+
+#[test]
+fn test_reveal_seed_verifies_hole_cards() {
+    let poker_program_id = Address::from(robopoker_poker::ID);
+    let entropy_program_id = Address::from(robopoker_entropy::ID);
+
+    let provider = new_unique_address();
+    let authority = new_unique_address();
+    let crisps_mint = new_unique_address();
+    let vault = new_unique_address();
+    let player_a = new_unique_address();
+    let player_b = new_unique_address();
+
+    let table_id = 3u64;
+    let hand_id = 7u64;
+    let sequence = 1u64;
+    let seed = [0x33; 32];
+    let seed_commitment = sha256(&seed);
+
+    let config_key = derive_poker_config_pda(&poker_program_id);
+    let table_key = derive_table_pda(&poker_program_id, table_id);
+
+    let entropy_config_key = derive_entropy_config_pda(&entropy_program_id);
+    let entropy_commitment_key =
+        derive_entropy_commitment_pda(&entropy_program_id, &provider, sequence);
+    let entropy_request_key =
+        derive_entropy_request_pda(&entropy_program_id, &table_key, hand_id);
+
+    let config_data = create_poker_config_data(
+        &crisps_mint,
+        &authority,
+        &entropy_program_id,
+        1_000,
+        10_000,
+        2,
+        100,
+    );
+    let mut table_data = create_showdown_table_data(
+        table_id,
+        hand_id,
+        1_000,
+        2_000,
+        &vault,
+        seed_commitment,
+        &[(&player_a, 10_000, 0), (&player_b, 10_000, 1)],
+    );
+    let table_view = unsafe { Table::from_bytes_unchecked(&table_data) };
+    let derived_hole_cards = derive_hole_cards(table_view, &seed);
+    let mut hole_hashes = [[0u8; 32]; MAX_SEATS];
+    for i in 0..MAX_SEATS {
+        let seat = &table_view.seats[i];
+        if seat.is_empty() || seat.status == seat_status::SITTING_OUT {
+            continue;
+        }
+        hole_hashes[i] = sha256(&derived_hole_cards[i]);
+    }
+    apply_hole_card_hashes(&mut table_data, &hole_hashes);
+
+    let entropy_config_data = create_entropy_config_data(&provider, &authority, 1, 100, 5000);
+    let entropy_commitment_data = create_entropy_commitment_revealed_data(
+        &provider,
+        seed_commitment,
+        seed,
+        1_000,
+        0,
+        sequence,
+    );
+    let entropy_request_data = create_entropy_request_data(
+        &table_key,
+        &entropy_commitment_key,
+        hand_id,
+        0,
+        0,
+        [0xAA; 32],
+    );
+
+    let mut mollusk = Mollusk::default();
+    mollusk.add_program(&poker_program_id, "robopoker_poker");
+    mollusk.add_program(&entropy_program_id, "robopoker_entropy");
+
+    let reveal_ix = Instruction {
+        program_id: poker_program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: provider, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_program_id, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_commitment_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_request_key, is_signer: false, is_writable: true },
+        ],
+        data: build_reveal_seed_ix(seed, derived_hole_cards),
+    };
+
+    let mut accounts = Vec::new();
+    accounts.extend(program_accounts(&poker_program_id, "robopoker_poker"));
+    accounts.extend(program_accounts(&entropy_program_id, "robopoker_entropy"));
+    accounts.push((table_key, Account {
+        lamports: 1_000_000,
+        data: table_data,
+        owner: poker_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((provider, Account {
+        lamports: 1_000_000,
+        data: vec![],
+        owner: SYSTEM_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((config_key, Account {
+        lamports: 1_000_000,
+        data: config_data,
+        owner: poker_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((entropy_config_key, Account {
+        lamports: 1_000_000,
+        data: entropy_config_data,
+        owner: entropy_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((entropy_commitment_key, Account {
+        lamports: 1_000_000,
+        data: entropy_commitment_data,
+        owner: entropy_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((entropy_request_key, Account {
+        lamports: 1_000_000,
+        data: entropy_request_data,
+        owner: entropy_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+
+    let result = mollusk.process_instruction(&reveal_ix, &accounts);
+    assert!(result.program_result.is_ok(), "Reveal seed should succeed: {:?}", result.program_result);
+
+    let table_account = result.get_account(&table_key).unwrap();
+    let table = unsafe { Table::from_bytes_unchecked(&table_account.data) };
+    assert_eq!(table.seed_revealed, 1);
+    assert_eq!(table.revealed_seed, seed);
+
+    let request_account = result.get_account(&entropy_request_key).unwrap();
+    let request = unsafe { EntropyRequest::from_bytes_unchecked(&request_account.data) };
+    assert!(request.is_finalized());
+}
+
+#[test]
+fn test_reveal_seed_rejects_mismatched_hole_cards() {
+    let poker_program_id = Address::from(robopoker_poker::ID);
+    let entropy_program_id = Address::from(robopoker_entropy::ID);
+
+    let provider = new_unique_address();
+    let authority = new_unique_address();
+    let crisps_mint = new_unique_address();
+    let vault = new_unique_address();
+    let player_a = new_unique_address();
+    let player_b = new_unique_address();
+
+    let table_id = 4u64;
+    let hand_id = 9u64;
+    let sequence = 2u64;
+    let seed = [0x44; 32];
+    let seed_commitment = sha256(&seed);
+
+    let config_key = derive_poker_config_pda(&poker_program_id);
+    let table_key = derive_table_pda(&poker_program_id, table_id);
+
+    let entropy_config_key = derive_entropy_config_pda(&entropy_program_id);
+    let entropy_commitment_key =
+        derive_entropy_commitment_pda(&entropy_program_id, &provider, sequence);
+    let entropy_request_key =
+        derive_entropy_request_pda(&entropy_program_id, &table_key, hand_id);
+
+    let config_data = create_poker_config_data(
+        &crisps_mint,
+        &authority,
+        &entropy_program_id,
+        1_000,
+        10_000,
+        2,
+        100,
+    );
+    let mut table_data = create_showdown_table_data(
+        table_id,
+        hand_id,
+        1_000,
+        2_000,
+        &vault,
+        seed_commitment,
+        &[(&player_a, 10_000, 0), (&player_b, 10_000, 1)],
+    );
+    let table_view = unsafe { Table::from_bytes_unchecked(&table_data) };
+    let derived_hole_cards = derive_hole_cards(table_view, &seed);
+    let mut hole_hashes = [[0u8; 32]; MAX_SEATS];
+    for i in 0..MAX_SEATS {
+        let seat = &table_view.seats[i];
+        if seat.is_empty() || seat.status == seat_status::SITTING_OUT {
+            continue;
+        }
+        hole_hashes[i] = sha256(&derived_hole_cards[i]);
+    }
+    apply_hole_card_hashes(&mut table_data, &hole_hashes);
+
+    let entropy_config_data = create_entropy_config_data(&provider, &authority, 1, 100, 5000);
+    let entropy_commitment_data = create_entropy_commitment_revealed_data(
+        &provider,
+        seed_commitment,
+        seed,
+        1_000,
+        0,
+        sequence,
+    );
+    let entropy_request_data = create_entropy_request_data(
+        &table_key,
+        &entropy_commitment_key,
+        hand_id,
+        0,
+        0,
+        [0xAA; 32],
+    );
+
+    let mut mollusk = Mollusk::default();
+    mollusk.add_program(&poker_program_id, "robopoker_poker");
+    mollusk.add_program(&entropy_program_id, "robopoker_entropy");
+
+    let mut revealed_hole_cards = derived_hole_cards;
+    revealed_hole_cards[0][0] = revealed_hole_cards[0][0].wrapping_add(1);
+
+    let reveal_ix = Instruction {
+        program_id: poker_program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: provider, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_program_id, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_commitment_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: entropy_request_key, is_signer: false, is_writable: true },
+        ],
+        data: build_reveal_seed_ix(seed, revealed_hole_cards),
+    };
+
+    let mut accounts = Vec::new();
+    accounts.extend(program_accounts(&poker_program_id, "robopoker_poker"));
+    accounts.extend(program_accounts(&entropy_program_id, "robopoker_entropy"));
+    accounts.push((table_key, Account {
+        lamports: 1_000_000,
+        data: table_data,
+        owner: poker_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((provider, Account {
+        lamports: 1_000_000,
+        data: vec![],
+        owner: SYSTEM_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((config_key, Account {
+        lamports: 1_000_000,
+        data: config_data,
+        owner: poker_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((entropy_config_key, Account {
+        lamports: 1_000_000,
+        data: entropy_config_data,
+        owner: entropy_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((entropy_commitment_key, Account {
+        lamports: 1_000_000,
+        data: entropy_commitment_data,
+        owner: entropy_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+    accounts.push((entropy_request_key, Account {
+        lamports: 1_000_000,
+        data: entropy_request_data,
+        owner: entropy_program_id,
+        executable: false,
+        rent_epoch: 0,
+    }));
+
+    let result = mollusk.process_instruction(&reveal_ix, &accounts);
+    assert!(matches!(
+        result.raw_result,
+        Err(InstructionError::Custom(code)) if code == PokerError::HoleCardHashMismatch as u32
     ));
 }
