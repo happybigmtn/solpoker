@@ -12,3 +12,6 @@ Format suggestions:
 - Scaffold workspace + deterministic core crate
   - Commit: `bada191`
   - Notes: Removed `rand` from core crate dev-dependencies to enforce deterministic, seed-driven shuffles.
+- Entropy program MVP + provider service
+  - Commit: `b29d729`
+  - Notes: Added request re-init protection, config initialization checks in finalize, and duplicate account guardrails.

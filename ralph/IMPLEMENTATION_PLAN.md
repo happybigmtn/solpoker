@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Entropy program MVP + provider service
-  - Specs: `specs/onchain-poker.md` AC-2.1, AC-2.2, AC-2.3, AC-2.4, AC-2.5
-  - Tests/backpressure:
-    - Programmatic: Mollusk test for commit -> reveal -> randomness derivation
-    - Programmatic: Mollusk test for missed reveal -> slash
-  - Perceptual: None
-
 - [x] CRISPS mint + table vault escrow flows
   - Specs: `specs/onchain-poker.md` AC-3.1, AC-3.2, AC-3.3
   - Tests/backpressure:
