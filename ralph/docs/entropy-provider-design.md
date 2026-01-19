@@ -327,15 +327,15 @@ const DEFAULT_CONFIG: Partial<ProviderConfig> = {
 
 ## Acceptance Criteria
 
-- [ ] AC-EP1: Hash chain generates correctly and matches on-chain verification
-- [ ] AC-EP2: Provider can post commitment transaction
-- [ ] AC-EP3: Provider monitors for target slot
-- [ ] AC-EP4: Provider reveals within deadline
-- [ ] AC-EP5: Randomness derived correctly: `R = preimage XOR slothash`
-- [ ] AC-EP6: Provider handles concurrent requests
-- [ ] AC-EP7: Provider persists state on graceful shutdown
-- [ ] AC-EP8: Provider recovers from RPC disconnection
-- [ ] AC-EP9: CLI provides useful status information
+- [ ] AC-EP1.1: Hash chain generates correctly and matches on-chain verification.
+- [ ] AC-EP2.1: Provider can post commitment transaction.
+- [ ] AC-EP3.1: Provider monitors for target slot.
+- [ ] AC-EP3.3: Provider reveals within deadline.
+- [ ] AC-EP3.4: Randomness derived correctly: `R = preimage XOR slothash`.
+- [ ] AC-EP4.3: Provider handles concurrent requests.
+- [ ] AC-EP5.2: Provider persists state on graceful shutdown.
+- [ ] AC-EP5.1: Provider recovers from RPC disconnection.
+- [ ] AC-EP6.3: CLI provides useful status information.
 
 ---
 
@@ -410,4 +410,3 @@ entropy-provider/
   }
 }
 ```
-

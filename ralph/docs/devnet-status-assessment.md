@@ -345,15 +345,35 @@ export async function getVaultAddress(
 
 ## Acceptance Criteria for Devnet Launch
 
-- [ ] AC-D1: Both programs deployed and verified on devnet
-- [ ] AC-D2: Config accounts initialized with correct parameters
-- [ ] AC-D3: CRISPS mint created (Token-2022) with metadata
-- [ ] AC-D4: Entropy provider running and responding to requests
-- [ ] AC-D5: UI can connect wallet + display balance
-- [ ] AC-D6: User can join table with CRISPS buy-in
-- [ ] AC-D7: User can perform betting actions (fold/check/call/raise)
-- [ ] AC-D8: Hand settles correctly and updates stacks
-- [ ] AC-D9: User can leave table and receive remaining stack
+### Deployment + Config
+- [ ] AC-D1.1: Both programs (poker + entropy) build successfully via `cargo build-sbf`.
+- [ ] AC-D1.2: Both programs deploy to devnet and return valid program IDs.
+- [ ] AC-D1.3: Deployed programs are verified (bytecode matches local build).
+- [ ] AC-D2.1: Entropy config PDA initialized with provider address + bond params.
+- [ ] AC-D2.2: Poker config PDA initialized with mint, entropy program, buy-in bounds, timeout.
+- [ ] AC-D2.3: Config accounts readable via RPC and deserialize to expected state.
+
+### Token Setup + Automation
+- [ ] AC-D3.1: CRISPS mint created as Token-2022 with 9 decimals.
+- [ ] AC-D3.2: Mint authority set to known keypair/PDA for devnet testing.
+- [ ] AC-D3.3: Test accounts can receive minted CRISPS via faucet/airdrop.
+- [ ] AC-D3.4: Token-2022 metadata initialized (name, symbol, URI).
+- [ ] AC-D4.1: Single command deploys both programs, initializes configs, creates mint.
+- [ ] AC-D4.2: Deployed addresses written to env file for client consumption.
+- [ ] AC-D4.3: Re-running deployment is idempotent (no state corruption).
+
+### Devnet Verification
+- [ ] AC-D5.1: Table can be created on devnet and is visible via RPC.
+- [ ] AC-D5.2: Player can join table with CRISPS buy-in on devnet.
+- [ ] AC-D5.3: Full hand lifecycle completes on devnet (deal → actions → settle).
+
+### Demo Readiness (Provider + UI)
+- [ ] AC-D6.1: Entropy provider runs against devnet RPC and completes commit → reveal.
+- [ ] AC-D6.2: UI can connect wallet and display SOL + CRISPS balances.
+- [ ] AC-D6.3: UI can join table with CRISPS buy-in and see seat/stack update.
+- [ ] AC-D6.4: UI can perform betting actions and see action history update.
+- [ ] AC-D6.5: UI reflects hand settlement and stack updates after showdown/settle.
+- [ ] AC-D6.6: UI can leave table and remaining stack returns to wallet.
 
 ---
 
@@ -381,4 +401,3 @@ export async function getVaultAddress(
 
 4. **Hole card privacy:** Provider encrypts or hashes only?
    - Current: Hash-based (AC-2.6), encryption would require off-chain channel
-
