@@ -9,7 +9,6 @@
 
 ### Phase 2: Entropy Provider Service
 
-- [x] Implement reveal flow with slot monitoring
 - [x] Implement request subscription and auto-handling
 - [x] Implement reliability (reconnect, persistence, logging)
 - [x] Implement provider CLI
