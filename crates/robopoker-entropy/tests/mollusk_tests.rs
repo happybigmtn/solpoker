@@ -4,7 +4,11 @@
 //! 1. Commit -> Reveal -> Randomness derivation flow (AC-2.1, AC-2.2)
 //! 2. Missed reveal -> Slash mechanism (AC-2.3)
 
-use mollusk_svm::Mollusk;
+use mollusk_svm::{
+    file,
+    program::{create_program_account_pair_loader_v3, keyed_account_for_system_program, loader_keys},
+    Mollusk,
+};
 use sha2::{Sha256, Digest};
 use solana_account::Account;
 use solana_address::Address;
@@ -151,6 +155,33 @@ fn new_unique_address() -> Address {
     Address::from(bytes)
 }
 
+fn derive_config_pda(program_id: &Address) -> Address {
+    Address::find_program_address(&[b"config"], program_id).0
+}
+
+fn derive_commitment_pda(program_id: &Address, provider: &Address, sequence: u64) -> Address {
+    let sequence_bytes = sequence.to_le_bytes();
+    Address::find_program_address(&[b"commitment", provider.as_ref(), &sequence_bytes], program_id).0
+}
+
+fn derive_request_pda(program_id: &Address, requester: &Address, request_id: u64) -> Address {
+    let request_id_bytes = request_id.to_le_bytes();
+    Address::find_program_address(&[b"request", requester.as_ref(), &request_id_bytes], program_id).0
+}
+
+fn new_mollusk(program_id: &Address) -> Mollusk {
+    Mollusk::new(program_id, "robopoker_entropy")
+}
+
+fn program_accounts(program_id: &Address) -> Vec<(Address, Account)> {
+    let elf = file::load_program_elf("robopoker_entropy");
+    let (program_account, programdata_account) =
+        create_program_account_pair_loader_v3(program_id, &elf);
+    let programdata_address =
+        Address::find_program_address(&[program_id.as_ref()], &loader_keys::LOADER_V3).0;
+    vec![(*program_id, program_account), (programdata_address, programdata_account)]
+}
+
 /// Test: Commit -> Reveal -> Randomness derivation
 ///
 /// This test verifies the complete happy path:
@@ -164,9 +195,6 @@ fn test_commit_reveal_randomness_derivation() {
     let provider = new_unique_address();
     let authority = new_unique_address();
     let requester = new_unique_address();
-    let config_key = new_unique_address();
-    let commitment_key = new_unique_address();
-    let request_key = new_unique_address();
 
     // Test parameters
     let preimage: [u8; 32] = [
@@ -178,12 +206,17 @@ fn test_commit_reveal_randomness_derivation() {
     let hash = sha256(&preimage);
     let bond_amount = 1_000_000u64;
     let sequence = 1u64;
+    let request_id = 1u64;
     let min_bond = 500_000u64;
     let reveal_window = 100u64;
     let slash_bp = 5000u64; // 50%
 
+    let config_key = derive_config_pda(&program_id);
+    let commitment_key = derive_commitment_pda(&program_id, &provider, sequence);
+    let request_key = derive_request_pda(&program_id, &requester, request_id);
+
     // Create mollusk instance
-    let mollusk = Mollusk::new(&program_id, "robopoker_entropy");
+    let mollusk = new_mollusk(&program_id);
 
     // ===== Test 1: Commit instruction =====
     // Provider submits commitment hash with bond
@@ -202,7 +235,9 @@ fn test_commit_reveal_randomness_derivation() {
         data: build_commit_ix(hash, sequence, bond_amount),
     };
 
-    let commit_accounts = vec![
+    let (system_program_key, system_program_account) = keyed_account_for_system_program();
+    let mut commit_accounts = program_accounts(&program_id);
+    commit_accounts.extend(vec![
         (commitment_key, Account {
             lamports: 1_000_000_000,
             data: commitment_data,
@@ -224,14 +259,8 @@ fn test_commit_reveal_randomness_derivation() {
             executable: false,
             rent_epoch: 0,
         }),
-        (SYSTEM_PROGRAM_ID, Account {
-            lamports: 1,
-            data: vec![],
-            owner: SYSTEM_PROGRAM_ID,
-            executable: true,
-            rent_epoch: 0,
-        }),
-    ];
+        (system_program_key, system_program_account),
+    ]);
 
     let result = mollusk.process_instruction(&commit_ix, &commit_accounts);
     assert!(result.program_result.is_ok(), "Commit should succeed: {:?}", result.program_result);
@@ -256,7 +285,8 @@ fn test_commit_reveal_randomness_derivation() {
         data: build_reveal_ix(preimage),
     };
 
-    let reveal_accounts = vec![
+    let mut reveal_accounts = program_accounts(&program_id);
+    reveal_accounts.extend(vec![
         (commitment_key, Account {
             lamports: 1_000_000_000,
             data: pending_commitment_data,
@@ -278,7 +308,7 @@ fn test_commit_reveal_randomness_derivation() {
             executable: false,
             rent_epoch: 0,
         }),
-    ];
+    ]);
 
     let result = mollusk.process_instruction(&reveal_ix, &reveal_accounts);
     assert!(result.program_result.is_ok(), "Reveal should succeed: {:?}", result.program_result);
@@ -296,7 +326,7 @@ fn test_commit_reveal_randomness_derivation() {
     // After commitment is revealed, finalize request to get randomness
 
     let slothash: [u8; 32] = [0xAA; 32]; // Test slothash
-    let request_data = create_pending_request_data(&requester, &commitment_key, 1, 50, 150, slothash);
+    let request_data = create_pending_request_data(&requester, &commitment_key, request_id, 50, 150, slothash);
     let revealed_commitment_data = create_revealed_commitment_data(&provider, hash, preimage, bond_amount, 100, sequence);
 
     let finalize_ix = Instruction {
@@ -309,7 +339,8 @@ fn test_commit_reveal_randomness_derivation() {
         data: build_finalize_ix(),
     };
 
-    let finalize_accounts = vec![
+    let mut finalize_accounts = program_accounts(&program_id);
+    finalize_accounts.extend(vec![
         (request_key, Account {
             lamports: 1_000_000,
             data: request_data,
@@ -331,7 +362,7 @@ fn test_commit_reveal_randomness_derivation() {
             executable: false,
             rent_epoch: 0,
         }),
-    ];
+    ]);
 
     let result = mollusk.process_instruction(&finalize_ix, &finalize_accounts);
     assert!(result.program_result.is_ok(), "Finalize should succeed: {:?}", result.program_result);
@@ -360,8 +391,6 @@ fn test_missed_reveal_slash() {
     let provider = new_unique_address();
     let authority = new_unique_address();
     let slasher = new_unique_address();
-    let config_key = new_unique_address();
-    let commitment_key = new_unique_address();
     let clock_key = new_unique_address();
 
     // Test parameters
@@ -374,12 +403,15 @@ fn test_missed_reveal_slash() {
     let slash_bp = 5000u64; // 50%
     let commit_slot = 100u64;
 
+    let config_key = derive_config_pda(&program_id);
+    let commitment_key = derive_commitment_pda(&program_id, &provider, sequence);
+
     // Expected slash calculation: 50% of 1_000_000 = 500_000
     let expected_slash = (bond_amount * slash_bp) / 10000;
     let expected_remaining = bond_amount - expected_slash;
 
     // Create mollusk instance
-    let mut mollusk = Mollusk::new(&program_id, "robopoker_entropy");
+    let mut mollusk = new_mollusk(&program_id);
 
     // Warp to slot past deadline (commit_slot + reveal_window + 1)
     mollusk.warp_to_slot(commit_slot + reveal_window + 10);
@@ -405,7 +437,8 @@ fn test_missed_reveal_slash() {
         data: build_slash_ix(),
     };
 
-    let slash_accounts = vec![
+    let mut slash_accounts = program_accounts(&program_id);
+    slash_accounts.extend(vec![
         (commitment_key, Account {
             lamports: initial_commitment_lamports,
             data: pending_commitment_data,
@@ -441,7 +474,7 @@ fn test_missed_reveal_slash() {
             executable: false,
             rent_epoch: 0,
         }),
-    ];
+    ]);
 
     let result = mollusk.process_instruction(&slash_ix, &slash_accounts);
     assert!(result.program_result.is_ok(), "Slash should succeed: {:?}", result.program_result);
@@ -476,20 +509,22 @@ fn test_invalid_preimage_fails() {
     let program_id = Address::from(robopoker_entropy::ID);
     let provider = new_unique_address();
     let authority = new_unique_address();
-    let config_key = new_unique_address();
-    let commitment_key = new_unique_address();
 
     // Correct preimage and its hash
     let correct_preimage: [u8; 32] = [0x42; 32];
     let hash = sha256(&correct_preimage);
+    let sequence = 1u64;
+
+    let config_key = derive_config_pda(&program_id);
+    let commitment_key = derive_commitment_pda(&program_id, &provider, sequence);
 
     // Wrong preimage
     let wrong_preimage: [u8; 32] = [0x43; 32];
 
-    let mollusk = Mollusk::new(&program_id, "robopoker_entropy");
+    let mollusk = new_mollusk(&program_id);
 
     let config_data = create_config_data(&provider, &authority, 500_000, 100, 5000);
-    let pending_commitment_data = create_pending_commitment_data(&provider, hash, 1_000_000, 100, 1);
+    let pending_commitment_data = create_pending_commitment_data(&provider, hash, 1_000_000, 100, sequence);
 
     let reveal_ix = Instruction {
         program_id,
@@ -501,7 +536,8 @@ fn test_invalid_preimage_fails() {
         data: build_reveal_ix(wrong_preimage), // Wrong preimage!
     };
 
-    let reveal_accounts = vec![
+    let mut reveal_accounts = program_accounts(&program_id);
+    reveal_accounts.extend(vec![
         (commitment_key, Account {
             lamports: 1_000_000_000,
             data: pending_commitment_data,
@@ -523,7 +559,7 @@ fn test_invalid_preimage_fails() {
             executable: false,
             rent_epoch: 0,
         }),
-    ];
+    ]);
 
     let result = mollusk.process_instruction(&reveal_ix, &reveal_accounts);
     assert!(result.program_result.is_err(), "Reveal with wrong preimage should fail");
@@ -536,10 +572,12 @@ fn test_non_provider_cannot_commit() {
     let provider = new_unique_address();
     let authority = new_unique_address();
     let imposter = new_unique_address(); // Not the authorized provider
-    let config_key = new_unique_address();
-    let commitment_key = new_unique_address();
+    let sequence = 1u64;
 
-    let mollusk = Mollusk::new(&program_id, "robopoker_entropy");
+    let config_key = derive_config_pda(&program_id);
+    let commitment_key = derive_commitment_pda(&program_id, &imposter, sequence);
+
+    let mollusk = new_mollusk(&program_id);
 
     let config_data = create_config_data(&provider, &authority, 500_000, 100, 5000);
     let commitment_data = create_empty_commitment_data();
@@ -552,10 +590,12 @@ fn test_non_provider_cannot_commit() {
             AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
             AccountMeta { pubkey: SYSTEM_PROGRAM_ID, is_signer: false, is_writable: false },
         ],
-        data: build_commit_ix([0x42; 32], 1, 1_000_000),
+        data: build_commit_ix([0x42; 32], sequence, 1_000_000),
     };
 
-    let commit_accounts = vec![
+    let (system_program_key, system_program_account) = keyed_account_for_system_program();
+    let mut commit_accounts = program_accounts(&program_id);
+    commit_accounts.extend(vec![
         (commitment_key, Account {
             lamports: 1_000_000_000,
             data: commitment_data,
@@ -577,14 +617,8 @@ fn test_non_provider_cannot_commit() {
             executable: false,
             rent_epoch: 0,
         }),
-        (SYSTEM_PROGRAM_ID, Account {
-            lamports: 1,
-            data: vec![],
-            owner: SYSTEM_PROGRAM_ID,
-            executable: true,
-            rent_epoch: 0,
-        }),
-    ];
+        (system_program_key, system_program_account),
+    ]);
 
     let result = mollusk.process_instruction(&commit_ix, &commit_accounts);
     assert!(result.program_result.is_err(), "Non-provider should not be able to commit");
