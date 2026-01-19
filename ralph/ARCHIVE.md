@@ -45,3 +45,6 @@ Format suggestions:
 - Keyboard‑first interaction + minimal styling
   - Commit: `cd33520`
   - Notes: Reviewed keyboard shortcut mapping and raise input behavior against AC-2.x and AC-PQ requirements.
+- UI layout + data subscriptions + perf
+  - Commit: `cd33520`
+  - Notes: Reviewed table store selective subscriptions and UI layout scaffolding for AC-3.x/AC-4.x.

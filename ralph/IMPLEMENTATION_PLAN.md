@@ -5,12 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] UI layout + data subscriptions + perf
-  - Specs: `specs/ui-minimal.md` AC-3.1, AC-3.2, AC-3.3, AC-3.4, AC-4.1, AC-4.2, AC-4.3, AC-4.4, AC-4.5, AC-4.6, AC-4.7, AC-4.8, AC-4.9, AC-4.10, AC-7.1, AC-7.2, AC-8.1, AC-8.2, AC-8.3, AC-9.1, AC-9.2, AC-10.1, AC-10.2, AC-10.3, AC-11.1
-  - Tests/backpressure:
-    - Programmatic: table subscription updates only relevant components
-  - Perceptual: None
-
 - [x] Accessibility + interaction hygiene pass
   - Specs: `specs/ui-minimal.md` AC-5.1, AC-5.2, AC-5.3, AC-5.4, AC-5.5, AC-5.6, AC-5.7, AC-5.8, AC-5.9, AC-5.10, AC-5.11, AC-5.12, AC-5.13, AC-5.14, AC-5.15
   - Tests/backpressure:
