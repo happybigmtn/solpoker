@@ -36,7 +36,6 @@ impl Evaluator {
             .or_else(|| self.find_straight())
             .or_else(|| self.find_3_oak())
             .or_else(|| self.find_2_oak_2_oak())
-            .or_else(|| self.find_2_oak())
             .or_else(|| self.find_1_oak())
             .expect("at least one card in Hand")
     }
@@ -62,9 +61,6 @@ impl Evaluator {
 
     fn find_1_oak(&self) -> Option<Ranking> {
         self.find_rank_of_n_oak(1).map(Ranking::HighCard)
-    }
-    fn find_2_oak(&self) -> Option<Ranking> {
-        self.find_rank_of_n_oak(2).map(Ranking::OnePair) // unreachable
     }
     fn find_3_oak(&self) -> Option<Ranking> {
         self.find_rank_of_n_oak(3).map(Ranking::ThreeOAK)
