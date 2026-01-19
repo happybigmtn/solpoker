@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { ACTION_TYPE } from '@robopoker/client';
 
 // Mock @solana/react-hooks
@@ -126,52 +126,8 @@ describe('usePlayerAction', () => {
       expect(mockBuildPlayerActionData).toHaveBeenCalledWith({
         actionType: ACTION_TYPE.FOLD,
         amount: 0n,
-  });
-
-  describe('error handling (AC-CI4.1–AC-CI4.3)', () => {
-    it('marks network errors as retryable and exposes retry', async () => {
-      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('Network timeout')));
-      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
-      mockFormatTransactionError.mockReturnValue('Network error. Please retry.');
-      mockIsNetworkError.mockReturnValue(true);
-      mockIsUserRejection.mockReturnValue(false);
-
-      const { result } = renderHook(() => usePlayerAction(mockConfig));
-
-      await act(async () => {
-        await result.current.executeAction('check');
       });
-
-      expect(result.current.txState).toBe('failed');
-      expect(result.current.txError).toBe('Network error. Please retry.');
-      expect(result.current.isRetryable).toBe(true);
-
-      mockBuildPlayerActionData.mockClear();
-
-      await act(async () => {
-        await result.current.retry();
-      });
-
-      expect(mockBuildPlayerActionData).toHaveBeenCalled();
     });
-
-    it('does not mark user rejection as retryable', async () => {
-      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('User rejected')));
-      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
-      mockFormatTransactionError.mockReturnValue('You cancelled the transaction.');
-      mockIsNetworkError.mockReturnValue(true);
-      mockIsUserRejection.mockReturnValue(true);
-
-      const { result } = renderHook(() => usePlayerAction(mockConfig));
-
-      await act(async () => {
-        await result.current.executeAction('check');
-      });
-
-      expect(result.current.isRetryable).toBe(false);
-    });
-  });
-});
 
     it('AC-CI3.2: check sends ACTION_TYPE.CHECK discriminator', async () => {
       const { result } = renderHook(() => usePlayerAction(mockConfig));
@@ -332,5 +288,47 @@ describe('usePlayerAction', () => {
     });
   });
 
-  // Error handling and retry coverage lives with AC-CI4.* tests.
+  describe('error handling (AC-CI4.1–AC-CI4.3)', () => {
+    it('marks network errors as retryable and exposes retry', async () => {
+      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('Network timeout')));
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      mockFormatTransactionError.mockReturnValue('Network error. Please retry.');
+      mockIsNetworkError.mockReturnValue(true);
+      mockIsUserRejection.mockReturnValue(false);
+
+      const { result } = renderHook(() => usePlayerAction(mockConfig));
+
+      await act(async () => {
+        await result.current.executeAction('check');
+      });
+
+      expect(result.current.txState).toBe('failed');
+      expect(result.current.txError).toBe('Network error. Please retry.');
+      expect(result.current.isRetryable).toBe(true);
+
+      mockBuildPlayerActionData.mockClear();
+
+      await act(async () => {
+        await result.current.retry();
+      });
+
+      expect(mockBuildPlayerActionData).toHaveBeenCalled();
+    });
+
+    it('does not mark user rejection as retryable', async () => {
+      const sendAndConfirm = vi.fn(() => Promise.reject(new Error('User rejected')));
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      mockFormatTransactionError.mockReturnValue('You cancelled the transaction.');
+      mockIsNetworkError.mockReturnValue(true);
+      mockIsUserRejection.mockReturnValue(true);
+
+      const { result } = renderHook(() => usePlayerAction(mockConfig));
+
+      await act(async () => {
+        await result.current.executeAction('check');
+      });
+
+      expect(result.current.isRetryable).toBe(false);
+    });
+  });
 });
