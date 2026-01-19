@@ -5,13 +5,6 @@
 
 ## Tasks (Priority Order)
 
-- [x] Betting rounds + action validation
-  - Specs: `specs/onchain-poker.md` AC-5.1, AC-5.2, AC-5.3
-  - Tests/backpressure:
-    - Programmatic: Mollusk test for legal actions per street
-    - Programmatic: Mollusk test for invalid raise/call/out-of-turn
-  - Perceptual: None
-
 - [x] Settlement + side pots
   - Specs: `specs/onchain-poker.md` AC-6.1, AC-6.2
   - Tests/backpressure:

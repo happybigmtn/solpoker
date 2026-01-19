@@ -21,3 +21,6 @@ Format suggestions:
 - Table lifecycle + seating + timeouts
   - Commit: `26b8134`
   - Notes: Timeout actions fold deterministically; table/seat transitions validated for WAITING/PLAYING flows.
+- Betting rounds + action validation
+  - Commit: `26b8134`
+  - Notes: Reviewed betting action validation and raise/all-in handling against AC-5.1–AC-5.3.
