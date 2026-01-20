@@ -11,8 +11,6 @@
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
 ### Phase 6: Client Integration + UI
-- [x] UI perceptual quality. AC-PQ.1 to AC-PQ.3. Validation: manual QA.
-
 ### Phase 7: Devnet Deployment + Verification
 - [x] Deploy script builds + deploys programs, initializes configs, creates CRISPS mint + metadata. AC-D1.1 to AC-D3.4, AC-D4.1. Validation: run `./scripts/deploy-devnet.sh` + RPC verification.
 - [x] Idempotency + env output for clients. AC-D4.2 to AC-D4.3. Validation: re-run deploy script + `./scripts/verify-programs.sh`.
