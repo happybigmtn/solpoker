@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- CLI commands. AC-EP6.1 to AC-EP6.3. Validation: CLI smoke tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Reliability + logging. AC-EP5.1 to AC-EP5.4. Validation: disconnect/restart tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.

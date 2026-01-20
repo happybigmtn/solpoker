@@ -10,7 +10,6 @@
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
-- [x] CLI commands. AC-EP6.1 to AC-EP6.3. Validation: CLI smoke tests.
 - [x] Provider UX quality. AC-PQ.EP1 to AC-PQ.EP2. Validation: log review.
 
 ### Phase 6: Client Integration + UI
