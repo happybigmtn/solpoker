@@ -9,8 +9,6 @@
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
-- [x] Typed SDK generated from IDL with core instruction builders. AC-8.3. Validation: SDK smoke tests.
-
 ### Phase 5: Entropy Provider Service
 - [x] Hash chain generation + persistence. AC-EP1.1 to AC-EP1.4. Validation: unit tests.
 - [x] Commit flow + pending tracking. AC-EP2.1 to AC-EP2.3. Validation: integration test.

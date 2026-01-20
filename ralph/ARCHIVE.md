@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Typed SDK generated from IDL with core instruction builders. AC-8.3. Validation: SDK smoke tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Instruction unit tests + full-hand integration test. AC-8.1 to AC-8.2. Validation: LiteSVM/Mollusk + Surfpool as needed.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
