@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Deploy script builds + deploys programs, initializes configs, creates CRISPS mint + metadata. AC-D1.1 to AC-D3.4, AC-D4.1. Validation: run `./scripts/deploy-devnet.sh` + RPC verification.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - UI perceptual quality. AC-PQ.1 to AC-PQ.3. Validation: manual QA.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
