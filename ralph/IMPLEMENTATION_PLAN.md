@@ -8,9 +8,6 @@
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
-- [x] Settlement + payout invariants. AC-6.1 to AC-6.2. Validation: side-pot payout tests.
-  - [x] LiteSVM settlement tests: heads-up, side-pot all-in, invariant violation checks (AC-6.1, AC-6.2).
-
 ### Phase 4: Security + Testing + SDK Generation
 - [x] Owner/signer/PDA validation + account duplication checks. AC-7.1 to AC-7.3. Validation: negative tests.
   - [x] LiteSVM test: Initialize rejects missing authority signer (AC-7.1).
