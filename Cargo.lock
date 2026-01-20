@@ -2006,6 +2006,10 @@ dependencies = [
  "solana-account",
  "solana-address 2.0.0",
  "solana-instruction",
+ "solana-keypair",
+ "solana-message",
+ "solana-signer",
+ "solana-transaction",
 ]
 
 [[package]]

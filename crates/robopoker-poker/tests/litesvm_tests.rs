@@ -10,6 +10,11 @@ use litesvm::LiteSVM;
 use solana_account::Account;
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
+use solana_keypair::Keypair;
+use solana_message::Message;
+use solana_signer::Signer;
+use solana_transaction::Transaction;
+use std::{env, path::PathBuf};
 
 use robopoker_poker::{
     instruction::discriminator as ix_disc,
@@ -37,6 +42,41 @@ fn new_unique_address() -> Address {
     bytes[..8].copy_from_slice(&n.to_le_bytes());
     bytes[31] = 0; // Ensure not on curve
     Address::from(bytes)
+}
+
+fn program_path() -> PathBuf {
+    if let Ok(dir) = env::var("SBF_OUT_DIR") {
+        return PathBuf::from(dir).join("robopoker_poker.so");
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/deploy/robopoker_poker.so")
+}
+
+fn setup_svm(program_id: &Address) -> LiteSVM {
+    let mut svm = LiteSVM::new().with_default_programs();
+    let path = program_path();
+    if !path.exists() {
+        panic!(
+            "Program binary not found at {}. Build with `cargo build-sbf` first.",
+            path.display()
+        );
+    }
+    svm.add_program_from_file(Address::from(program_id), path)
+        .expect("Failed to load poker program");
+    svm
+}
+
+fn config_pda(program_id: &Address) -> Address {
+    Address::find_program_address(&[b"config"], program_id).0
+}
+
+fn table_pda(program_id: &Address, table_id: u64) -> Address {
+    let table_id_bytes = table_id.to_le_bytes();
+    Address::find_program_address(&[Table::SEEDS_PREFIX, &table_id_bytes], program_id).0
+}
+
+fn vault_pda(program_id: &Address, table_id: u64) -> Address {
+    let table_id_bytes = table_id.to_le_bytes();
+    Address::find_program_address(&[Table::VAULT_SEEDS_PREFIX, &table_id_bytes], program_id).0
 }
 
 /// Build instruction data for JoinTable
@@ -308,20 +348,21 @@ fn parse_token_amount(data: &[u8]) -> u64 {
 #[test]
 fn test_join_table_debits_player_credits_vault() {
     let program_id = Address::from(robopoker_poker::ID);
-    let player = new_unique_address();
+    let player = Keypair::new();
+    let player_key = player.pubkey();
     let authority = new_unique_address();
     let entropy_program = new_unique_address();
     let crisps_mint = new_unique_address();
-    let config_key = new_unique_address();
-    let table_key = new_unique_address();
-    let vault_key = new_unique_address();
-    let player_token_key = new_unique_address();
 
     // Test parameters
     let table_id = 1u64;
     let min_buy_in = 100_000_000u64; // 100 CRISPS (6 decimals)
     let max_buy_in = 1_000_000_000u64; // 1000 CRISPS
     let buy_in_amount = 500_000_000u64; // 500 CRISPS
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+    let player_token_key = new_unique_address();
 
     // Initial token balances
     let initial_player_balance = 1_000_000_000u64; // 1000 CRISPS
@@ -331,8 +372,8 @@ fn test_join_table_debits_player_credits_vault() {
     let expected_player_balance = initial_player_balance - buy_in_amount;
     let expected_vault_balance = initial_vault_balance + buy_in_amount;
 
-    // Create LiteSVM instance
-    let mut svm = LiteSVM::new();
+    // Create LiteSVM instance with programs loaded
+    let mut svm = setup_svm(&program_id);
 
     // Set up accounts
     let config_data = create_config_data(
@@ -345,7 +386,7 @@ fn test_join_table_debits_player_credits_vault() {
     let table_data = create_table_data(table_id, 1_000_000, 2_000_000, &vault_key);
     let mint_data = create_mint_data(&authority);
     let player_token_data =
-        create_token_account_data(&crisps_mint, &player, initial_player_balance);
+        create_token_account_data(&crisps_mint, &player_key, initial_player_balance);
     let vault_token_data =
         create_token_account_data(&crisps_mint, &vault_key, initial_vault_balance);
 
@@ -353,9 +394,9 @@ fn test_join_table_debits_player_credits_vault() {
     svm.set_account(
         config_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
             data: config_data,
-            owner: program_id,
+            owner: Address::from(&program_id),
             executable: false,
             rent_epoch: 0,
         },
@@ -365,9 +406,9 @@ fn test_join_table_debits_player_credits_vault() {
     svm.set_account(
         table_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
             data: table_data,
-            owner: program_id,
+            owner: Address::from(&program_id),
             executable: false,
             rent_epoch: 0,
         },
@@ -377,7 +418,7 @@ fn test_join_table_debits_player_credits_vault() {
     svm.set_account(
         crisps_mint,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
             data: mint_data,
             owner: TOKEN_2022_PROGRAM_ID,
             executable: false,
@@ -389,7 +430,7 @@ fn test_join_table_debits_player_credits_vault() {
     svm.set_account(
         player_token_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(player_token_data.len()),
             data: player_token_data,
             owner: TOKEN_2022_PROGRAM_ID,
             executable: false,
@@ -401,7 +442,7 @@ fn test_join_table_debits_player_credits_vault() {
     svm.set_account(
         vault_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(vault_token_data.len()),
             data: vault_token_data,
             owner: TOKEN_2022_PROGRAM_ID,
             executable: false,
@@ -411,11 +452,11 @@ fn test_join_table_debits_player_credits_vault() {
     .unwrap();
 
     // Fund the player for transaction fees
-    svm.airdrop(&player, 10_000_000_000).unwrap();
+    svm.airdrop(&player_key, 10_000_000_000).unwrap();
 
     // Build JoinTable instruction
-    let _join_ix = Instruction {
-        program_id,
+    let join_ix = Instruction {
+        program_id: Address::from(&program_id),
         accounts: vec![
             AccountMeta {
                 pubkey: table_key,
@@ -433,7 +474,7 @@ fn test_join_table_debits_player_credits_vault() {
                 is_writable: true,
             },
             AccountMeta {
-                pubkey: player,
+                pubkey: player_key,
                 is_signer: true,
                 is_writable: false,
             },
@@ -451,30 +492,23 @@ fn test_join_table_debits_player_credits_vault() {
         data: build_join_table_ix(buy_in_amount),
     };
 
-    // NOTE: Full integration test requires:
-    // 1. Loading the program binary (cargo build-sbf)
-    // 2. Proper keypair signing
-    // 3. Token-2022 program binary
-    //
-    // This test validates the account setup and instruction structure.
-    // For now, verify the token account data parsing works correctly:
+    let message = Message::new(&[join_ix], Some(&player_key));
+    let tx = Transaction::new(&[&player], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
     let player_account = svm.get_account(&player_token_key).unwrap();
     let vault_account = svm.get_account(&vault_key).unwrap();
 
     assert_eq!(
         parse_token_amount(&player_account.data),
-        initial_player_balance,
-        "Initial player balance should be set correctly"
+        expected_player_balance,
+        "Player balance should be debited"
     );
     assert_eq!(
         parse_token_amount(&vault_account.data),
-        initial_vault_balance,
-        "Initial vault balance should be set correctly"
+        expected_vault_balance,
+        "Vault balance should be credited"
     );
-
-    println!("Join table test structure validated");
-    println!("Expected player balance after: {}", expected_player_balance);
-    println!("Expected vault balance after: {}", expected_vault_balance);
 }
 
 /// Test: Leave table (credit player, debit vault)
@@ -483,20 +517,21 @@ fn test_join_table_debits_player_credits_vault() {
 #[test]
 fn test_leave_table_credits_player_debits_vault() {
     let program_id = Address::from(robopoker_poker::ID);
-    let player = new_unique_address();
+    let player = Keypair::new();
+    let player_key = player.pubkey();
     let authority = new_unique_address();
     let entropy_program = new_unique_address();
     let crisps_mint = new_unique_address();
-    let config_key = new_unique_address();
-    let table_key = new_unique_address();
-    let vault_key = new_unique_address();
-    let player_token_key = new_unique_address();
 
     // Test parameters
     let table_id = 1u64;
     let min_buy_in = 100_000_000u64;
     let max_buy_in = 1_000_000_000u64;
     let player_stack = 750_000_000u64; // Player's current stack at table
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+    let player_token_key = new_unique_address();
 
     // Initial token balances (player already seated)
     let initial_player_balance = 500_000_000u64; // 500 CRISPS in wallet
@@ -506,8 +541,8 @@ fn test_leave_table_credits_player_debits_vault() {
     let expected_player_balance = initial_player_balance + player_stack;
     let expected_vault_balance = 0u64;
 
-    // Create LiteSVM instance
-    let mut svm = LiteSVM::new();
+    // Create LiteSVM instance with programs loaded
+    let mut svm = setup_svm(&program_id);
 
     // Set up accounts
     let config_data = create_config_data(
@@ -522,13 +557,13 @@ fn test_leave_table_credits_player_debits_vault() {
         1_000_000,
         2_000_000,
         &vault_key,
-        &player,
+        &player_key,
         player_stack,
         0, // seat index 0
     );
     let mint_data = create_mint_data(&authority);
     let player_token_data =
-        create_token_account_data(&crisps_mint, &player, initial_player_balance);
+        create_token_account_data(&crisps_mint, &player_key, initial_player_balance);
     let vault_token_data =
         create_token_account_data(&crisps_mint, &vault_key, initial_vault_balance);
 
@@ -536,9 +571,9 @@ fn test_leave_table_credits_player_debits_vault() {
     svm.set_account(
         config_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
             data: config_data,
-            owner: program_id,
+            owner: Address::from(&program_id),
             executable: false,
             rent_epoch: 0,
         },
@@ -548,9 +583,9 @@ fn test_leave_table_credits_player_debits_vault() {
     svm.set_account(
         table_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
             data: table_data,
-            owner: program_id,
+            owner: Address::from(&program_id),
             executable: false,
             rent_epoch: 0,
         },
@@ -560,7 +595,7 @@ fn test_leave_table_credits_player_debits_vault() {
     svm.set_account(
         crisps_mint,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
             data: mint_data,
             owner: TOKEN_2022_PROGRAM_ID,
             executable: false,
@@ -572,7 +607,7 @@ fn test_leave_table_credits_player_debits_vault() {
     svm.set_account(
         player_token_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(player_token_data.len()),
             data: player_token_data,
             owner: TOKEN_2022_PROGRAM_ID,
             executable: false,
@@ -584,7 +619,7 @@ fn test_leave_table_credits_player_debits_vault() {
     svm.set_account(
         vault_key,
         Account {
-            lamports: 1_000_000,
+            lamports: svm.minimum_balance_for_rent_exemption(vault_token_data.len()),
             data: vault_token_data,
             owner: TOKEN_2022_PROGRAM_ID,
             executable: false,
@@ -594,11 +629,11 @@ fn test_leave_table_credits_player_debits_vault() {
     .unwrap();
 
     // Fund the player for transaction fees
-    svm.airdrop(&player, 10_000_000_000).unwrap();
+    svm.airdrop(&player_key, 10_000_000_000).unwrap();
 
     // Build LeaveTable instruction
-    let _leave_ix = Instruction {
-        program_id,
+    let leave_ix = Instruction {
+        program_id: Address::from(&program_id),
         accounts: vec![
             AccountMeta {
                 pubkey: table_key,
@@ -616,7 +651,7 @@ fn test_leave_table_credits_player_debits_vault() {
                 is_writable: true,
             },
             AccountMeta {
-                pubkey: player,
+                pubkey: player_key,
                 is_signer: true,
                 is_writable: false,
             },
@@ -634,24 +669,23 @@ fn test_leave_table_credits_player_debits_vault() {
         data: build_leave_table_ix(),
     };
 
-    // Verify initial state setup
+    let message = Message::new(&[leave_ix], Some(&player_key));
+    let tx = Transaction::new(&[&player], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
     let player_account = svm.get_account(&player_token_key).unwrap();
     let vault_account = svm.get_account(&vault_key).unwrap();
 
     assert_eq!(
         parse_token_amount(&player_account.data),
-        initial_player_balance,
-        "Initial player balance should be set correctly"
+        expected_player_balance,
+        "Player balance should be credited"
     );
     assert_eq!(
         parse_token_amount(&vault_account.data),
-        initial_vault_balance,
-        "Initial vault balance should be set correctly"
+        expected_vault_balance,
+        "Vault balance should be debited"
     );
-
-    println!("Leave table test structure validated");
-    println!("Expected player balance after: {}", expected_player_balance);
-    println!("Expected vault balance after: {}", expected_vault_balance);
 }
 
 /// Test: Account size snapshots for on-chain data layout optimization (AC-1.5)

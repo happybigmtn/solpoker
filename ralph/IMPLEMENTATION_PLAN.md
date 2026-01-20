@@ -16,6 +16,7 @@
 
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 - [ ] Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
+  - [x] LiteSVM join/leave token balance tests using real Token-2022 program (AC-3.3).
 - [ ] Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
 - [ ] Table create/join/leave + timeouts. AC-4.1 to AC-4.4. Validation: lifecycle tests + timeout cases.
 - [ ] Betting rules + legal action enforcement. AC-5.1 to AC-5.3. Validation: illegal action failure tests.
