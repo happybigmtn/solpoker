@@ -135,6 +135,8 @@ fi
 ITERATION=0
 TOTAL_COST=0
 CURRENT_BRANCH=$(git branch --show-current)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PLAN_FILE="$SCRIPT_DIR/IMPLEMENTATION_PLAN.md"
 
 # Temp file for raw output (for completion detection)
 RAWFILE=$(mktemp)
@@ -191,10 +193,14 @@ while true; do
         echo -e "${DIM}💰 Session cost: \$${TOTAL_COST}${NC}"
     fi
 
-    # Check for completion signal
+    # Check for completion signal + plan completeness
     if grep -qE '<promise>COMPLETE</promise>|all tasks complete|plan complete' "$RAWFILE" 2>/dev/null; then
-        echo -e "${GREEN}✅ All tasks complete!${NC}"
-        break
+        if [ -f "$PLAN_FILE" ] && grep -qE '^[[:space:]]*-[[:space:]]+\\[ \\]' "$PLAN_FILE"; then
+            echo -e "${YELLOW}Completion signal received, but unchecked tasks remain in IMPLEMENTATION_PLAN.md${NC}"
+        else
+            echo -e "${GREEN}✅ All tasks complete!${NC}"
+            break
+        fi
     fi
 
     # Optional: checkpoint commit/push (opt-in).
