@@ -5,6 +5,7 @@
  * - AC-D3.1: CRISPS mint is created as Token-2022 with 9 decimals
  * - AC-D3.2: Mint authority is set to known keypair
  * - AC-D3.3: Test accounts can receive minted CRISPS
+ * - AC-D3.4: Token-2022 metadata is initialized (name, symbol, URI)
  * - AC-D2.2: Poker config has CRISPS mint and entropy program
  *
  * Usage: npx tsx scripts/verify-crisps-setup.ts
@@ -28,6 +29,10 @@ const POKER_PROGRAM_ID = address("3oG9MCSnE7UJDQKzEoJdmHrZ3qA7Y5ADdWbYqH1KpxLv")
 
 // Expected values
 const EXPECTED_DECIMALS = 9;
+const EXPECTED_NAME = "Robopoker Chips";
+const EXPECTED_SYMBOL = "CRISPS";
+const EXPECTED_URI = "https://robopoker.dev/crisps-metadata.json";
+const BASE_MINT_SIZE = 82; // Base Token-2022 mint without extensions
 
 // Mint address file
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,6 +73,101 @@ function parseMintAccount(data: Uint8Array): {
     freezeAuthorityOption: view.getUint32(46, true),
     freezeAuthority: decoder.decode(data.slice(50, 82)),
   };
+}
+
+/**
+ * Parse Token-2022 TokenMetadata extension from mint account data.
+ * Returns null if not found.
+ *
+ * Extension layout (after base mint at offset 82):
+ * - Account type (1 byte): 0x01 for Mint
+ * - Extensions array...
+ *
+ * Each extension:
+ * - Type (2 bytes, little-endian): ExtensionType enum
+ * - Length (2 bytes, little-endian): Length of extension data
+ * - Data (variable): Extension-specific data
+ *
+ * TokenMetadata extension type = 22
+ * TokenMetadata data layout:
+ * - UpdateAuthority (32 bytes, Option<Pubkey>: 4 byte discriminant + 32 bytes if Some)
+ * - Mint (32 bytes)
+ * - Name (4 byte length prefix + string)
+ * - Symbol (4 byte length prefix + string)
+ * - URI (4 byte length prefix + string)
+ * - Additional metadata (map - we skip for now)
+ */
+function parseTokenMetadataExtension(data: Uint8Array): {
+  name: string;
+  symbol: string;
+  uri: string;
+} | null {
+  // Skip base mint (82 bytes) and account type byte
+  const MINT_SIZE = 82;
+  const ACCOUNT_TYPE_SIZE = 1;
+  const METADATA_EXTENSION_TYPE = 22;
+
+  if (data.length <= MINT_SIZE + ACCOUNT_TYPE_SIZE) {
+    return null;
+  }
+
+  let offset = MINT_SIZE + ACCOUNT_TYPE_SIZE;
+
+  // Iterate through extensions
+  while (offset + 4 <= data.length) {
+    const view = new DataView(data.buffer, data.byteOffset + offset, 4);
+    const extensionType = view.getUint16(0, true);
+    const extensionLength = view.getUint16(2, true);
+    offset += 4;
+
+    if (extensionType === METADATA_EXTENSION_TYPE) {
+      // Found TokenMetadata extension
+      const extData = data.slice(offset, offset + extensionLength);
+      return parseTokenMetadataData(extData);
+    }
+
+    offset += extensionLength;
+  }
+
+  return null;
+}
+
+function parseTokenMetadataData(data: Uint8Array): {
+  name: string;
+  symbol: string;
+  uri: string;
+} {
+  const decoder = new TextDecoder("utf-8");
+  let offset = 0;
+
+  // UpdateAuthority: Option<Pubkey> (1 byte discriminant + optional 32 bytes)
+  const hasUpdateAuthority = data[offset] === 1;
+  offset += 1;
+  if (hasUpdateAuthority) {
+    offset += 32;
+  }
+
+  // Mint: Pubkey (32 bytes)
+  offset += 32;
+
+  // Name: length-prefixed string (4 bytes length + string)
+  const nameLen = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+  offset += 4;
+  const name = decoder.decode(data.slice(offset, offset + nameLen));
+  offset += nameLen;
+
+  // Symbol: length-prefixed string
+  const symbolLen = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+  offset += 4;
+  const symbol = decoder.decode(data.slice(offset, offset + symbolLen));
+  offset += symbolLen;
+
+  // URI: length-prefixed string
+  const uriLen = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+  offset += 4;
+  const uri = decoder.decode(data.slice(offset, offset + uriLen));
+
+  return { name, symbol, uri };
 }
 
 function parsePokerConfig(data: Uint8Array): {
@@ -173,6 +273,51 @@ async function main() {
         passed: mintData.supply > 0n,
         message: `Supply: ${mintData.supply} (run faucet-crisps.ts if 0)`,
       });
+
+      // AC-D3.4: Token-2022 metadata is initialized
+      // Check if account is larger than base mint (indicates extensions)
+      const hasExtensions = data.length > BASE_MINT_SIZE;
+      results.push({
+        name: "AC-D3.4: Mint has extension data",
+        passed: hasExtensions,
+        message: `Account size: ${data.length} bytes (base: ${BASE_MINT_SIZE})`,
+      });
+
+      if (hasExtensions) {
+        // Parse metadata if present
+        // Token-2022 extension layout: type_padding(1) + type(1) + length(2) + data
+        // We need to search for TokenMetadata extension (type 22)
+        const metadata = parseTokenMetadataExtension(new Uint8Array(data));
+        if (metadata) {
+          console.log(`  Metadata Name: ${metadata.name}`);
+          console.log(`  Metadata Symbol: ${metadata.symbol}`);
+          console.log(`  Metadata URI: ${metadata.uri}`);
+
+          results.push({
+            name: "AC-D3.4: Metadata name is correct",
+            passed: metadata.name === EXPECTED_NAME,
+            message: `Name: "${metadata.name}" (expected: "${EXPECTED_NAME}")`,
+          });
+
+          results.push({
+            name: "AC-D3.4: Metadata symbol is correct",
+            passed: metadata.symbol === EXPECTED_SYMBOL,
+            message: `Symbol: "${metadata.symbol}" (expected: "${EXPECTED_SYMBOL}")`,
+          });
+
+          results.push({
+            name: "AC-D3.4: Metadata URI is correct",
+            passed: metadata.uri === EXPECTED_URI,
+            message: `URI: "${metadata.uri}" (expected: "${EXPECTED_URI}")`,
+          });
+        } else {
+          results.push({
+            name: "AC-D3.4: TokenMetadata extension present",
+            passed: false,
+            message: "TokenMetadata extension not found in mint account",
+          });
+        }
+      }
     }
 
     // Check poker config
