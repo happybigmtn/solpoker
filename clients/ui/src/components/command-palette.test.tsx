@@ -7,8 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Mock useKeyboardShortcuts hook to avoid side effects
 vi.mock('@/hooks/use-keyboard-shortcuts', () => ({
@@ -172,8 +171,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
   });
 
   describe('AC-2.1: Search/filter functionality', () => {
-    it('filters commands by search input', async () => {
-      const user = userEvent.setup();
+    it('filters commands by search input', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -184,15 +182,14 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       );
 
       const input = screen.getByRole('searchbox');
-      await user.type(input, 'fold');
+      fireEvent.change(input, { target: { value: 'fold' } });
 
       // Only Fold should remain visible
       expect(screen.getByRole('option', { name: /Fold/i })).toBeInTheDocument();
       expect(screen.queryByRole('option', { name: /Check/i })).not.toBeInTheDocument();
     });
 
-    it('filters by category', async () => {
-      const user = userEvent.setup();
+    it('filters by category', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -203,15 +200,14 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       );
 
       const input = screen.getByRole('searchbox');
-      await user.type(input, 'table');
+      fireEvent.change(input, { target: { value: 'table' } });
 
       // Table category actions should be visible
       expect(screen.getByRole('option', { name: /Join Table/i })).toBeInTheDocument();
       expect(screen.getByRole('option', { name: /Leave Table/i })).toBeInTheDocument();
     });
 
-    it('shows no results message when filter matches nothing', async () => {
-      const user = userEvent.setup();
+    it('shows no results message when filter matches nothing', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -221,14 +217,14 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       );
 
       const input = screen.getByRole('searchbox');
-      await user.type(input, 'xyznonexistent');
+      fireEvent.change(input, { target: { value: 'xyznonexistent' } });
 
       expect(screen.getByText(/No matching commands/i)).toBeInTheDocument();
     });
   });
 
   describe('AC-2.4: Keyboard navigation', () => {
-    it('navigates with ArrowDown', async () => {
+    it('navigates with ArrowDown', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -246,7 +242,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(options[1]).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('navigates with ArrowUp', async () => {
+    it('navigates with ArrowUp', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -266,7 +262,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(options[0]).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('wraps around at the end of list', async () => {
+    it('wraps around at the end of list', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -285,7 +281,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(options[options.length - 1]).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('navigates with Tab (focus trap)', async () => {
+    it('navigates with Tab (focus trap)', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -303,7 +299,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(options[1]).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('navigates with Shift+Tab (reverse)', async () => {
+    it('navigates with Shift+Tab (reverse)', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -321,7 +317,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(options[options.length - 1]).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('selects action with Enter', async () => {
+    it('selects action with Enter', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -338,7 +334,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it('does not select disabled action with Enter', async () => {
+    it('does not select disabled action with Enter', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -357,7 +353,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(mockOnAction).not.toHaveBeenCalled();
     });
 
-    it('closes with Escape', async () => {
+    it('closes with Escape', () => {
       render(
         <CommandPalette
           isOpen={true}
