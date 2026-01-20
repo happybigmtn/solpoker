@@ -1,0 +1,51 @@
+{
+  "$schema": "./schema.json",
+  "environment": "testnet",
+  "description": "Solana Testnet configuration for pre-production testing",
+  "network": {
+    "rpcUrl": "https://api.testnet.solana.com",
+    "wsUrl": "wss://api.testnet.solana.com",
+    "commitment": "confirmed",
+    "skipPreflight": false
+  },
+  "programs": {
+    "entropy": {
+      "programId": null,
+      "description": "Set after deployment"
+    },
+    "poker": {
+      "programId": null,
+      "description": "Set after deployment"
+    }
+  },
+  "tokens": {
+    "crispsMint": null,
+    "decimals": 6,
+    "description": "CRISPS Token-2022 mint (set after deployment)"
+  },
+  "parameters": {
+    "entropyConfig": {
+      "minBond": 500000000,
+      "revealWindowSlots": 150,
+      "slashBasisPoints": 5000,
+      "description": "Testnet: moderate bond, same timing as mainnet"
+    },
+    "pokerConfig": {
+      "minBuyIn": 10000000,
+      "maxBuyIn": 1000000000,
+      "actionTimeoutSlots": 120,
+      "minPlayers": 2,
+      "rakeBps": 250,
+      "description": "Testnet: production-like timeouts"
+    }
+  },
+  "features": {
+    "allowTestMints": true,
+    "allowUnlimitedAirdrop": false,
+    "debugLogging": true
+  },
+  "validation": {
+    "requiredFields": ["network.rpcUrl", "network.wsUrl", "parameters.entropyConfig.minBond"],
+    "environmentMustMatch": "testnet"
+  }
+}

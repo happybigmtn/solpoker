@@ -8,7 +8,7 @@
 ### Phase 1: Release Engineering + Governance
 - [x] Reproducible builds + on-chain verification + release artifacts. AC-PR1.1 to AC-PR1.4. Validation: documented build script + verification evidence.
 - [x] Upgrade authority governance + emergency procedures. AC-PR1.5 to AC-PR1.6. Validation: documented multisig/timelock policy.
-- [ ] Environment config validation + migrations + SDK compatibility policy. AC-PR1.7 to AC-PR1.9. Validation: config validation + migration test plan.
+- [x] Environment config validation + migrations + SDK compatibility policy. AC-PR1.7 to AC-PR1.9. Validation: config validation + migration test plan.
 
 ### Phase 2: Security Assurance
 - [ ] Threat model + audit completion tracking. AC-SEC1.1 to AC-SEC1.3. Validation: documented model + audit report summary.

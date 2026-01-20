@@ -1,0 +1,51 @@
+{
+  "$schema": "./schema.json",
+  "environment": "devnet",
+  "description": "Solana Devnet configuration for development and testing",
+  "network": {
+    "rpcUrl": "https://api.devnet.solana.com",
+    "wsUrl": "wss://api.devnet.solana.com",
+    "commitment": "confirmed",
+    "skipPreflight": false
+  },
+  "programs": {
+    "entropy": {
+      "programId": null,
+      "description": "Set after deployment via deploy-devnet.sh"
+    },
+    "poker": {
+      "programId": null,
+      "description": "Set after deployment via deploy-devnet.sh"
+    }
+  },
+  "tokens": {
+    "crispsMint": null,
+    "decimals": 6,
+    "description": "CRISPS Token-2022 mint (set after deployment)"
+  },
+  "parameters": {
+    "entropyConfig": {
+      "minBond": 100000000,
+      "revealWindowSlots": 150,
+      "slashBasisPoints": 5000,
+      "description": "Devnet: lower bond for testing"
+    },
+    "pokerConfig": {
+      "minBuyIn": 1000000,
+      "maxBuyIn": 100000000,
+      "actionTimeoutSlots": 60,
+      "minPlayers": 2,
+      "rakeBps": 250,
+      "description": "Devnet: shorter timeouts for faster testing"
+    }
+  },
+  "features": {
+    "allowTestMints": true,
+    "allowUnlimitedAirdrop": true,
+    "debugLogging": true
+  },
+  "validation": {
+    "requiredFields": ["network.rpcUrl", "network.wsUrl", "parameters.entropyConfig.minBond"],
+    "environmentMustMatch": "devnet"
+  }
+}

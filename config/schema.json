@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Robopoker Environment Configuration",
+  "description": "Schema for environment-specific configuration files (AC-PR1.7)",
+  "type": "object",
+  "required": ["environment", "network", "programs", "tokens", "parameters", "features", "validation"],
+  "properties": {
+    "environment": {
+      "type": "string",
+      "enum": ["devnet", "testnet", "mainnet"],
+      "description": "Target Solana network environment"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this configuration"
+    },
+    "network": {
+      "type": "object",
+      "required": ["rpcUrl", "wsUrl", "commitment"],
+      "properties": {
+        "rpcUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Solana RPC endpoint URL"
+        },
+        "wsUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Solana WebSocket endpoint URL"
+        },
+        "commitment": {
+          "type": "string",
+          "enum": ["processed", "confirmed", "finalized"],
+          "description": "Default commitment level"
+        },
+        "skipPreflight": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip preflight checks in transactions"
+        }
+      }
+    },
+    "programs": {
+      "type": "object",
+      "required": ["entropy", "poker"],
+      "properties": {
+        "entropy": {
+          "type": "object",
+          "properties": {
+            "programId": {
+              "type": ["string", "null"],
+              "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+              "description": "Base58-encoded program ID"
+            },
+            "description": { "type": "string" }
+          }
+        },
+        "poker": {
+          "type": "object",
+          "properties": {
+            "programId": {
+              "type": ["string", "null"],
+              "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+              "description": "Base58-encoded program ID"
+            },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "required": ["decimals"],
+      "properties": {
+        "crispsMint": {
+          "type": ["string", "null"],
+          "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+          "description": "Base58-encoded CRISPS mint address"
+        },
+        "decimals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18,
+          "description": "Token decimal places"
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "required": ["entropyConfig", "pokerConfig"],
+      "properties": {
+        "entropyConfig": {
+          "type": "object",
+          "required": ["minBond", "revealWindowSlots", "slashBasisPoints"],
+          "properties": {
+            "minBond": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum bond in lamports"
+            },
+            "revealWindowSlots": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "description": "Slots allowed for reveal"
+            },
+            "slashBasisPoints": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "description": "Slash penalty in basis points"
+            },
+            "description": { "type": "string" }
+          }
+        },
+        "pokerConfig": {
+          "type": "object",
+          "required": ["minBuyIn", "maxBuyIn", "actionTimeoutSlots", "minPlayers", "rakeBps"],
+          "properties": {
+            "minBuyIn": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum buy-in in token base units"
+            },
+            "maxBuyIn": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Maximum buy-in in token base units"
+            },
+            "actionTimeoutSlots": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Slots before action timeout"
+            },
+            "minPlayers": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 10,
+              "description": "Minimum players to start hand"
+            },
+            "rakeBps": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "description": "Rake in basis points"
+            },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "allowTestMints": {
+          "type": "boolean",
+          "description": "Allow creating test token mints"
+        },
+        "allowUnlimitedAirdrop": {
+          "type": "boolean",
+          "description": "Allow unlimited token airdrops"
+        },
+        "debugLogging": {
+          "type": "boolean",
+          "description": "Enable verbose debug logging"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["requiredFields", "environmentMustMatch"],
+      "properties": {
+        "requiredFields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Dot-notation paths to required fields for this environment"
+        },
+        "environmentMustMatch": {
+          "type": "string",
+          "description": "The environment name that Solana CLI must be configured to"
+        }
+      }
+    }
+  }
+}
