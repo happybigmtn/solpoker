@@ -12,7 +12,6 @@
 ### Phase 5: Entropy Provider Service
 ### Phase 6: Client Integration + UI
 ### Phase 7: Devnet Deployment + Verification
-- [x] Devnet table lifecycle via scripts/RPC. AC-D5.1 to AC-D5.3. Validation: lifecycle script + RPC inspection.
 - [x] Devnet demo readiness (provider + UI). AC-D6.1 to AC-D6.6. Validation: run provider + UI, update devnet status doc.
 
 ## Missing/Unknown

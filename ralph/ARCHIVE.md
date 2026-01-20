@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Devnet table lifecycle via scripts/RPC. AC-D5.1 to AC-D5.3. Validation: lifecycle script + RPC inspection.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Idempotency + env output for clients. AC-D4.2 to AC-D4.3. Validation: re-run deploy script + `./scripts/verify-programs.sh`.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
