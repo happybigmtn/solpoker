@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- PDA helpers + instruction builders in TS SDK. AC-CI1.1 to AC-CI1.4. Validation: TS unit tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Provider UX quality. AC-PQ.EP1 to AC-PQ.EP2. Validation: log review.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
