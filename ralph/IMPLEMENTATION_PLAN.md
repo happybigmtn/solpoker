@@ -10,8 +10,6 @@
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
-- [x] Provider UX quality. AC-PQ.EP1 to AC-PQ.EP2. Validation: log review.
-
 ### Phase 6: Client Integration + UI
 - [x] PDA helpers + instruction builders in TS SDK. AC-CI1.1 to AC-CI1.4. Validation: TS unit tests.
 - [x] Transaction wiring + signing + status surfacing. AC-CI2.1 to AC-CI2.4, AC-PQ.CI1. Validation: hook tests.

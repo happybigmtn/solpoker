@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Provider UX quality. AC-PQ.EP1 to AC-PQ.EP2. Validation: log review.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - CLI commands. AC-EP6.1 to AC-EP6.3. Validation: CLI smoke tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
