@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Accessibility/forms/typography/navigation/touch/assets/hydration/theming. AC-5.1 to AC-11.1. Validation: lint + manual keyboard walkthrough.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Layout + state messaging + performance constraints. AC-3.1 to AC-4.10. Validation: render tests + bundle check.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.

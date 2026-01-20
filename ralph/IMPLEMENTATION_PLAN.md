@@ -11,7 +11,6 @@
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
 ### Phase 6: Client Integration + UI
-- [x] Accessibility/forms/typography/navigation/touch/assets/hydration/theming. AC-5.1 to AC-11.1. Validation: lint + manual keyboard walkthrough.
 - [x] UI perceptual quality. AC-PQ.1 to AC-PQ.3. Validation: manual QA.
 
 ### Phase 7: Devnet Deployment + Verification
