@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Framework-kit + wallet standard + App Router structure. AC-1.1 to AC-1.5. Validation: UI smoke tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Table discovery + card rendering. AC-CI5.1 to AC-CI6.4, AC-PQ.CI3. Validation: component tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
