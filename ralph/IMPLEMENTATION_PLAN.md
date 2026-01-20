@@ -8,12 +8,6 @@
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
-- [x] Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
-  - [x] LiteSVM init staking pool sets PDA vault metadata (AC-3.5).
-  - [x] LiteSVM deposit stake test with real Token-2022 transfers (AC-3.5).
-  - [x] LiteSVM withdraw stake test with real Token-2022 transfers (AC-3.5).
-  - [x] LiteSVM claim rewards test with proportional distribution (AC-3.6).
-  - [x] LiteSVM sweep rake test moving table rake to rewards vault (AC-3.4).
 - [x] Table create/join/leave + timeouts. AC-4.1 to AC-4.4. Validation: lifecycle tests + timeout cases.
   - [x] LiteSVM table lifecycle create/join/leave test (AC-4.2).
   - [x] LiteSVM timeout deadline + fallback tests (AC-4.4).

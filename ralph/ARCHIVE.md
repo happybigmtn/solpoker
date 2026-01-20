@@ -10,6 +10,15 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
+  - LiteSVM init staking pool sets PDA vault metadata (AC-3.5).
+  - LiteSVM deposit stake test with real Token-2022 transfers (AC-3.5).
+  - LiteSVM withdraw stake test with real Token-2022 transfers (AC-3.5).
+  - LiteSVM claim rewards test with proportional distribution (AC-3.6).
+  - LiteSVM sweep rake test moving table rake to rewards vault (AC-3.4).
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
   - LiteSVM initialize config sets CRISPS mint + authority (AC-3.1).
   - LiteSVM create table creates PDA vault token account (AC-3.2).
