@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Idempotency + env output for clients. AC-D4.2 to AC-D4.3. Validation: re-run deploy script + `./scripts/verify-programs.sh`.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Deploy script builds + deploys programs, initializes configs, creates CRISPS mint + metadata. AC-D1.1 to AC-D3.4, AC-D4.1. Validation: run `./scripts/deploy-devnet.sh` + RPC verification.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
