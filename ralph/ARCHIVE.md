@@ -10,6 +10,13 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Table create/join/leave + timeouts. AC-4.1 to AC-4.4. Validation: lifecycle tests + timeout cases.
+  - LiteSVM table lifecycle create/join/leave test (AC-4.2).
+  - LiteSVM timeout deadline + fallback tests (AC-4.4).
+  - Account size test asserts MAX_SEATS = 10 (AC-4.1).
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
   - LiteSVM init staking pool sets PDA vault metadata (AC-3.5).
   - LiteSVM deposit stake test with real Token-2022 transfers (AC-3.5).

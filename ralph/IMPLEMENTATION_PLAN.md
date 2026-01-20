@@ -8,10 +8,6 @@
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
-- [x] Table create/join/leave + timeouts. AC-4.1 to AC-4.4. Validation: lifecycle tests + timeout cases.
-  - [x] LiteSVM table lifecycle create/join/leave test (AC-4.2).
-  - [x] LiteSVM timeout deadline + fallback tests (AC-4.4).
-  - [x] Account size test asserts MAX_SEATS = 10 (AC-4.1).
 - [x] Betting rules + legal action enforcement. AC-5.1 to AC-5.3. Validation: illegal action failure tests.
   - [x] LiteSVM invalid action tests: out-of-turn, check-when-bet, raise bounds (AC-5.2, AC-5.3).
   - [x] LiteSVM valid action tests: call/raise/fold success paths (AC-5.1, AC-5.2).
