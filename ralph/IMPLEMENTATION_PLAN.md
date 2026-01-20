@@ -7,7 +7,6 @@
 
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
-- [x] Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
 - [x] Poker CPI to entropy + single-provider enforcement. AC-2.4 to AC-2.5. Validation: CPI integration test.
 - [x] Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
 

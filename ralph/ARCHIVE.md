@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
