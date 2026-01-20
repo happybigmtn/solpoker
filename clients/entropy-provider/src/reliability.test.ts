@@ -419,39 +419,198 @@ describe("Log Format Verification (AC-EP5.4)", () => {
 });
 
 describe("Perceptual Quality (AC-PQ.EP1)", () => {
-  it("should only log errors when healthy (info level = silent operation)", () => {
+  it("should operate silently at warn level (default) - only warnings and errors surface", () => {
     const entries: LogEntry[] = [];
     const logger = new Logger({
-      minLevel: "error", // Only errors surface
+      minLevel: "warn", // Default level - silent when healthy
       output: (entry) => entries.push(entry),
     });
 
-    // Normal operation logs (should be filtered)
-    logger.info("daemon", "Started");
-    logger.info("commit", "Posted");
-    logger.info("reveal", "Revealed");
-    logger.debug("poll", "Polling for requests");
+    // Normal operation logs (should be filtered at warn level)
+    logger.debug("daemon", "Starting");
+    logger.debug("daemon", "Started");
+    logger.debug("request", "Handling request");
+    logger.debug("request", "Request handled");
+    logger.debug("watcher", "Watcher started");
+    logger.debug("resume", "Resuming operations");
+    logger.debug("persist", "State saved");
 
-    // Error (should surface)
+    // No output when healthy
+    expect(entries).toHaveLength(0);
+  });
+
+  it("should surface warnings for degraded operation (reconnects)", () => {
+    const entries: LogEntry[] = [];
+    const logger = new Logger({
+      minLevel: "warn",
+      output: (entry) => entries.push(entry),
+    });
+
+    // Reconnect attempts indicate degraded operation - should surface
+    logger.warn("reconnect", "Scheduling reconnect in 2000ms", { attempt: 2 });
+    logger.warn("reconnect", "Attempting reconnection", { attempt: 2 });
+    logger.warn("signal", "Received SIGTERM, shutting down gracefully");
+
+    expect(entries).toHaveLength(3);
+    expect(entries.map((e) => e.level)).toEqual(["warn", "warn", "warn"]);
+  });
+
+  it("should surface errors for failures", () => {
+    const entries: LogEntry[] = [];
+    const logger = new Logger({
+      minLevel: "warn",
+      output: (entry) => entries.push(entry),
+    });
+
+    // Errors should always surface
     logger.error("commit", "Transaction failed");
+    logger.error("reveal", "Missed deadline");
+    logger.error("watcher", "Failed to start");
 
-    expect(entries).toHaveLength(1);
-    expect(entries[0].level).toBe("error");
-    expect(entries[0].operation).toBe("commit");
+    expect(entries).toHaveLength(3);
+    expect(entries.every((e) => e.level === "error")).toBe(true);
   });
 
   it("should allow configurable verbosity for debugging", () => {
     const entries: LogEntry[] = [];
     const logger = new Logger({
-      minLevel: "debug", // Full verbosity
+      minLevel: "debug", // Full verbosity for troubleshooting
       output: (entry) => entries.push(entry),
     });
 
     logger.debug("poll", "Checking for requests");
-    logger.info("commit", "Posted");
-    logger.warn("reveal", "Close to deadline");
+    logger.debug("daemon", "Started");
+    logger.warn("reconnect", "Scheduling reconnect");
     logger.error("commit", "Failed");
 
     expect(entries).toHaveLength(4);
+  });
+});
+
+describe("Perceptual Quality (AC-PQ.EP2)", () => {
+  let testDir: string;
+  let chainPath: string;
+  let statePath: string;
+
+  beforeEach(async () => {
+    testDir = join(tmpdir(), `entropy-pq-test-${randomBytes(8).toString("hex")}`);
+    await mkdir(testDir, { recursive: true });
+    chainPath = join(testDir, "chain.json");
+    statePath = join(testDir, "state.json");
+  });
+
+  afterEach(async () => {
+    try {
+      if (existsSync(chainPath)) await unlink(chainPath);
+      if (existsSync(statePath)) await unlink(statePath);
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  it("status output includes chain depth (remaining capacity)", async () => {
+    const seed = randomBytes(32);
+    const chain = generateHashChain(new Uint8Array(seed), 500);
+    chain.position = 100; // Used 100 of 500
+    await saveHashChain(chain, chainPath);
+
+    const commitmentState: CommitmentState = {
+      nextSequence: 1n,
+      pending: [],
+    };
+    await saveProviderState(statePath, chainPath, chain, commitmentState);
+
+    // Verify state preserves depth info
+    const loadedChain = await loadHashChain(chainPath);
+    expect(loadedChain.depth).toBe(500);
+    expect(loadedChain.position).toBe(100);
+    // Remaining is actionable: tells operator when to regenerate chain
+    expect(loadedChain.depth - loadedChain.position).toBe(400);
+  });
+
+  it("status output includes pending count (actionable workload)", async () => {
+    const seed = randomBytes(32);
+    const chain = generateHashChain(new Uint8Array(seed), 100);
+
+    const commitmentState: CommitmentState = {
+      nextSequence: 5n,
+      pending: [
+        {
+          sequence: 3n,
+          address: "addr-1" as Address,
+          hash: randomBytes(32),
+          commitSlot: 100n,
+          signature: "sig-1",
+        },
+        {
+          sequence: 4n,
+          address: "addr-2" as Address,
+          hash: randomBytes(32),
+          commitSlot: 200n,
+          signature: "sig-2",
+        },
+      ],
+    };
+
+    await saveProviderState(statePath, chainPath, chain, commitmentState);
+    const loaded = await loadProviderState(statePath);
+
+    // Pending count is actionable: tells operator if work is stuck
+    expect(loaded!.commitmentState.pending.length).toBe(2);
+  });
+
+  it("status output includes last activity timestamp (actionable staleness)", async () => {
+    const seed = randomBytes(32);
+    const chain = generateHashChain(new Uint8Array(seed), 100);
+
+    const commitmentState: CommitmentState = {
+      nextSequence: 1n,
+      pending: [],
+    };
+
+    const beforeSave = Date.now();
+    await saveProviderState(statePath, chainPath, chain, commitmentState);
+
+    // Read state file directly to verify lastActivity
+    const stateContent = await readFile(statePath, "utf-8");
+    const stateData = JSON.parse(stateContent) as PersistedState;
+
+    // Last activity is actionable: tells operator when daemon was last active
+    expect(stateData.lastActivity).toBeDefined();
+    const activityTime = new Date(stateData.lastActivity).getTime();
+    expect(activityTime).toBeGreaterThanOrEqual(beforeSave);
+    expect(activityTime).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("status fields are concise (no verbose descriptions)", async () => {
+    const seed = randomBytes(32);
+    const chain = generateHashChain(new Uint8Array(seed), 100);
+    chain.position = 42;
+
+    const commitmentState: CommitmentState = {
+      nextSequence: 5n,
+      pending: [
+        {
+          sequence: 4n,
+          address: "addr" as Address,
+          hash: randomBytes(32),
+          commitSlot: 100n,
+          signature: "sig",
+        },
+      ],
+    };
+
+    await saveProviderState(statePath, chainPath, chain, commitmentState);
+    const stateContent = await readFile(statePath, "utf-8");
+    const stateData = JSON.parse(stateContent) as PersistedState;
+
+    // Verify concise field names (not verbose descriptions)
+    expect(Object.keys(stateData)).toContain("chainPosition");
+    expect(Object.keys(stateData)).toContain("pendingCommitments");
+    expect(Object.keys(stateData)).toContain("lastActivity");
+
+    // Verify values are raw numbers/arrays, not wrapped in verbose objects
+    expect(typeof stateData.chainPosition).toBe("number");
+    expect(Array.isArray(stateData.pendingCommitments)).toBe(true);
   });
 });

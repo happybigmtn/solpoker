@@ -298,7 +298,7 @@ export class ProviderDaemon {
     this.startTime = Date.now();
     this.running = true;
 
-    this.logger.info("daemon", "Starting entropy provider daemon");
+    this.logger.debug("daemon", "Starting entropy provider daemon");
 
     // Register signal handlers for graceful shutdown (AC-EP5.2)
     this.registerSignalHandlers();
@@ -312,7 +312,7 @@ export class ProviderDaemon {
     // Resume pending operations (AC-EP5.3)
     await this.resumePendingOperations();
 
-    this.logger.info("daemon", "Entropy provider daemon started", {
+    this.logger.debug("daemon", "Entropy provider daemon started", {
       chainPosition: this.chain?.position,
       chainDepth: this.chain?.depth,
       pendingCount: this.commitmentState?.pending.length,
@@ -329,7 +329,7 @@ export class ProviderDaemon {
       return;
     }
 
-    this.logger.info("daemon", "Stopping entropy provider daemon");
+    this.logger.debug("daemon", "Stopping entropy provider daemon");
     this.shutdownRequested = true;
 
     // Stop reconnect attempts
@@ -348,7 +348,7 @@ export class ProviderDaemon {
     await this.persistState();
 
     this.running = false;
-    this.logger.info("daemon", "Entropy provider daemon stopped");
+    this.logger.debug("daemon", "Entropy provider daemon stopped");
   }
 
   /**
@@ -381,7 +381,7 @@ export class ProviderDaemon {
     const loaded = await loadProviderState(this.config.statePath);
 
     if (loaded) {
-      this.logger.info("daemon", "Loading persisted state", {
+      this.logger.debug("daemon", "Loading persisted state", {
         chainPath: loaded.chainPath,
         pendingCount: loaded.commitmentState.pending.length,
       });
@@ -390,7 +390,7 @@ export class ProviderDaemon {
       this.chain = await loadHashChain(loaded.chainPath);
       this.commitmentState = loaded.commitmentState;
     } else {
-      this.logger.info("daemon", "No persisted state found, initializing fresh");
+      this.logger.debug("daemon", "No persisted state found, initializing fresh");
 
       // Load the chain from config path
       this.chain = await loadHashChain(this.config.chainPath);
@@ -422,14 +422,14 @@ export class ProviderDaemon {
       // Wrap the handler to log activity
       const originalHandle = handler.handleRequest.bind(handler);
       handler.handleRequest = async (event) => {
-        this.logger.info("request", "Handling entropy request", {
+        this.logger.debug("request", "Handling entropy request", {
           address: event.address,
           requestId: event.data.requestId.toString(),
         });
 
         try {
           await originalHandle(event);
-          this.logger.info("request", "Request handled successfully", {
+          this.logger.debug("request", "Request handled successfully", {
             address: event.address,
           });
         } catch (error) {
@@ -448,7 +448,7 @@ export class ProviderDaemon {
       this.reconnectAttempts = 0;
       this.lastError = null;
 
-      this.logger.info("watcher", "Request watcher started");
+      this.logger.debug("watcher", "Request watcher started");
     } catch (error) {
       this.lastError = String(error);
       this.logger.error("watcher", "Failed to start watcher", { error: this.lastError });
@@ -470,7 +470,7 @@ export class ProviderDaemon {
       this.config.reconnectMaxDelayMs!
     );
 
-    this.logger.info("reconnect", `Scheduling reconnect in ${delay}ms`, {
+    this.logger.warn("reconnect", `Scheduling reconnect in ${delay}ms`, {
       attempt: this.reconnectAttempts,
       delay,
     });
@@ -489,7 +489,7 @@ export class ProviderDaemon {
       return;
     }
 
-    this.logger.info("reconnect", `Attempting reconnection`, {
+    this.logger.warn("reconnect", `Attempting reconnection`, {
       attempt: this.reconnectAttempts,
     });
 
@@ -516,7 +516,7 @@ export class ProviderDaemon {
       return;
     }
 
-    this.logger.info("resume", `Resuming ${pending.length} pending operations`);
+    this.logger.debug("resume", `Resuming ${pending.length} pending operations`);
 
     for (const commitment of pending) {
       try {
@@ -532,7 +532,7 @@ export class ProviderDaemon {
 
         // Check if already revealed (status = 1)
         if (commitmentData.status === 1) {
-          this.logger.info("resume", "Commitment already revealed, removing from pending", {
+          this.logger.debug("resume", "Commitment already revealed, removing from pending", {
             address: commitment.address,
           });
           this.commitmentState.pending = this.commitmentState.pending.filter(
@@ -546,7 +546,7 @@ export class ProviderDaemon {
         const targetSlot = commitmentData.commitSlot + 10n; // 10 slots after commit
         const deadlineSlot = commitmentData.commitSlot + 150n; // ~1 minute deadline
 
-        this.logger.info("resume", "Resuming reveal for commitment", {
+        this.logger.debug("resume", "Resuming reveal for commitment", {
           address: commitment.address,
           targetSlot: targetSlot.toString(),
           deadlineSlot: deadlineSlot.toString(),
@@ -562,7 +562,7 @@ export class ProviderDaemon {
           deadlineSlot
         );
 
-        this.logger.info("resume", "Successfully resumed commitment reveal", {
+        this.logger.debug("resume", "Successfully resumed commitment reveal", {
           address: commitment.address,
         });
       } catch (error) {
@@ -589,7 +589,7 @@ export class ProviderDaemon {
         this.chain,
         this.commitmentState
       );
-      this.logger.info("persist", "State saved to disk", {
+      this.logger.debug("persist", "State saved to disk", {
         statePath: this.config.statePath,
         chainPosition: this.chain.position,
         pendingCount: this.commitmentState.pending.length,
@@ -604,7 +604,7 @@ export class ProviderDaemon {
    */
   private registerSignalHandlers(): void {
     const handleSignal = async (signal: string) => {
-      this.logger.info("signal", `Received ${signal}, shutting down gracefully`);
+      this.logger.warn("signal", `Received ${signal}, shutting down gracefully`);
       await this.stop();
       process.exit(0);
     };

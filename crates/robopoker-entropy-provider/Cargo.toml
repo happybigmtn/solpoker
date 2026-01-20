@@ -1,0 +1,43 @@
+[package]
+name = "robopoker-entropy-provider"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Off-chain entropy provider service for robopoker"
+
+[dependencies]
+# Crypto
+sha2 = "0.10"
+curve25519-dalek = { version = "4.1", default-features = false }
+
+# Serialization for persistence
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Random seed generation
+rand = "0.8"
+
+[[bin]]
+name = "entropy-provider"
+path = "src/bin/main.rs"
+
+[dev-dependencies]
+tempfile = "3.14"
+rand = "0.8"
+
+# Integration tests
+litesvm = "0.9"
+solana-account = "3.3"
+solana-address = { version = "2.0", features = ["curve25519"] }
+solana-instruction = "3.1"
+solana-keypair = "3.1"
+solana-message = "3.0"
+solana-signer = "3.0"
+solana-transaction = { version = "3.0", features = ["bincode"] }
+robopoker-entropy = { path = "../robopoker-entropy" }

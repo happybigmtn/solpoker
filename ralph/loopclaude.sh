@@ -1,15 +1,12 @@
 #!/bin/bash
-# Ralph loop runner (canonical script).
-# Usage: ./loopclaude.sh [mode] [max_iterations]
+# Usage: ./loop.sh [mode] [max_iterations]
 # Examples:
-#   ./loopclaude.sh                        # Build mode, unlimited iterations
-#   ./loopclaude.sh 20                     # Build mode, max 20 iterations
-#   ./loopclaude.sh plan                   # Plan mode, unlimited iterations
-#   ./loopclaude.sh plan 5                 # Plan mode, max 5 iterations
-#   ./loopclaude.sh plan-work "scope"      # Scoped planning for work branch
-#   ./loopclaude.sh plan-work "scope" 3    # Scoped planning, max 3 iterations
-#
-# Note: ./loop.sh is a thin wrapper for docs parity.
+#   ./loop.sh                        # Build mode, unlimited iterations
+#   ./loop.sh 20                     # Build mode, max 20 iterations
+#   ./loop.sh plan                   # Plan mode, unlimited iterations
+#   ./loop.sh plan 5                 # Plan mode, max 5 iterations
+#   ./loop.sh plan-work "scope"      # Scoped planning for work branch
+#   ./loop.sh plan-work "scope" 3    # Scoped planning, max 3 iterations
 
 # Colors for output
 CYAN='\033[0;36m'
@@ -37,7 +34,7 @@ filter_output() {
             "system")
                 case "$subtype" in
                     "init")
-                        echo -e "${DIM}Session initialized${NC}"
+                        echo -e "${DIM}🔧 Session initialized${NC}"
                         ;;
                 esac
                 ;;
@@ -48,101 +45,102 @@ filter_output() {
                     case "$tool_name" in
                         "Read")
                             file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
-                             echo -e "${DIM}Reading${NC} $file"
-                             ;;
-                         "Write")
-                             file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
-                             echo -e "${GREEN}Writing${NC} $file"
-                             ;;
-                         "Edit"|"MultiEdit")
-                             file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
-                             echo -e "${GREEN}Editing${NC} $file"
-                             ;;
-                         "Bash")
-                             desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 50)
-                             [[ -z "$desc" ]] && desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.command // empty' 2>/dev/null | head -c 50)
-                             echo -e "${YELLOW}Running${NC} ${DIM}${desc}${NC}"
-                             ;;
-                         "Grep"|"Glob")
-                             pattern=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.pattern // empty' 2>/dev/null | head -c 30)
-                             echo -e "${DIM}Searching${NC} $pattern"
-                             ;;
-                         "TodoWrite")
-                             echo -e "${CYAN}Updating todos${NC}"
-                             ;;
-                         "Task")
-                             task_desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 50)
-                             echo -e "${CYAN}Agent${NC} ${DIM}${task_desc}${NC}"
-                             ;;
-                         *)
-                             echo -e "${DIM}${tool_name}${NC}"
-                             ;;
-                     esac
-                 else
-                     # Show assistant text (first 120 chars)
-                     text=$(echo "$line" | jq -r '.message.content[]? | select(.type=="text") | .text // empty' 2>/dev/null | tr '\n' ' ' | head -c 120)
-                     if [[ -n "$text" ]]; then
-                         echo -e "${CYAN}>${NC} ${text}..."
-                     fi
-                 fi
+                            echo -e "${DIM}📖 Reading${NC} $file"
+                            ;;
+                        "Write")
+                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
+                            echo -e "${GREEN}📝 Writing${NC} $file"
+                            ;;
+                        "Edit"|"MultiEdit")
+                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
+                            echo -e "${GREEN}✏️  Editing${NC} $file"
+                            ;;
+                        "Bash")
+                            desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 50)
+                            [[ -z "$desc" ]] && desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.command // empty' 2>/dev/null | head -c 50)
+                            echo -e "${YELLOW}⚡ Running${NC} ${DIM}${desc}${NC}"
+                            ;;
+                        "Grep"|"Glob")
+                            pattern=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.pattern // empty' 2>/dev/null | head -c 30)
+                            echo -e "${DIM}🔍 Searching${NC} $pattern"
+                            ;;
+                        "TodoWrite")
+                            echo -e "${CYAN}📋 Updating todos${NC}"
+                            ;;
+                        "Task")
+                            task_desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 50)
+                            echo -e "${CYAN}🤖 Agent${NC} ${DIM}${task_desc}${NC}"
+                            ;;
+                        *)
+                            echo -e "${DIM}🔧 ${tool_name}${NC}"
+                            ;;
+                    esac
+                else
+                    # Show assistant text (first 120 chars)
+                    text=$(echo "$line" | jq -r '.message.content[]? | select(.type=="text") | .text // empty' 2>/dev/null | tr '\n' ' ' | head -c 120)
+                    if [[ -n "$text" ]]; then
+                        echo -e "${CYAN}▸${NC} ${text}..."
+                    fi
+                fi
                 ;;
             "result")
                 if [[ "$subtype" == "success" ]]; then
                     cost=$(echo "$line" | jq -r '.total_cost_usd // empty' 2>/dev/null)
                     if [[ -n "$cost" ]]; then
-                        echo -e "${GREEN}Completed${NC} ${DIM}(\$${cost})${NC}"
+                        echo -e "${GREEN}✓ Completed${NC} ${DIM}(\$${cost})${NC}"
                     fi
                 fi
                 ;;
             "error")
                 msg=$(echo "$line" | jq -r '.error.message // .message // empty' 2>/dev/null | head -c 200)
-                [[ -n "$msg" ]] && echo -e "${RED}Error: ${msg}${NC}"
+                [[ -n "$msg" ]] && echo -e "${RED}✗ Error: ${msg}${NC}"
                 ;;
         esac
     done
 }
+
+# Resolve script directory for prompt paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
 WORK_SCOPE=""
 if [ "$1" = "plan" ]; then
     # Plan mode
     MODE="plan"
-    PROMPT_FILE="PROMPT_plan.md"
+    PROMPT_FILE="$SCRIPT_DIR/PROMPT_plan.md"
     MAX_ITERATIONS=${2:-0}
 elif [ "$1" = "plan-work" ]; then
     # Scoped plan mode for work branches
     MODE="plan-work"
-    PROMPT_FILE="PROMPT_plan_work.md"
+    PROMPT_FILE="$SCRIPT_DIR/PROMPT_plan_work.md"
     WORK_SCOPE="$2"
     MAX_ITERATIONS=${3:-0}
     if [ -z "$WORK_SCOPE" ]; then
-        echo -e "${RED}Error: plan-work requires a scope description${NC}"
+        echo -e "${RED}✗ Error: plan-work requires a scope description${NC}"
         echo -e "${DIM}Usage: ./loop.sh plan-work \"description of work scope\"${NC}"
         exit 1
     fi
 elif [[ "$1" =~ ^[0-9]+$ ]]; then
     # Build mode with max iterations
     MODE="build"
-    PROMPT_FILE="PROMPT_build.md"
+    PROMPT_FILE="$SCRIPT_DIR/PROMPT_build.md"
     MAX_ITERATIONS=$1
 else
     # Build mode, unlimited (no arguments or invalid input)
     MODE="build"
-    PROMPT_FILE="PROMPT_build.md"
+    PROMPT_FILE="$SCRIPT_DIR/PROMPT_build.md"
     MAX_ITERATIONS=0
 fi
 
 ITERATION=0
 TOTAL_COST=0
 CURRENT_BRANCH=$(git branch --show-current)
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PLAN_FILE="$SCRIPT_DIR/IMPLEMENTATION_PLAN.md"
 
 # Temp file for raw output (for completion detection)
 RAWFILE=$(mktemp)
 trap "rm -f $RAWFILE" EXIT
 
-echo -e "${BOLD}Starting Ralph${NC}"
+echo -e "${BOLD}🚀 Starting Ralph${NC}"
 echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "Mode:   ${CYAN}$MODE${NC}"
 echo -e "Prompt: ${DIM}$PROMPT_FILE${NC}"
@@ -154,13 +152,13 @@ echo ""
 
 # Verify prompt file exists
 if [ ! -f "$PROMPT_FILE" ]; then
-    echo -e "${RED}Error: $PROMPT_FILE not found${NC}"
+    echo -e "${RED}✗ Error: $PROMPT_FILE not found${NC}"
     exit 1
 fi
 
 while true; do
     if [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
-        echo -e "${YELLOW}Reached max iterations: $MAX_ITERATIONS${NC}"
+        echo -e "${YELLOW}⚠ Reached max iterations: $MAX_ITERATIONS${NC}"
         break
     fi
 
@@ -193,43 +191,38 @@ while true; do
         echo -e "${DIM}💰 Session cost: \$${TOTAL_COST}${NC}"
     fi
 
-    # Check for completion signal + plan completeness
-    if grep -qE '<promise>COMPLETE</promise>|all tasks complete|plan complete' "$RAWFILE" 2>/dev/null; then
-        if [ -f "$PLAN_FILE" ] && grep -qE '^[[:space:]]*-[[:space:]]+\\[ \\]' "$PLAN_FILE"; then
-            echo -e "${YELLOW}Completion signal received, but unchecked tasks remain in IMPLEMENTATION_PLAN.md${NC}"
-        else
-            echo -e "${GREEN}✅ All tasks complete!${NC}"
-            break
-        fi
+    # Check for completion signal
+    if grep -qE '<promise>COMPLETE</promise>' "$RAWFILE" 2>/dev/null; then
+        echo -e "${GREEN}✅ All tasks complete!${NC}"
+        break
     fi
 
-    # Optional: checkpoint commit/push (opt-in).
-    # Default behavior is no commits/pushes.
-    if [ "${RALPH_AUTOCOMMIT:-0}" = "1" ] && [ "$MODE" = "build" ]; then
+    # Commit + push changes after each iteration (build mode only)
+    if [ "$MODE" = "build" ]; then
         # Create a checkpoint commit if there are any changes (including untracked).
         if [ -n "$(git status --porcelain)" ]; then
             ts=$(date +"%Y-%m-%d %H:%M:%S")
             msg="loop: iteration $((ITERATION + 1)) @ $ts"
-            echo -e "${DIM}Committing checkpoint: ${msg}${NC}"
+            echo -e "${DIM}📦 Committing checkpoint: ${msg}${NC}"
             git add -A
             git commit -m "$msg" 2>&1 | head -5 || {
-                echo -e "${YELLOW}Commit failed; leaving changes uncommitted${NC}"
+                echo -e "${YELLOW}⚠ Commit failed; leaving changes uncommitted${NC}"
             }
         else
-            echo -e "${DIM}No changes to commit${NC}"
+            echo -e "${DIM}✓ No changes to commit${NC}"
         fi
 
-        echo -e "${DIM}Pushing to origin/$CURRENT_BRANCH...${NC}"
+        echo -e "${DIM}📤 Pushing to origin/$CURRENT_BRANCH...${NC}"
         git push origin "$CURRENT_BRANCH" 2>&1 | head -3 || {
             echo -e "${YELLOW}Creating remote branch...${NC}"
             git push -u origin "$CURRENT_BRANCH" 2>&1 | head -3
         }
     else
-        echo -e "${DIM}Skipping commit/push (set RALPH_AUTOCOMMIT=1 to enable)${NC}"
+        echo -e "${DIM}↪ Skipping commit/push in $MODE mode${NC}"
     fi
 
     ITERATION=$((ITERATION + 1))
     echo ""
-    echo -e "${BOLD}${CYAN}======================= LOOP $ITERATION =======================${NC}"
+    echo -e "${BOLD}${CYAN}═══════════════════════ LOOP $ITERATION ═══════════════════════${NC}"
     echo ""
 done

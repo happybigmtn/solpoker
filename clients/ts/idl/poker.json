@@ -1,0 +1,442 @@
+{
+  "version": "0.1.0",
+  "name": "robopoker_poker",
+  "address": "3oG9MCSnE7UJDQKzEoJdmHrZ3qA7Y5ADdWbYqH1KpxLv",
+  "metadata": {
+    "description": "On-chain multiplayer poker with CRISPS escrow",
+    "spec": "onchain-poker.md"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": 0,
+      "docs": ["Initialize program config with CRISPS mint and game parameters"],
+      "accounts": [
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "config" }] } },
+        { "name": "authority", "signer": true, "writable": true },
+        { "name": "crispsMint", "docs": ["Token-2022 mint for CRISPS"] },
+        { "name": "entropyProgram" },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "minPlayers", "type": "u8", "docs": ["Minimum players to start a hand (AC-4.3)"] },
+        { "name": "minBuyIn", "type": "u64" },
+        { "name": "maxBuyIn", "type": "u64" },
+        { "name": "actionTimeoutSlots", "type": "u64", "docs": ["Slots allowed per action before timeout (AC-4.4)"] }
+      ],
+      "layout": {
+        "size": 32,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "minPlayers", "offset": 1, "size": 1 },
+          { "name": "_padding", "offset": 2, "size": 6 },
+          { "name": "minBuyIn", "offset": 8, "size": 8, "encoding": "le" },
+          { "name": "maxBuyIn", "offset": 16, "size": 8, "encoding": "le" },
+          { "name": "actionTimeoutSlots", "offset": 24, "size": 8, "encoding": "le" }
+        ]
+      }
+    },
+    {
+      "name": "createTable",
+      "discriminator": 1,
+      "docs": ["Create a new poker table with specified blinds"],
+      "accounts": [
+        { "name": "table", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "table" }, { "kind": "arg", "path": "tableId" }] } },
+        { "name": "vault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "vault" }, { "kind": "account", "path": "table" }] } },
+        { "name": "payer", "signer": true, "writable": true },
+        { "name": "config" },
+        { "name": "crispsMint" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "tableId", "type": "u64" },
+        { "name": "smallBlind", "type": "u64" },
+        { "name": "bigBlind", "type": "u64" }
+      ],
+      "layout": {
+        "size": 32,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "_padding", "offset": 1, "size": 7 },
+          { "name": "tableId", "offset": 8, "size": 8, "encoding": "le" },
+          { "name": "smallBlind", "offset": 16, "size": 8, "encoding": "le" },
+          { "name": "bigBlind", "offset": 24, "size": 8, "encoding": "le" }
+        ]
+      }
+    },
+    {
+      "name": "joinTable",
+      "discriminator": 2,
+      "docs": ["Join a table with buy-in (AC-3.3: debit player, credit vault)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "vault", "writable": true },
+        { "name": "playerTokenAccount", "writable": true },
+        { "name": "player", "signer": true },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [
+        { "name": "buyInAmount", "type": "u64" }
+      ],
+      "layout": {
+        "size": 16,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "_padding", "offset": 1, "size": 7 },
+          { "name": "buyInAmount", "offset": 8, "size": 8, "encoding": "le" }
+        ]
+      }
+    },
+    {
+      "name": "leaveTable",
+      "discriminator": 3,
+      "docs": ["Leave a table (AC-3.3: credit player, debit vault)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "vault", "writable": true },
+        { "name": "playerTokenAccount", "writable": true },
+        { "name": "player", "signer": true },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "startHand",
+      "discriminator": 4,
+      "docs": ["Start a new hand with seed commitment (AC-4.3, AC-2.6, AC-2.7)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "provider", "signer": true, "writable": true },
+        { "name": "config" },
+        { "name": "clock", "address": "SysvarC1ock11111111111111111111111111111111" },
+        { "name": "entropyProgram" },
+        { "name": "entropyConfig" },
+        { "name": "entropyCommitment" },
+        { "name": "entropyRequest", "writable": true },
+        { "name": "slotHashes", "address": "SysvarS1otHashes111111111111111111111111111" },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "seedCommitment", "type": { "array": ["u8", 32] } },
+        { "name": "holeCardHashes", "type": { "array": [{ "array": ["u8", 32] }, 10] } }
+      ],
+      "layout": {
+        "size": 360,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "_padding", "offset": 1, "size": 7 },
+          { "name": "seedCommitment", "offset": 8, "size": 32 },
+          { "name": "holeCardHashes", "offset": 40, "size": 320, "doc": "10 x 32-byte hashes" }
+        ]
+      }
+    },
+    {
+      "name": "timeoutAction",
+      "discriminator": 5,
+      "docs": ["Process timeout auto-action (AC-4.4: deterministic fallback)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "config" },
+        { "name": "clock", "address": "SysvarC1ock11111111111111111111111111111111" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "playerAction",
+      "discriminator": 6,
+      "docs": ["Player action during betting round (AC-5.1, AC-5.2, AC-5.3)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "player", "signer": true },
+        { "name": "config" },
+        { "name": "clock", "address": "SysvarC1ock11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "actionType", "type": "u8", "docs": ["0=fold, 1=check, 2=call, 3=raise, 4=all-in"] },
+        { "name": "amount", "type": "u64", "docs": ["For raise: total amount to raise TO"] }
+      ],
+      "layout": {
+        "size": 16,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "actionType", "offset": 1, "size": 1 },
+          { "name": "_padding", "offset": 2, "size": 6 },
+          { "name": "amount", "offset": 8, "size": 8, "encoding": "le" }
+        ]
+      }
+    },
+    {
+      "name": "settle",
+      "discriminator": 7,
+      "docs": ["Settle hand and distribute pot (AC-6.1, AC-6.2)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "config" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "revealSeed",
+      "discriminator": 8,
+      "docs": ["Reveal seed at showdown (AC-2.7, AC-2.8)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "provider", "signer": true },
+        { "name": "config" },
+        { "name": "entropyProgram" },
+        { "name": "entropyConfig" },
+        { "name": "entropyCommitment" },
+        { "name": "entropyRequest", "writable": true }
+      ],
+      "args": [
+        { "name": "seed", "type": { "array": ["u8", 32] } },
+        { "name": "revealedHoleCards", "type": { "array": [{ "array": ["u8", 2] }, 10] } }
+      ],
+      "layout": {
+        "size": 60,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "_padding", "offset": 1, "size": 7 },
+          { "name": "seed", "offset": 8, "size": 32 },
+          { "name": "revealedHoleCards", "offset": 40, "size": 20, "doc": "10 x 2-byte card pairs" }
+        ]
+      }
+    },
+    {
+      "name": "initStakingPool",
+      "discriminator": 9,
+      "docs": ["Initialize staking pool (AC-3.5)"],
+      "accounts": [
+        { "name": "stakingPool", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "staking_pool" }] } },
+        { "name": "stakeVault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "stake_vault" }] } },
+        { "name": "rewardsVault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "rewards_vault" }] } },
+        { "name": "payer", "signer": true, "writable": true },
+        { "name": "config" },
+        { "name": "crispsMint" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "depositStake",
+      "discriminator": 10,
+      "docs": ["Deposit CRISPS into staking pool (AC-3.5)"],
+      "accounts": [
+        { "name": "stakingPool", "writable": true },
+        { "name": "stakerPosition", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "staker_position" }, { "kind": "account", "path": "staker" }] } },
+        { "name": "stakeVault", "writable": true },
+        { "name": "stakerTokenAccount", "writable": true },
+        { "name": "staker", "signer": true },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" }
+      ],
+      "layout": {
+        "size": 16,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "_padding", "offset": 1, "size": 7 },
+          { "name": "amount", "offset": 8, "size": 8, "encoding": "le" }
+        ]
+      }
+    },
+    {
+      "name": "withdrawStake",
+      "discriminator": 11,
+      "docs": ["Withdraw CRISPS from staking pool (AC-3.5)"],
+      "accounts": [
+        { "name": "stakingPool", "writable": true },
+        { "name": "stakerPosition", "writable": true },
+        { "name": "stakeVault", "writable": true },
+        { "name": "stakerTokenAccount", "writable": true },
+        { "name": "staker", "signer": true },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" }
+      ],
+      "layout": {
+        "size": 16,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 },
+          { "name": "_padding", "offset": 1, "size": 7 },
+          { "name": "amount", "offset": 8, "size": 8, "encoding": "le" }
+        ]
+      }
+    },
+    {
+      "name": "claimRewards",
+      "discriminator": 12,
+      "docs": ["Claim accumulated rake rewards (AC-3.6)"],
+      "accounts": [
+        { "name": "stakingPool", "writable": true },
+        { "name": "stakerPosition", "writable": true },
+        { "name": "rewardsVault", "writable": true },
+        { "name": "stakerTokenAccount", "writable": true },
+        { "name": "staker", "signer": true },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "sweepRake",
+      "discriminator": 13,
+      "docs": ["Sweep accumulated rake from table to staking pool (AC-3.4)"],
+      "accounts": [
+        { "name": "table", "writable": true },
+        { "name": "tableVault", "writable": true },
+        { "name": "stakingPool", "writable": true },
+        { "name": "rewardsVault", "writable": true },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "ActionType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Fold", "value": 0 },
+          { "name": "Check", "value": 1 },
+          { "name": "Call", "value": 2 },
+          { "name": "Raise", "value": 3 },
+          { "name": "AllIn", "value": 4 }
+        ]
+      }
+    },
+    {
+      "name": "TableStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Waiting", "value": 0 },
+          { "name": "Playing", "value": 1 },
+          { "name": "Closed", "value": 2 },
+          { "name": "Showdown", "value": 3 }
+        ]
+      }
+    },
+    {
+      "name": "SeatStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Empty", "value": 0 },
+          { "name": "Occupied", "value": 1 },
+          { "name": "SittingOut", "value": 2 },
+          { "name": "Folded", "value": 3 },
+          { "name": "AllIn", "value": 4 }
+        ]
+      }
+    },
+    {
+      "name": "Street",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Preflop", "value": 0 },
+          { "name": "Flop", "value": 1 },
+          { "name": "Turn", "value": 2 },
+          { "name": "River", "value": 3 }
+        ]
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "size": 128,
+      "discriminator": 1
+    },
+    {
+      "name": "Table",
+      "size": 1136,
+      "discriminator": 2
+    },
+    {
+      "name": "StakingPool",
+      "size": 96,
+      "discriminator": 3
+    },
+    {
+      "name": "StakerPosition",
+      "size": 64,
+      "discriminator": 4
+    }
+  ],
+  "errors": [
+    { "code": 1, "name": "InvalidDiscriminator", "msg": "Invalid instruction discriminator" },
+    { "code": 2, "name": "TableFull", "msg": "Table is full" },
+    { "code": 3, "name": "NotYourTurn", "msg": "Not your turn to act" },
+    { "code": 4, "name": "InvalidAction", "msg": "Invalid action for current state" },
+    { "code": 5, "name": "InsufficientFunds", "msg": "Insufficient funds" },
+    { "code": 6, "name": "GameInProgress", "msg": "Cannot perform action while game is in progress" },
+    { "code": 7, "name": "NotInGame", "msg": "Player is not in the game" },
+    { "code": 8, "name": "InvalidBuyIn", "msg": "Buy-in amount outside allowed range" },
+    { "code": 9, "name": "HandNotComplete", "msg": "Hand is not complete" },
+    { "code": 10, "name": "SeedNotRevealed", "msg": "Seed has not been revealed" },
+    { "code": 11, "name": "InvalidSeed", "msg": "Invalid seed (hash mismatch)" },
+    { "code": 12, "name": "InvalidHoleCards", "msg": "Invalid hole cards (hash mismatch)" },
+    { "code": 13, "name": "TimeoutNotReached", "msg": "Action timeout has not been reached" },
+    { "code": 14, "name": "RaiseTooSmall", "msg": "Raise amount is below minimum" },
+    { "code": 15, "name": "RaiseTooLarge", "msg": "Raise amount exceeds stack" },
+    { "code": 16, "name": "CannotCheckWhenBet", "msg": "Cannot check when there is a bet to call" },
+    { "code": 17, "name": "NotEnoughPlayers", "msg": "Not enough players to start hand" },
+    { "code": 18, "name": "InvalidAccountOwner", "msg": "Account has invalid owner" },
+    { "code": 19, "name": "InvalidPda", "msg": "PDA derivation mismatch" },
+    { "code": 20, "name": "MissingSigner", "msg": "Required signer is missing" },
+    { "code": 21, "name": "DuplicateMutableAccount", "msg": "Duplicate mutable account detected" },
+    { "code": 22, "name": "ArithmeticOverflow", "msg": "Arithmetic overflow" },
+    { "code": 23, "name": "InvalidStakingPoolState", "msg": "Invalid staking pool state" },
+    { "code": 24, "name": "NoStake", "msg": "No stake to withdraw" },
+    { "code": 25, "name": "NoRewards", "msg": "No rewards to claim" }
+  ]
+}

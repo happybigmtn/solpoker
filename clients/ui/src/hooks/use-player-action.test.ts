@@ -306,7 +306,7 @@ describe('usePlayerAction', () => {
     });
   });
 
-  describe('error handling (AC-CI4.1–AC-CI4.3)', () => {
+  describe('error handling (AC-CI4.1–AC-CI4.4)', () => {
     it('marks network errors as retryable and exposes retry', async () => {
       const sendAndConfirm = vi.fn(() => Promise.reject(new Error('Network timeout')));
       mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
@@ -347,6 +347,50 @@ describe('usePlayerAction', () => {
       });
 
       expect(result.current.isRetryable).toBe(false);
+    });
+
+    it('AC-CI4.4: surfaces simulation/preflight errors with user-friendly message', async () => {
+      // Simulation errors occur during preflight check before transaction lands on-chain
+      const sendAndConfirm = vi.fn(() =>
+        Promise.reject(new Error('Transaction simulation failed: custom program error: 0x14'))
+      );
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      mockFormatTransactionError.mockReturnValue("It's not your turn to act.");
+      mockIsNetworkError.mockReturnValue(false);
+      mockIsUserRejection.mockReturnValue(false);
+
+      const { result } = renderHook(() => usePlayerAction(mockConfig));
+
+      await act(async () => {
+        await result.current.executeAction('check');
+      });
+
+      expect(result.current.txState).toBe('failed');
+      // AC-CI4.4: Simulation error surfaced with decoded program error message
+      expect(result.current.txError).toBe("It's not your turn to act.");
+      // Simulation errors are not retryable (program logic failure, not network)
+      expect(result.current.isRetryable).toBe(false);
+    });
+
+    it('AC-CI4.4: surfaces preflight failure with balance guidance', async () => {
+      const sendAndConfirm = vi.fn(() =>
+        Promise.reject(new Error('Preflight check failed: insufficient funds for transaction'))
+      );
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      mockFormatTransactionError.mockReturnValue(
+        "You don't have enough SOL for transaction fees. Please add SOL to your wallet."
+      );
+      mockIsNetworkError.mockReturnValue(false);
+      mockIsUserRejection.mockReturnValue(false);
+
+      const { result } = renderHook(() => usePlayerAction(mockConfig));
+
+      await act(async () => {
+        await result.current.executeAction('fold');
+      });
+
+      expect(result.current.txState).toBe('failed');
+      expect(result.current.txError).toContain("don't have enough SOL");
     });
   });
 });

@@ -91,7 +91,7 @@ program
   .option("-s, --state <path>", "Path to state file", "provider-state.json")
   .option("-b, --bond <lamports>", "Minimum bond in lamports", "100000000")
   .option("--config-pda <address>", "Entropy config PDA (derived if not provided)")
-  .option("-l, --log-level <level>", "Log level (debug, info, warn, error)", "info")
+  .option("-l, --log-level <level>", "Log level (debug, info, warn, error)", "warn")
   .action(async (options) => {
     const chainPath = resolve(options.chain);
     const keypairPath = resolve(options.keypair);

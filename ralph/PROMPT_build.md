@@ -45,3 +45,10 @@ At the end of the iteration, print:
 ### Commit Policy
 
 - Do **not** commit/push unless the user explicitly requests it.
+
+### Completion Signal (Critical)
+
+- Do **NOT** output `<promise>COMPLETE</promise>` unless ALL tasks in `IMPLEMENTATION_PLAN.md` are checked `[x]`
+- After completing your ONE task, the iteration ends naturally—just stop
+- The loop script handles restarting for the next task automatically
+- Only output `<promise>COMPLETE</promise>` when zero unchecked `[ ]` items remain

@@ -3,5 +3,6 @@ resolver = "2"
 members = [
   "crates/robopoker-core",
   "crates/robopoker-entropy",
+  "crates/robopoker-entropy-provider",
   "crates/robopoker-poker"
 ]

@@ -348,7 +348,7 @@ describe('useTableAction', () => {
     });
   });
 
-  describe('error handling (AC-CI4.1–AC-CI4.3)', () => {
+  describe('error handling (AC-CI4.1–AC-CI4.4)', () => {
     it('marks network errors as retryable and exposes retry', async () => {
       const sendAndConfirm = vi.fn(() => Promise.reject(new Error('Network timeout')));
       mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
@@ -382,6 +382,44 @@ describe('useTableAction', () => {
       });
 
       expect(result.current.isRetryable).toBe(false);
+    });
+
+    it('AC-CI4.4: surfaces simulation/preflight errors with user-friendly message', async () => {
+      // Simulation errors occur during preflight check before transaction lands on-chain
+      const sendAndConfirm = vi.fn(() =>
+        Promise.reject(new Error('Transaction simulation failed: custom program error: 0x6'))
+      );
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+
+      const { result } = renderHook(() => useTableAction(mockConfig));
+
+      await act(async () => {
+        await result.current.joinTable(1000000n);
+      });
+
+      expect(result.current.txState).toBe('failed');
+      // AC-CI4.4: Simulation error surfaced with decoded program error message
+      // Error code 0x6 = TableFull
+      expect(result.current.txError).toBeDefined();
+      // Simulation errors are not retryable (program logic failure, not network)
+      expect(result.current.isRetryable).toBe(false);
+    });
+
+    it('AC-CI4.4: surfaces preflight failure with balance guidance', async () => {
+      const sendAndConfirm = vi.fn(() =>
+        Promise.reject(new Error('Preflight check failed: insufficient funds for transaction'))
+      );
+      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+
+      const { result } = renderHook(() => useTableAction(mockConfig));
+
+      await act(async () => {
+        await result.current.joinTable(1000000n);
+      });
+
+      expect(result.current.txState).toBe('failed');
+      // formatTransactionError returns user-friendly message
+      expect(result.current.txError).toBeDefined();
     });
   });
 });
