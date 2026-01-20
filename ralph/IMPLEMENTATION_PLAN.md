@@ -10,7 +10,6 @@
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
-- [x] Hash chain generation + persistence. AC-EP1.1 to AC-EP1.4. Validation: unit tests.
 - [x] Commit flow + pending tracking. AC-EP2.1 to AC-EP2.3. Validation: integration test.
 - [x] Slot monitoring + reveal + randomness. AC-EP3.1 to AC-EP3.4. Validation: deadline + randomness tests.
 - [x] Request subscription + concurrency handling. AC-EP4.1 to AC-EP4.3. Validation: multi-request simulation.

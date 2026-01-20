@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Hash chain generation + persistence. AC-EP1.1 to AC-EP1.4. Validation: unit tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Typed SDK generated from IDL with core instruction builders. AC-8.3. Validation: SDK smoke tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
