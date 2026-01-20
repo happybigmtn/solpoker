@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Transaction wiring + signing + status surfacing. AC-CI2.1 to AC-CI2.4, AC-PQ.CI1. Validation: hook tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - PDA helpers + instruction builders in TS SDK. AC-CI1.1 to AC-CI1.4. Validation: TS unit tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.

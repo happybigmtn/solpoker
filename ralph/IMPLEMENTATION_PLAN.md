@@ -11,7 +11,6 @@
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
 ### Phase 6: Client Integration + UI
-- [x] Transaction wiring + signing + status surfacing. AC-CI2.1 to AC-CI2.4, AC-PQ.CI1. Validation: hook tests.
 - [x] Action wiring (fold/check/call/raise/shove/join/leave). AC-CI3.1 to AC-CI3.7. Validation: hook tests.
 - [x] Error handling + simulation surfacing. AC-CI4.1 to AC-CI4.4, AC-PQ.CI2. Validation: error mapping tests.
 - [x] Table discovery + card rendering. AC-CI5.1 to AC-CI6.4, AC-PQ.CI3. Validation: component tests.
