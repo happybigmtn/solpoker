@@ -9,7 +9,6 @@
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
-- [x] Instruction unit tests + full-hand integration test. AC-8.1 to AC-8.2. Validation: LiteSVM/Mollusk + Surfpool as needed.
 - [x] Typed SDK generated from IDL with core instruction builders. AC-8.3. Validation: SDK smoke tests.
 
 ### Phase 5: Entropy Provider Service

@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Instruction unit tests + full-hand integration test. AC-8.1 to AC-8.2. Validation: LiteSVM/Mollusk + Surfpool as needed.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Owner/signer/PDA validation + account duplication checks. AC-7.1 to AC-7.3. Validation: negative tests.
   - LiteSVM test: Initialize rejects missing authority signer (AC-7.1).
   - LiteSVM test: JoinTable rejects missing player signer (AC-7.1).
