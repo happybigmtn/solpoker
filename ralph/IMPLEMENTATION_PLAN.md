@@ -7,8 +7,6 @@
 
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
-- [x] Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
-
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 - [x] Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
   - [x] LiteSVM initialize config sets CRISPS mint + authority (AC-3.1).

@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Poker CPI to entropy + single-provider enforcement. AC-2.4 to AC-2.5. Validation: CPI integration test.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
