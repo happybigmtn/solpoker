@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Devnet demo readiness (provider + UI). AC-D6.1 to AC-D6.6. Validation: run provider + UI, update devnet status doc.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Devnet table lifecycle via scripts/RPC. AC-D5.1 to AC-D5.3. Validation: lifecycle script + RPC inspection.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.

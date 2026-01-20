@@ -12,8 +12,6 @@
 ### Phase 5: Entropy Provider Service
 ### Phase 6: Client Integration + UI
 ### Phase 7: Devnet Deployment + Verification
-- [x] Devnet demo readiness (provider + UI). AC-D6.1 to AC-D6.6. Validation: run provider + UI, update devnet status doc.
-
 ## Missing/Unknown
 
 None.
