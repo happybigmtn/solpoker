@@ -8,6 +8,16 @@ Format suggestions:
 - Links to PRs/commits (if applicable)
 - Notes about learnings / follow-ups
 
+## 2026-01-20
+
+- Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
+- Deterministic core crate + fixed-size layouts + size docs. AC-1.1 to AC-1.6. Validation: unit tests + size assertions.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 ## 2026-01-19
 - Wire player action buttons to real transactions
   - Commit: (see git log)

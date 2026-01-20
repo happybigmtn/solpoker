@@ -6,9 +6,6 @@
 ## Tasks (Priority Order)
 
 ### Phase 1: Core Program Architecture
-- [x] Deterministic core crate + fixed-size layouts + size docs. AC-1.1 to AC-1.6. Validation: unit tests + size assertions.
-- [x] Pinocchio program entrypoints + routers. AC-1.4. Validation: local deploy + smoke instruction.
-
 ### Phase 2: Entropy On-Chain + Privacy
 - [x] Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
 - [x] Poker CPI to entropy + single-provider enforcement. AC-2.4 to AC-2.5. Validation: CPI integration test.
@@ -71,14 +68,14 @@
 - [x] UI perceptual quality. AC-PQ.1 to AC-PQ.3. Validation: manual QA.
 
 ### Phase 7: Devnet Deployment + Verification
-- [ ] Deploy script builds + deploys programs, initializes configs, creates CRISPS mint + metadata. AC-D1.1 to AC-D3.4, AC-D4.1. Validation: run `./scripts/deploy-devnet.sh` + RPC verification.
-- [ ] Idempotency + env output for clients. AC-D4.2 to AC-D4.3. Validation: re-run deploy script + `./scripts/verify-programs.sh`.
-- [ ] Devnet table lifecycle via scripts/RPC. AC-D5.1 to AC-D5.3. Validation: lifecycle script + RPC inspection.
-- [ ] Devnet demo readiness (provider + UI). AC-D6.1 to AC-D6.6. Validation: run provider + UI, update devnet status doc.
+- [x] Deploy script builds + deploys programs, initializes configs, creates CRISPS mint + metadata. AC-D1.1 to AC-D3.4, AC-D4.1. Validation: run `./scripts/deploy-devnet.sh` + RPC verification.
+- [x] Idempotency + env output for clients. AC-D4.2 to AC-D4.3. Validation: re-run deploy script + `./scripts/verify-programs.sh`.
+- [x] Devnet table lifecycle via scripts/RPC. AC-D5.1 to AC-D5.3. Validation: lifecycle script + RPC inspection.
+- [x] Devnet demo readiness (provider + UI). AC-D6.1 to AC-D6.6. Validation: run provider + UI, update devnet status doc.
 
 ## Missing/Unknown
 
-- CRISPS metadata values (name/symbol/URI) for AC-D3.4.
+None.
 
 ## Checklist
 
