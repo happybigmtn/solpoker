@@ -212,11 +212,7 @@ while true; do
             echo -e "${DIM}✓ No changes to commit${NC}"
         fi
 
-        echo -e "${DIM}📤 Pushing to origin/$CURRENT_BRANCH...${NC}"
-        git push origin "$CURRENT_BRANCH" 2>&1 | head -3 || {
-            echo -e "${YELLOW}Creating remote branch...${NC}"
-            git push -u origin "$CURRENT_BRANCH" 2>&1 | head -3
-        }
+        echo -e "${DIM}↪ Skipping push (manual git push when ready)${NC}"
     else
         echo -e "${DIM}↪ Skipping commit/push in $MODE mode${NC}"
     fi
