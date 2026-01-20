@@ -8,10 +8,6 @@
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
-- [x] Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
-  - [x] LiteSVM initialize config sets CRISPS mint + authority (AC-3.1).
-  - [x] LiteSVM create table creates PDA vault token account (AC-3.2).
-  - [x] LiteSVM join/leave token balance tests using real Token-2022 program (AC-3.3).
 - [x] Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
   - [x] LiteSVM init staking pool sets PDA vault metadata (AC-3.5).
   - [x] LiteSVM deposit stake test with real Token-2022 transfers (AC-3.5).

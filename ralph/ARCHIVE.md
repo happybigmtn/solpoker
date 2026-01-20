@@ -10,6 +10,13 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
+  - LiteSVM initialize config sets CRISPS mint + authority (AC-3.1).
+  - LiteSVM create table creates PDA vault token account (AC-3.2).
+  - LiteSVM join/leave token balance tests using real Token-2022 program (AC-3.3).
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
