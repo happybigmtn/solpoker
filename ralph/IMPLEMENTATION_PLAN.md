@@ -10,7 +10,6 @@
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
-- [x] Slot monitoring + reveal + randomness. AC-EP3.1 to AC-EP3.4. Validation: deadline + randomness tests.
 - [x] Request subscription + concurrency handling. AC-EP4.1 to AC-EP4.3. Validation: multi-request simulation.
 - [x] Reliability + logging. AC-EP5.1 to AC-EP5.4. Validation: disconnect/restart tests.
 - [x] CLI commands. AC-EP6.1 to AC-EP6.3. Validation: CLI smoke tests.

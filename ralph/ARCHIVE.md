@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Slot monitoring + reveal + randomness. AC-EP3.1 to AC-EP3.4. Validation: deadline + randomness tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Commit flow + pending tracking. AC-EP2.1 to AC-EP2.3. Validation: integration test.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
