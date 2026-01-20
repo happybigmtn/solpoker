@@ -11,7 +11,7 @@
 - [x] Environment config validation + migrations + SDK compatibility policy. AC-PR1.7 to AC-PR1.9. Validation: config validation + migration test plan.
 
 ### Phase 2: Security Assurance
-- [ ] Threat model + audit completion tracking. AC-SEC1.1 to AC-SEC1.3. Validation: documented model + audit report summary.
+- [x] Threat model + audit completion tracking. AC-SEC1.1 to AC-SEC1.3. Validation: documented model + audit report summary.
 - [ ] Security test hardening (fuzz/property/static/dependency). AC-SEC1.4 to AC-SEC1.6. Validation: CI checks.
 - [ ] Key management + disclosure process. AC-SEC1.7 to AC-SEC1.9. Validation: documented procedures + access controls.
 
