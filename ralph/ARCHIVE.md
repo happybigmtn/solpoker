@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Reliability + logging. AC-EP5.1 to AC-EP5.4. Validation: disconnect/restart tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Request subscription + concurrency handling. AC-EP4.1 to AC-EP4.3. Validation: multi-request simulation.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
