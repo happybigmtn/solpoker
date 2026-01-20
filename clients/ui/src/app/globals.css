@@ -82,12 +82,42 @@ body {
   overscroll-behavior: contain;
 }
 
+/* AC-8.3: Safe area insets for full-bleed layouts on notched devices */
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-inset-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-inset-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-area-insets {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 /* AC-6.4: Truncation utilities */
 .truncate-address {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* AC-4.6: Content-visibility for large lists */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 48px;
 }
 
 /* AC-5.5: Animations use transform/opacity only */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import {
   type ShortcutAction,
   SHORTCUT_DEFINITIONS,
@@ -53,6 +53,7 @@ export function CommandPalette({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const deferredFilter = useDeferredValue(filter);
 
   // Build command list from shortcut definitions + custom commands
   const commands = useMemo<CommandItem[]>(() => {
@@ -142,31 +143,27 @@ export function CommandPalette({
 
   // Filter commands by search string
   const filteredCommands = useMemo(() => {
-    if (!filter.trim()) return commands;
-    const lowerFilter = filter.toLowerCase();
+    if (!deferredFilter.trim()) return commands;
+    const lowerFilter = deferredFilter.toLowerCase();
     return commands.filter(
       (cmd) =>
         cmd.label.toLowerCase().includes(lowerFilter) ||
         cmd.category?.toLowerCase().includes(lowerFilter),
     );
-  }, [commands, filter]);
+  }, [commands, deferredFilter]);
 
-  // Reset selection when filter changes
-  useEffect(() => {
+  // Handle filter input change - reset selection when filter changes (in handler, not effect)
+  const handleFilterChange = useCallback((value: string) => {
+    setFilter(value);
     setSelectedIndex(0);
-  }, [filter]);
+  }, []);
 
-  // Focus input when palette opens
-  useEffect(() => {
-    if (isOpen) {
-      setFilter('');
-      setSelectedIndex(0);
-      // Delay focus to ensure modal is rendered
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
-    }
-  }, [isOpen]);
+  // Handle close - reset state for next open
+  const handleClose = useCallback(() => {
+    setFilter('');
+    setSelectedIndex(0);
+    onClose();
+  }, [onClose]);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
@@ -193,13 +190,13 @@ export function CommandPalette({
             } else {
               onAction(selected.action);
             }
-            onClose();
+            handleClose();
           }
           break;
         }
         case 'Escape':
           event.preventDefault();
-          onClose();
+          handleClose();
           break;
         case 'Tab':
           // Trap focus within palette (AC-2.4)
@@ -216,7 +213,7 @@ export function CommandPalette({
           break;
       }
     },
-    [filteredCommands, selectedIndex, onAction, onClose],
+    [filteredCommands, selectedIndex, onAction, handleClose],
   );
 
   // Scroll selected item into view
@@ -229,7 +226,7 @@ export function CommandPalette({
   useKeyboardShortcuts({
     enabled: isOpen,
     onAction: {
-      closeModal: onClose,
+      closeModal: handleClose,
     },
   });
 
@@ -238,7 +235,7 @@ export function CommandPalette({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/50"
-      onClick={onClose}
+      onClick={handleClose}
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
@@ -277,9 +274,10 @@ export function CommandPalette({
             type="search"
             placeholder="Type a command…"
             className="h-14 flex-1 bg-transparent px-3 text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(e.target.value)}
             autoComplete="off"
             spellCheck={false}
+            autoFocus
             aria-autocomplete="list"
             aria-controls="command-palette-list"
             aria-activedescendant={
@@ -330,7 +328,7 @@ export function CommandPalette({
                       } else {
                         onAction(cmd.action);
                       }
-                      onClose();
+                      handleClose();
                     }
                   }}
                 >

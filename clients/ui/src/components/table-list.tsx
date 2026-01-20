@@ -75,7 +75,13 @@ function getStatusBadge(status: number): { text: string; className: string } {
 /**
  * Single table row in the list.
  */
-function TableRow({ table }: { table: TableSummary }) {
+function TableRow({
+  table,
+  useContentVisibility,
+}: {
+  table: TableSummary;
+  useContentVisibility: boolean;
+}) {
   const statusBadge = getStatusBadge(table.status);
   const blindsText = `${formatTokenAmount(table.smallBlind)}/${formatTokenAmount(table.bigBlind)}`;
   const seatsText = `${table.playerCount}/${MAX_SEATS}`;
@@ -84,7 +90,11 @@ function TableRow({ table }: { table: TableSummary }) {
   const actionLabel = canJoin ? 'Join' : table.status === TABLE_STATUS.PLAYING ? 'Watch' : 'View';
 
   return (
-    <tr className="border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+    <tr
+      className={`border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${
+        useContentVisibility ? 'content-visibility-auto' : ''
+      }`}
+    >
       <td className="px-4 py-3 text-sm font-mono text-zinc-600 dark:text-zinc-400">
         #{table.tableId.toString()}
       </td>
@@ -136,6 +146,7 @@ function TableRow({ table }: { table: TableSummary }) {
  */
 export function TableList({ pokerProgramId }: TableListProps) {
   const { tables, isLoading, error, refresh } = useTables({ pokerProgramId });
+  const useContentVisibility = tables.length > 50;
 
   if (isLoading) {
     return (
@@ -213,7 +224,11 @@ export function TableList({ pokerProgramId }: TableListProps) {
           </thead>
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
             {tables.map((table) => (
-              <TableRow key={table.address} table={table} />
+              <TableRow
+                key={table.address}
+                table={table}
+                useContentVisibility={useContentVisibility}
+              />
             ))}
           </tbody>
         </table>

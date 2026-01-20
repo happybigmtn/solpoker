@@ -115,6 +115,8 @@ export function WalletConnect() {
                     onClick={() => handleSelect(connector)}
                     className="flex h-12 items-center gap-3 rounded-lg px-4 text-left transition-colors hover:bg-zinc-100 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
                   >
+                    {/* AC-9.1: Decorative image with explicit dimensions and alt="" */}
+                    {/* AC-9.2: Lazy load below-fold images */}
                     {connector.icon && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -122,6 +124,7 @@ export function WalletConnect() {
                         alt=""
                         width={24}
                         height={24}
+                        loading="lazy"
                         className="h-6 w-6"
                       />
                     )}

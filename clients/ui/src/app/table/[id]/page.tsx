@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { TablePageContent } from './content';
 import { TablePageSkeleton } from './skeleton';
 
@@ -28,14 +29,15 @@ export default async function TablePage({ params, searchParams }: TablePageProps
         Skip to main content
       </a>
 
+      {/* AC-7.2: Navigation uses Link for proper SPA routing, middle-click and Cmd/Ctrl+click support */}
       <header className="flex h-16 items-center justify-between border-b border-zinc-200 px-6 dark:border-zinc-800">
         <div className="flex items-center gap-4">
-          <a
+          <Link
             href="/"
             className="text-lg font-semibold hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
           >
             RoboPoker
-          </a>
+          </Link>
           <span className="text-zinc-400">/</span>
           <span className="text-sm text-zinc-600 dark:text-zinc-400">
             Table {truncateId(id)}

@@ -27,6 +27,7 @@ import { useWalletConnection } from '@solana/react-hooks';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTableAction } from '@/hooks/use-table-action';
 import { usePlayerAction, type PlayerActionType } from '@/hooks/use-player-action';
+import type { ActionHistoryEntry } from '@/components/action-history';
 import {
   deriveAssociatedTokenAccount,
   derivePokerConfigPda,
@@ -269,6 +270,10 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     setConfirmModal({ isOpen: false });
   }, []);
 
+  const actionHistoryEntries: ActionHistoryEntry[] = [];
+  const showHistoryPanel = activePanel === 'history';
+  const showSettingsPanel = activePanel === 'settings';
+
   const handleCommandAction = useCallback(
     async (action: string) => {
       switch (action) {
@@ -334,37 +339,109 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
         </div>
       )}
 
-      {/* Main table visualization */}
-      <PokerTable
-        store={store}
-        playerAddress={playerAddress}
-      />
+      <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="flex flex-col gap-6">
+          {/* Main table visualization */}
+          <PokerTable
+            store={store}
+            playerAddress={playerAddress}
+          />
 
-      {/* Transaction status (AC-3.4) */}
-      <div className="mx-auto w-full max-w-md">
-        <TransactionStatus
-          state={txState}
-          signature={txSignature}
-          error={txError}
-          isRetryable={isRetryable}
-          onRetry={isRetryable ? () => void retryTx() : undefined}
-          onDismiss={handleDismissStatus}
-        />
-      </div>
+          {/* Transaction status (AC-3.4) */}
+          <div className="mx-auto w-full max-w-md lg:mx-0">
+            <TransactionStatus
+              state={txState}
+              signature={txSignature}
+              error={txError}
+              isRetryable={isRetryable}
+              onRetry={isRetryable ? () => void retryTx() : undefined}
+              onDismiss={handleDismissStatus}
+            />
+          </div>
 
-      {/* Action buttons */}
-      <div className="mx-auto w-full max-w-4xl">
-        <PokerActions
-          isPlayerTurn={isPlayerTurn}
-          isSubmitting={isPending}
-          toCall={toCall}
-          minRaise={minRaiseAmount}
-          maxRaise={maxRaise}
-          raiseAmount={raiseAmount}
-          onRaiseAmountChange={setRaiseAmount}
-          onAction={handleAction}
-          canCheck={canCheck}
-        />
+          {/* Action buttons */}
+          <div className="mx-auto w-full max-w-4xl lg:mx-0">
+            <PokerActions
+              isPlayerTurn={isPlayerTurn}
+              isSubmitting={isPending}
+              toCall={toCall}
+              minRaise={minRaiseAmount}
+              maxRaise={maxRaise}
+              raiseAmount={raiseAmount}
+              onRaiseAmountChange={setRaiseAmount}
+              onAction={handleAction}
+              canCheck={canCheck}
+            />
+          </div>
+
+          {/* Panel toggle buttons (AC-7.1: URL state) */}
+          <div className="mx-auto flex flex-wrap gap-2 lg:mx-0">
+            <button
+              type="button"
+              onClick={() => handlePanelChange(activePanel === 'history' ? null : 'history')}
+              className={`
+                rounded-lg px-3 py-1.5 text-sm font-medium
+                ${activePanel === 'history' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'}
+                hover:opacity-80 transition-opacity
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+              `}
+            >
+              History
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePanelChange(activePanel === 'settings' ? null : 'settings')}
+              className={`
+                rounded-lg px-3 py-1.5 text-sm font-medium
+                ${activePanel === 'settings' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'}
+                hover:opacity-80 transition-opacity
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+              `}
+            >
+              Settings
+            </button>
+            {/* AC-5.7: Destructive action with confirmation */}
+            <button
+              type="button"
+              onClick={handleLeaveTableRequest}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              Leave Table
+            </button>
+          </div>
+
+          {/* Mobile panels */}
+          {(showHistoryPanel || showSettingsPanel) && (
+            <div className="lg:hidden">
+              {showHistoryPanel && (
+                <div className="mx-auto w-full max-w-md">
+                  <Suspense fallback={<PanelSkeleton />}>
+                    <ActionHistory entries={actionHistoryEntries} />
+                  </Suspense>
+                </div>
+              )}
+              {showSettingsPanel && (
+                <div className="mx-auto w-full max-w-md">
+                  <Suspense fallback={<PanelSkeleton />}>
+                    <SettingsPanel />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop side panels (AC-3.2: action history always visible) */}
+        <aside className="hidden lg:flex lg:flex-col gap-4">
+          <Suspense fallback={<PanelSkeleton />}>
+            <ActionHistory entries={actionHistoryEntries} />
+          </Suspense>
+          {showSettingsPanel && (
+            <Suspense fallback={<PanelSkeleton />}>
+              <SettingsPanel />
+            </Suspense>
+          )}
+        </aside>
       </div>
 
       <CommandPalette
@@ -374,42 +451,6 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
         isPlayerTurn={isPlayerTurn}
         isConnected={isWalletConnected}
       />
-
-      {/* Panel toggle buttons (AC-7.1: URL state) */}
-      <div className="mx-auto flex gap-2">
-        <button
-          type="button"
-          onClick={() => handlePanelChange(activePanel === 'history' ? null : 'history')}
-          className={`
-            rounded-lg px-3 py-1.5 text-sm font-medium
-            ${activePanel === 'history' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'}
-            hover:opacity-80 transition-opacity
-            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-          `}
-        >
-          History
-        </button>
-        <button
-          type="button"
-          onClick={() => handlePanelChange(activePanel === 'settings' ? null : 'settings')}
-          className={`
-            rounded-lg px-3 py-1.5 text-sm font-medium
-            ${activePanel === 'settings' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'}
-            hover:opacity-80 transition-opacity
-            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-          `}
-        >
-          Settings
-        </button>
-        {/* AC-5.7: Destructive action with confirmation */}
-        <button
-          type="button"
-          onClick={handleLeaveTableRequest}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-        >
-          Leave Table
-        </button>
-      </div>
 
       {/* AC-5.7: Confirmation modal for destructive actions */}
       <ConfirmationModal
@@ -427,22 +468,6 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
         onCancel={handleCancelConfirmation}
       />
 
-      {/* AC-4.5: Lazy-loaded panels with Suspense */}
-      {activePanel === 'history' && (
-        <div className="mx-auto w-full max-w-md">
-          <Suspense fallback={<PanelSkeleton />}>
-            <ActionHistory entries={[]} />
-          </Suspense>
-        </div>
-      )}
-
-      {activePanel === 'settings' && (
-        <div className="mx-auto w-full max-w-md">
-          <Suspense fallback={<PanelSkeleton />}>
-            <SettingsPanel />
-          </Suspense>
-        </div>
-      )}
     </div>
   );
 }

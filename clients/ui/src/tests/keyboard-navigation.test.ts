@@ -241,8 +241,8 @@ describe('Accessibility Component Audit', () => {
   describe('AC-5.7: Destructive actions require confirmation', () => {
     it('ConfirmationModal component exists', async () => {
       // This validates that the confirmation modal module can be imported
-      const module = await import('@/components/confirmation-modal');
-      expect(module.ConfirmationModal).toBeDefined();
+      const confirmationModule = await import('@/components/confirmation-modal');
+      expect(confirmationModule.ConfirmationModal).toBeDefined();
     });
   });
 

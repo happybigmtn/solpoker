@@ -6,6 +6,7 @@
  * AC-3.1: Seat layout supports up to MAX_SEATS with clear active/inactive
  * state and turn indicator.
  * AC-3.2: Board, pot, and action history visible without scrolling on desktop.
+ * AC-3.3: Mobile view prioritizes current player actions and table state.
  * AC-4.1: Uses selective subscriptions - each seat only re-renders when it changes.
  * AC-CI6.1–AC-CI6.4: Card rendering with correct suits, ranks, and board display.
  */
@@ -30,12 +31,16 @@ interface PokerTableProps {
  */
 export function PokerTable({ store, playerAddress }: PokerTableProps) {
   return (
-    <div className="relative mx-auto aspect-[16/10] w-full max-w-4xl">
-      {/* Table felt background */}
+    <div
+      className="relative mx-auto w-full max-w-4xl aspect-[16/10] sm:aspect-[16/10]"
+      role="region"
+      aria-label="Poker table"
+    >
+      {/* Table felt background - AC-3.3: more compact on mobile */}
       <div className="absolute inset-0 rounded-[50%] bg-emerald-800 dark:bg-emerald-900 shadow-inner" />
 
       {/* Center area: board + pot */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 sm:gap-2">
         <Board store={store} />
         <PotDisplay store={store} />
       </div>
@@ -244,7 +249,7 @@ function SeatCard({
   return (
     <div
       className={`
-        relative flex min-w-24 flex-col items-center rounded-lg p-2 text-center
+        relative flex min-w-16 sm:min-w-24 flex-col items-center rounded-lg p-1 sm:p-2 text-center
         transition-colors duration-150
         ${isEmpty ? 'bg-zinc-300/50 dark:bg-zinc-700/50' : 'bg-white dark:bg-zinc-800'}
         ${isFolded ? 'opacity-50' : ''}
@@ -287,36 +292,36 @@ function SeatCard({
             </div>
           )}
 
-          {/* Player address (truncated) */}
-          <span className="truncate text-xs font-medium max-w-20">
+          {/* Player address (truncated) - AC-3.3: smaller on mobile */}
+          <span className="truncate text-[10px] sm:text-xs font-medium max-w-14 sm:max-w-20">
             {truncateAddress(seat.player)}
           </span>
 
-          {/* Stack */}
-          <span className="text-sm font-semibold tabular-nums">
+          {/* Stack - AC-3.3: responsive text size */}
+          <span className="text-xs sm:text-sm font-semibold tabular-nums">
             {formatChips(seat.stack)}
           </span>
 
-          {/* Status badge */}
+          {/* Status badge - AC-3.3: responsive sizing */}
           {isAllIn && (
-            <span className="mt-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
+            <span className="mt-0.5 sm:mt-1 rounded-full bg-red-500 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-bold text-white uppercase">
               All In
             </span>
           )}
           {isSittingOut && (
-            <span className="mt-1 rounded-full bg-zinc-400 px-2 py-0.5 text-[10px] font-medium text-zinc-900 uppercase">
+            <span className="mt-0.5 sm:mt-1 rounded-full bg-zinc-400 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-medium text-zinc-900 uppercase">
               Sitting Out
             </span>
           )}
           {isFolded && (
-            <span className="mt-1 rounded-full bg-zinc-500 px-2 py-0.5 text-[10px] font-medium text-white uppercase">
+            <span className="mt-0.5 sm:mt-1 rounded-full bg-zinc-500 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-medium text-white uppercase">
               Folded
             </span>
           )}
 
-          {/* Current bet */}
+          {/* Current bet - AC-3.3: hidden on small screens when space is tight */}
           {seat.currentBet > 0n && (
-            <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400 tabular-nums">
+            <span className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-zinc-600 dark:text-zinc-400 tabular-nums hidden sm:block">
               Bet: {formatChips(seat.currentBet)}
             </span>
           )}

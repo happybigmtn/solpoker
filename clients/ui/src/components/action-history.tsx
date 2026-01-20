@@ -98,8 +98,9 @@ const ActionHistoryItem = memo(function ActionHistoryItem({
 }) {
   return (
     <li
-      className="flex items-center justify-between py-1 text-xs"
-      style={useVirtualization ? { contentVisibility: 'auto' } : undefined}
+      className={`flex items-center justify-between py-1 text-xs ${
+        useVirtualization ? 'content-visibility-auto' : ''
+      }`}
     >
       <span className="flex items-center gap-2">
         <span className="font-mono text-zinc-500">

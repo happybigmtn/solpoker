@@ -26,9 +26,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // AC-8.3: viewport-fit=cover enables safe area insets on notched devices
     <html lang="en" className="dark">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 safe-area-insets`}
       >
         <ClientProviders>{children}</ClientProviders>
       </body>

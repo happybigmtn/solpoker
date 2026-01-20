@@ -6,7 +6,7 @@
  * AC-5.3: Announces updates with aria-live.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Mock scrollIntoView for jsdom
@@ -40,6 +40,14 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe('AC-2.1: Command palette contents', () => {

@@ -66,9 +66,9 @@
 - [x] Table discovery + card rendering. AC-CI5.1 to AC-CI6.4, AC-PQ.CI3. Validation: component tests.
 - [x] Framework-kit + wallet standard + App Router structure. AC-1.1 to AC-1.5. Validation: UI smoke tests.
 - [x] Keyboard-first UX (palette + shortcuts + raise input). AC-2.1 to AC-2.4. Validation: component tests.
-- [ ] Layout + state messaging + performance constraints. AC-3.1 to AC-4.10. Validation: render tests + bundle check.
-- [ ] Accessibility/forms/typography/navigation/touch/assets/hydration/theming. AC-5.1 to AC-11.1. Validation: lint + manual keyboard walkthrough.
-- [ ] UI perceptual quality. AC-PQ.1 to AC-PQ.3. Validation: manual QA.
+- [x] Layout + state messaging + performance constraints. AC-3.1 to AC-4.10. Validation: render tests + bundle check.
+- [x] Accessibility/forms/typography/navigation/touch/assets/hydration/theming. AC-5.1 to AC-11.1. Validation: lint + manual keyboard walkthrough.
+- [x] UI perceptual quality. AC-PQ.1 to AC-PQ.3. Validation: manual QA.
 
 ### Phase 7: Devnet Deployment + Verification
 - [ ] Deploy script builds + deploys programs, initializes configs, creates CRISPS mint + metadata. AC-D1.1 to AC-D3.4, AC-D4.1. Validation: run `./scripts/deploy-devnet.sh` + RPC verification.

@@ -43,6 +43,7 @@ export interface PokerActionsProps {
  * Poker action buttons with keyboard shortcuts.
  * Per AC-2.2: Primary actions have single-key shortcuts (F/X/C/R/S).
  * Per AC-2.3: Raise amount adjustable with +/-/arrows, confirmed with Enter.
+ * Per AC-3.3: Mobile view prioritizes current player actions.
  * Per AC-5.12: Buttons stay enabled until request starts, show spinner during.
  */
 export function PokerActions({
@@ -56,15 +57,13 @@ export function PokerActions({
   canCheck,
   isSubmitting = false,
 }: PokerActionsProps) {
-  const [isRaiseMode, setIsRaiseMode] = useState(false);
+  const [isRaiseModeInternal, setIsRaiseModeInternal] = useState(false);
   const raiseInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset raise mode when turn ends
-  useEffect(() => {
-    if (!isPlayerTurn) {
-      setIsRaiseMode(false);
-    }
-  }, [isPlayerTurn]);
+  // Compute effective raise mode - automatically false when not player's turn
+  // This derived state ensures raise mode UI is hidden when not player's turn
+  // The internal state persists so raise mode can resume if turn briefly switches
+  const isRaiseMode = isPlayerTurn && isRaiseModeInternal;
 
   // Focus raise input when entering raise mode
   useEffect(() => {
@@ -91,10 +90,10 @@ export function PokerActions({
       if (isRaiseMode) {
         // Confirm raise
         onAction('raise', raiseAmount);
-        setIsRaiseMode(false);
+        setIsRaiseModeInternal(false);
       } else {
         // Enter raise mode
-        setIsRaiseMode(true);
+        setIsRaiseModeInternal(true);
       }
     }
   }, [onAction, raiseAmount, isRaiseMode, isSubmitting]);
@@ -118,7 +117,7 @@ export function PokerActions({
   const handleConfirmRaise = useCallback(() => {
     if (isRaiseMode && !isSubmitting) {
       onAction('raise', raiseAmount);
-      setIsRaiseMode(false);
+      setIsRaiseModeInternal(false);
     }
   }, [isRaiseMode, raiseAmount, onAction, isSubmitting]);
 
@@ -146,17 +145,18 @@ export function PokerActions({
 
   if (!isPlayerTurn) {
     return (
-      <div className="flex items-center justify-center py-4 text-sm text-zinc-500 dark:text-zinc-400">
+      <div className="flex items-center justify-center py-2 sm:py-4 text-sm text-zinc-500 dark:text-zinc-400">
         Waiting for your turn…
       </div>
     );
   }
 
+  // AC-3.3: Mobile-responsive button sizing
   const baseButtonClass =
-    'h-12 px-6 rounded-lg font-medium transition-colors touch-action-manipulation focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50';
+    'h-10 sm:h-12 px-3 sm:px-6 rounded-lg font-medium transition-colors touch-action-manipulation focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 text-sm sm:text-base';
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-2 sm:gap-4 p-2 sm:p-4">
       {/* Raise amount input (AC-2.3, AC-5.9, AC-5.10, AC-5.11, AC-5.15) */}
       {isRaiseMode && (
         <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export function PokerActions({
                     handleConfirmRaise();
                   } else if (e.key === 'Escape') {
                     e.preventDefault();
-                    setIsRaiseMode(false);
+                    setIsRaiseModeInternal(false);
                   }
                 }}
                 disabled={isSubmitting}
@@ -219,9 +219,9 @@ export function PokerActions({
         </div>
       )}
 
-      {/* Action buttons (AC-2.2) */}
-      <div className="flex flex-wrap gap-2">
-        {/* Fold */}
+      {/* Action buttons (AC-2.2) - AC-3.3: wrap on mobile, flex on desktop */}
+      <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        {/* Fold - AC-3.3: Hide kbd on small screens */}
         <button
           type="button"
           onClick={handleFold}
@@ -229,12 +229,12 @@ export function PokerActions({
           className={`${baseButtonClass} border border-zinc-300 text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:active:bg-zinc-700`}
         >
           {isSubmitting ? <Spinner /> : `Fold`}
-          <kbd className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-700">
+          <kbd className="ml-1 sm:ml-2 rounded bg-zinc-100 px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs dark:bg-zinc-700 hidden sm:inline">
             {foldShortcut}
           </kbd>
         </button>
 
-        {/* Check or Call */}
+        {/* Check or Call - AC-3.3: responsive kbd badges */}
         {canCheck ? (
           <button
             type="button"
@@ -243,7 +243,7 @@ export function PokerActions({
             className={`${baseButtonClass} bg-zinc-100 text-zinc-900 hover:bg-zinc-200 active:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:active:bg-zinc-600`}
           >
             {isSubmitting ? <Spinner /> : `Check`}
-            <kbd className="ml-2 rounded bg-zinc-200 px-1.5 py-0.5 text-xs dark:bg-zinc-600">
+            <kbd className="ml-1 sm:ml-2 rounded bg-zinc-200 px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs dark:bg-zinc-600 hidden sm:inline">
               {checkShortcut}
             </kbd>
           </button>
@@ -262,13 +262,13 @@ export function PokerActions({
                 <span className="font-mono tabular-nums">{formatChips(toCall)}</span>
               </>
             )}
-            <kbd className="ml-2 rounded bg-zinc-200 px-1.5 py-0.5 text-xs dark:bg-zinc-600">
+            <kbd className="ml-1 sm:ml-2 rounded bg-zinc-200 px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs dark:bg-zinc-600 hidden sm:inline">
               {callShortcut}
             </kbd>
           </button>
         )}
 
-        {/* Raise */}
+        {/* Raise - AC-3.3: responsive */}
         <button
           type="button"
           onClick={handleRaise}
@@ -288,12 +288,12 @@ export function PokerActions({
           ) : (
             'Raise'
           )}
-          <kbd className="ml-2 rounded bg-zinc-300 px-1.5 py-0.5 text-xs dark:bg-zinc-500">
+          <kbd className="ml-1 sm:ml-2 rounded bg-zinc-300 px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs dark:bg-zinc-500 hidden sm:inline">
             {isRaiseMode ? 'Enter' : raiseShortcut}
           </kbd>
         </button>
 
-        {/* All In */}
+        {/* All In - AC-3.3: responsive */}
         <button
           type="button"
           onClick={handleShove}
@@ -304,10 +304,12 @@ export function PokerActions({
             <Spinner />
           ) : (
             <>
-              All In <span className="font-mono tabular-nums">{formatChips(maxRaise)}</span>
+              <span className="hidden sm:inline">All In</span>
+              <span className="sm:hidden">All</span>
+              {' '}<span className="font-mono tabular-nums">{formatChips(maxRaise)}</span>
             </>
           )}
-          <kbd className="ml-2 rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300 dark:bg-zinc-300 dark:text-zinc-700">
+          <kbd className="ml-1 sm:ml-2 rounded bg-zinc-700 px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-zinc-300 dark:bg-zinc-300 dark:text-zinc-700 hidden sm:inline">
             {shoveShortcut}
           </kbd>
         </button>

@@ -1,18 +1,19 @@
 /**
- * Create CRISPS Token-2022 mint on devnet
+ * Create CRISPS Token-2022 mint on devnet with metadata
  *
  * This script:
  * 1. Creates a new Token-2022 mint with 9 decimals
- * 2. Sets the authority wallet as mint authority
- * 3. Saves the mint address for subsequent scripts
+ * 2. Initializes MetadataPointer extension (points to mint itself)
+ * 3. Initializes TokenMetadata extension (name, symbol, URI)
+ * 4. Sets the authority wallet as mint authority
+ * 5. Saves the mint address for subsequent scripts
  *
  * Usage: npx tsx scripts/create-crisps-mint.ts
  *
- * Tests AC-D3.1, AC-D3.2 from specs/devnet-deployment.md
+ * Tests AC-D3.1, AC-D3.2, AC-D3.4 from specs/devnet-deployment.md
  */
 
 import {
-  address,
   createKeyPairSignerFromBytes,
   createTransactionMessage,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -22,13 +23,17 @@ import {
   getBase64EncodedWireTransaction,
   generateKeyPairSigner,
   pipe,
+  some,
   type TransactionSigner,
   type Rpc,
 } from "@solana/kit";
 import { getCreateAccountInstruction } from "@solana-program/system";
 import {
   getInitializeMint2Instruction,
+  getInitializeMetadataPointerInstruction,
+  getInitializeTokenMetadataInstruction,
   getMintSize,
+  extension,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -39,6 +44,9 @@ import { createRpc, logRpcConfig } from "./utils/rpc.js";
 
 // CRISPS token configuration
 const CRISPS_DECIMALS = 9;
+const CRISPS_NAME = "Robopoker Chips";
+const CRISPS_SYMBOL = "CRISPS";
+const CRISPS_URI = "https://robopoker.dev/crisps-metadata.json";
 
 // Output file for mint address
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -121,9 +129,24 @@ async function main() {
   const mint = await generateKeyPairSigner();
   console.log(`New mint address: ${mint.address}`);
 
-  // Calculate mint size and rent
-  const mintSize = getMintSize();
-  console.log(`Mint size: ${mintSize} bytes`);
+  // Define extensions for size calculation
+  // MetadataPointer (64 bytes) + TokenMetadata (variable, depends on strings)
+  const metadataPointerExt = extension("MetadataPointer", {
+    authority: some(signer.address),
+    metadataAddress: some(mint.address), // Metadata stored in mint account itself
+  });
+  const tokenMetadataExt = extension("TokenMetadata", {
+    updateAuthority: some(signer.address),
+    mint: mint.address,
+    name: CRISPS_NAME,
+    symbol: CRISPS_SYMBOL,
+    uri: CRISPS_URI,
+    additionalMetadata: new Map(),
+  });
+
+  // Calculate mint size with extensions
+  const mintSize = getMintSize([metadataPointerExt, tokenMetadataExt]);
+  console.log(`Mint size (with metadata): ${mintSize} bytes`);
 
   const mintRent = await rpc.getMinimumBalanceForRentExemption(BigInt(mintSize)).send();
   console.log(`Rent-exempt minimum: ${mintRent} lamports`);
@@ -140,6 +163,14 @@ async function main() {
     programAddress: TOKEN_2022_PROGRAM_ADDRESS,
   });
 
+  // Initialize MetadataPointer extension BEFORE InitializeMint2
+  // This tells Token-2022 where to find the metadata (pointing to the mint itself)
+  const initMetadataPointerIx = getInitializeMetadataPointerInstruction({
+    mint: mint.address,
+    authority: some(signer.address),
+    metadataAddress: some(mint.address), // Self-referential: metadata stored in mint
+  });
+
   const initializeMintIx = getInitializeMint2Instruction({
     mint: mint.address,
     decimals: CRISPS_DECIMALS,
@@ -147,12 +178,32 @@ async function main() {
     freezeAuthority: signer.address,
   });
 
-  // Build transaction
+  // Initialize TokenMetadata AFTER InitializeMint2
+  // The metadata extension requires the mint to be initialized first
+  const initTokenMetadataIx = getInitializeTokenMetadataInstruction({
+    metadata: mint.address, // Metadata stored in mint account
+    updateAuthority: signer.address,
+    mint: mint.address,
+    mintAuthority: signer,
+    name: CRISPS_NAME,
+    symbol: CRISPS_SYMBOL,
+    uri: CRISPS_URI,
+  });
+
+  // Build transaction - order matters:
+  // 1. CreateAccount (allocates space for mint + extensions)
+  // 2. InitializeMetadataPointer (sets up extension before mint init)
+  // 3. InitializeMint2 (initializes the base mint)
+  // 4. InitializeTokenMetadata (writes metadata after mint init)
   const transactionMessage = pipe(
     createTransactionMessage({ version: 0 }),
     (m) => setTransactionMessageFeePayerSigner(signer, m),
     (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstructions([createAccountIx, initializeMintIx], m)
+    (m) =>
+      appendTransactionMessageInstructions(
+        [createAccountIx, initMetadataPointerIx, initializeMintIx, initTokenMetadataIx],
+        m
+      )
   );
 
   // Sign and send
@@ -185,6 +236,13 @@ async function main() {
   }
   console.log(`  Decimals: ${decimals} ✓`);
 
+  // Verify account size indicates extensions are present
+  // Base mint is 82 bytes, with extensions it should be larger
+  if (data.length <= 82) {
+    throw new Error(`Mint account too small (${data.length} bytes), metadata extension missing`);
+  }
+  console.log(`  Account size: ${data.length} bytes ✓ (includes metadata extension)`);
+
   // Save mint address
   writeFileSync(MINT_ADDRESS_FILE, mint.address);
   console.log(`\nMint address saved to: ${MINT_ADDRESS_FILE}`);
@@ -192,6 +250,9 @@ async function main() {
   console.log("\n=== Summary ===");
   console.log(`CRISPS Mint: ${mint.address}`);
   console.log(`Decimals: ${CRISPS_DECIMALS}`);
+  console.log(`Name: ${CRISPS_NAME}`);
+  console.log(`Symbol: ${CRISPS_SYMBOL}`);
+  console.log(`URI: ${CRISPS_URI}`);
   console.log(`Owner: ${TOKEN_2022_PROGRAM_ADDRESS} (Token-2022)`);
   console.log(`Mint Authority: ${signer.address}`);
 

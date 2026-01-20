@@ -7,7 +7,7 @@
  * AC-CI5.4: Created table redirects to the table view.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateTable } from '@/hooks/use-create-table';
 import { TransactionStatus } from '@/components/transaction-status';
@@ -63,29 +63,45 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
   const [smallBlindInput, setSmallBlindInput] = useState('1');
   const [bigBlindInput, setBigBlindInput] = useState('2');
   const [validationError, setValidationError] = useState<string>();
+  const [errorField, setErrorField] = useState<'smallBlind' | 'bigBlind'>();
   const [isOpen, setIsOpen] = useState(false);
+  const smallBlindRef = useRef<HTMLInputElement>(null);
+  const bigBlindRef = useRef<HTMLInputElement>(null);
+
+  // AC-5.13: Focus the first error field on validation error
+  useEffect(() => {
+    if (validationError && errorField) {
+      const ref = errorField === 'smallBlind' ? smallBlindRef : bigBlindRef;
+      ref.current?.focus();
+    }
+  }, [validationError, errorField]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setValidationError(undefined);
+      setErrorField(undefined);
 
       // Parse and validate inputs
       const smallBlind = parseTokenInput(smallBlindInput);
       const bigBlind = parseTokenInput(bigBlindInput);
 
+      // AC-5.13: Set error field for focus on validation error
       if (smallBlind === null || smallBlind <= 0n) {
-        setValidationError('Small blind must be a positive number');
+        setValidationError('Small blind must be a positive number. Enter a value greater than 0.');
+        setErrorField('smallBlind');
         return;
       }
 
       if (bigBlind === null || bigBlind <= 0n) {
-        setValidationError('Big blind must be a positive number');
+        setValidationError('Big blind must be a positive number. Enter a value greater than 0.');
+        setErrorField('bigBlind');
         return;
       }
 
       if (bigBlind < smallBlind) {
-        setValidationError('Big blind must be at least equal to small blind');
+        setValidationError('Big blind must be at least equal to small blind. Increase the big blind value.');
+        setErrorField('bigBlind');
         return;
       }
 
@@ -163,6 +179,7 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
               Small Blind (CRISPS)
             </label>
             <input
+              ref={smallBlindRef}
               type="number"
               inputMode="decimal"
               id="smallBlind"
@@ -173,7 +190,13 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
               value={smallBlindInput}
               onChange={(e) => setSmallBlindInput(e.target.value)}
               disabled={isPending}
-              className="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-emerald-400 dark:focus:ring-emerald-400 dark:disabled:bg-zinc-800"
+              aria-invalid={errorField === 'smallBlind'}
+              aria-describedby={errorField === 'smallBlind' ? 'form-error' : undefined}
+              className={`mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 disabled:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 dark:disabled:bg-zinc-800 ${
+                errorField === 'smallBlind'
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500'
+                  : 'border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-700 dark:focus:border-emerald-400 dark:focus:ring-emerald-400'
+              }`}
               placeholder="1"
             />
           </div>
@@ -182,6 +205,7 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
               Big Blind (CRISPS)
             </label>
             <input
+              ref={bigBlindRef}
               type="number"
               inputMode="decimal"
               id="bigBlind"
@@ -192,14 +216,21 @@ export function CreateTableForm({ pokerProgramId, crispsMint, onSuccess }: Creat
               value={bigBlindInput}
               onChange={(e) => setBigBlindInput(e.target.value)}
               disabled={isPending}
-              className="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-emerald-400 dark:focus:ring-emerald-400 dark:disabled:bg-zinc-800"
+              aria-invalid={errorField === 'bigBlind'}
+              aria-describedby={errorField === 'bigBlind' ? 'form-error' : undefined}
+              className={`mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 disabled:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 dark:disabled:bg-zinc-800 ${
+                errorField === 'bigBlind'
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500'
+                  : 'border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-700 dark:focus:border-emerald-400 dark:focus:ring-emerald-400'
+              }`}
               placeholder="2"
             />
           </div>
         </div>
 
+        {/* AC-5.13: Error message rendered inline near field */}
         {validationError && (
-          <p className="text-sm text-red-600 dark:text-red-400">{validationError}</p>
+          <p id="form-error" role="alert" className="text-sm text-red-600 dark:text-red-400">{validationError}</p>
         )}
 
         {txError && (
