@@ -11,7 +11,6 @@
 ### Phase 4: Security + Testing + SDK Generation
 ### Phase 5: Entropy Provider Service
 ### Phase 6: Client Integration + UI
-- [x] Error handling + simulation surfacing. AC-CI4.1 to AC-CI4.4, AC-PQ.CI2. Validation: error mapping tests.
 - [x] Table discovery + card rendering. AC-CI5.1 to AC-CI6.4, AC-PQ.CI3. Validation: component tests.
 - [x] Framework-kit + wallet standard + App Router structure. AC-1.1 to AC-1.5. Validation: UI smoke tests.
 - [x] Keyboard-first UX (palette + shortcuts + raise input). AC-2.1 to AC-2.4. Validation: component tests.

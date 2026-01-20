@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Error handling + simulation surfacing. AC-CI4.1 to AC-CI4.4, AC-PQ.CI2. Validation: error mapping tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Action wiring (fold/check/call/raise/shove/join/leave). AC-CI3.1 to AC-CI3.7. Validation: hook tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
