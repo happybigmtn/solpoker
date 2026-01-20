@@ -46,7 +46,13 @@ fn new_unique_address() -> Address {
 
 fn program_path() -> PathBuf {
     if let Ok(dir) = env::var("SBF_OUT_DIR") {
-        return PathBuf::from(dir).join("robopoker_poker.so");
+        let base = PathBuf::from(dir);
+        let resolved = if base.is_absolute() {
+            base
+        } else {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../").join(base)
+        };
+        return resolved.join("robopoker_poker.so");
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/deploy/robopoker_poker.so")
 }
@@ -1887,6 +1893,11 @@ fn build_deposit_stake_ix(amount: u64) -> Vec<u8> {
     data
 }
 
+/// Build instruction data for InitStakingPool
+fn build_init_staking_pool_ix() -> Vec<u8> {
+    vec![ix_disc::INIT_STAKING_POOL]
+}
+
 /// Build instruction data for WithdrawStake
 fn build_withdraw_stake_ix(amount: u64) -> Vec<u8> {
     let mut data = vec![ix_disc::WITHDRAW_STAKE, 0, 0, 0, 0, 0, 0, 0]; // discriminator + padding
@@ -2215,6 +2226,160 @@ fn test_deposit_stake_debits_staker_credits_vault() {
     );
 
     println!("✓ test_deposit_stake_debits_staker_credits_vault passed (AC-3.5)");
+}
+
+/// Test: Initialize staking pool (AC-3.5)
+///
+/// AC-3.5: Staking pool and vault PDAs are initialized with correct metadata.
+#[test]
+fn test_init_staking_pool_initializes_pool() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    let config_key = config_pda(&program_id);
+    let staking_pool_key = staking_pool_pda(&program_id);
+    let stake_vault_key = stake_vault_pda(&program_id);
+    let rewards_vault_key = rewards_vault_pda(&program_id);
+
+    let mut svm = setup_svm(&program_id);
+
+    // Config account (initialized)
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority_key,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    let stake_vault_data = create_token_account_data(&crisps_mint, &stake_vault_key, 0);
+    let rewards_vault_data = create_token_account_data(&crisps_mint, &rewards_vault_key, 0);
+
+    // Set accounts in SVM
+    svm.set_account(
+        config_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+            data: config_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staking_pool_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(STAKING_POOL_SIZE),
+            data: vec![0u8; STAKING_POOL_SIZE],
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    let mint_data = create_mint_data(&authority_key);
+    svm.set_account(
+        crisps_mint,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+            data: mint_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        stake_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(stake_vault_data.len()),
+            data: stake_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        rewards_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(rewards_vault_data.len()),
+            data: rewards_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+
+    let init_pool_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: staking_pool_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: stake_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: rewards_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: authority_key,
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: crisps_mint,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: TOKEN_2022_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: SYSTEM_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_init_staking_pool_ix(),
+    };
+
+    let message = Message::new(&[init_pool_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    let pool_account = svm.get_account(&staking_pool_key).unwrap();
+    let pool = unsafe { StakingPool::from_bytes_unchecked(&pool_account.data) };
+    assert!(pool.is_initialized());
+    assert_eq!(Address::from(pool.stake_vault), stake_vault_key);
+    assert_eq!(Address::from(pool.rewards_vault), rewards_vault_key);
+    assert_eq!(pool.total_staked, 0);
+    assert_eq!(pool.accumulated_rewards, 0);
 }
 
 /// Test: Withdraw stake (credit staker token, debit stake vault) - AC-3.5

@@ -20,6 +20,7 @@
   - [x] LiteSVM create table creates PDA vault token account (AC-3.2).
   - [x] LiteSVM join/leave token balance tests using real Token-2022 program (AC-3.3).
 - [x] Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
+  - [x] LiteSVM init staking pool sets PDA vault metadata (AC-3.5).
   - [x] LiteSVM deposit stake test with real Token-2022 transfers (AC-3.5).
   - [x] LiteSVM withdraw stake test with real Token-2022 transfers (AC-3.5).
   - [x] LiteSVM claim rewards test with proportional distribution (AC-3.6).
