@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Commit flow + pending tracking. AC-EP2.1 to AC-EP2.3. Validation: integration test.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Hash chain generation + persistence. AC-EP1.1 to AC-EP1.4. Validation: unit tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
