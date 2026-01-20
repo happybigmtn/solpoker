@@ -15,9 +15,15 @@
 - [x] Hole-card privacy + showdown verification. AC-2.6 to AC-2.8. Validation: tests for deck derivation + reveal checks.
 
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
-- [ ] Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
+- [x] Token-2022 mint + vault escrow flows. AC-3.1 to AC-3.3. Validation: token balance tests.
+  - [x] LiteSVM initialize config sets CRISPS mint + authority (AC-3.1).
+  - [x] LiteSVM create table creates PDA vault token account (AC-3.2).
   - [x] LiteSVM join/leave token balance tests using real Token-2022 program (AC-3.3).
-- [ ] Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
+- [x] Rake + staking pool flows. AC-3.4 to AC-3.6. Validation: staking deposit/withdraw + claim tests.
+  - [x] LiteSVM deposit stake test with real Token-2022 transfers (AC-3.5).
+  - [x] LiteSVM withdraw stake test with real Token-2022 transfers (AC-3.5).
+  - [x] LiteSVM claim rewards test with proportional distribution (AC-3.6).
+  - [x] LiteSVM sweep rake test moving table rake to rewards vault (AC-3.4).
 - [ ] Table create/join/leave + timeouts. AC-4.1 to AC-4.4. Validation: lifecycle tests + timeout cases.
 - [ ] Betting rules + legal action enforcement. AC-5.1 to AC-5.3. Validation: illegal action failure tests.
 - [ ] Settlement + payout invariants. AC-6.1 to AC-6.2. Validation: side-pot payout tests.

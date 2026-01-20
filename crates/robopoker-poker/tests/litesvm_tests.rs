@@ -86,6 +86,30 @@ fn build_join_table_ix(buy_in_amount: u64) -> Vec<u8> {
     data
 }
 
+/// Build instruction data for Initialize
+fn build_initialize_ix(
+    min_players: u8,
+    min_buy_in: u64,
+    max_buy_in: u64,
+    action_timeout_slots: u64,
+) -> Vec<u8> {
+    let mut data = vec![ix_disc::INITIALIZE, min_players];
+    data.extend_from_slice(&[0u8; 6]); // padding
+    data.extend_from_slice(&min_buy_in.to_le_bytes());
+    data.extend_from_slice(&max_buy_in.to_le_bytes());
+    data.extend_from_slice(&action_timeout_slots.to_le_bytes());
+    data
+}
+
+/// Build instruction data for CreateTable
+fn build_create_table_ix(table_id: u64, small_blind: u64, big_blind: u64) -> Vec<u8> {
+    let mut data = vec![ix_disc::CREATE_TABLE, 0, 0, 0, 0, 0, 0, 0]; // discriminator + padding
+    data.extend_from_slice(&table_id.to_le_bytes());
+    data.extend_from_slice(&small_blind.to_le_bytes());
+    data.extend_from_slice(&big_blind.to_le_bytes());
+    data
+}
+
 /// Build instruction data for LeaveTable
 fn build_leave_table_ix() -> Vec<u8> {
     vec![ix_disc::LEAVE_TABLE]
@@ -340,6 +364,244 @@ fn create_token_account_data(mint: &Address, owner: &Address, amount: u64) -> Ve
 /// Parse token account amount from raw data
 fn parse_token_amount(data: &[u8]) -> u64 {
     u64::from_le_bytes(data[64..72].try_into().unwrap())
+}
+
+fn read_token_account_mint_owner(data: &[u8]) -> (Address, Address) {
+    let mut mint_bytes = [0u8; 32];
+    let mut owner_bytes = [0u8; 32];
+    mint_bytes.copy_from_slice(&data[0..32]);
+    owner_bytes.copy_from_slice(&data[32..64]);
+    (Address::from(mint_bytes), Address::from(owner_bytes))
+}
+
+fn set_empty_system_account(svm: &mut LiteSVM, key: Address) {
+    svm.set_account(
+        key,
+        Account {
+            lamports: 0,
+            data: vec![],
+            owner: SYSTEM_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+}
+
+fn set_token_mint_account(svm: &mut LiteSVM, mint: Address, authority: &Address) {
+    let mint_data = create_mint_data(authority);
+    svm.set_account(
+        mint,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+            data: mint_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+}
+
+/// Test: Initialize config creates PDA data (AC-3.1)
+#[test]
+fn test_initialize_creates_config() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+    let config_key = config_pda(&program_id);
+
+    let min_players = 2u8;
+    let min_buy_in = 100_000_000u64;
+    let max_buy_in = 1_000_000_000u64;
+    let action_timeout_slots = 250u64;
+
+    let mut svm = setup_svm(&program_id);
+    set_token_mint_account(&mut svm, crisps_mint, &authority_key);
+    set_empty_system_account(&mut svm, config_key);
+    set_empty_system_account(&mut svm, entropy_program);
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+
+    let init_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: authority_key,
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: crisps_mint,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: entropy_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: SYSTEM_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_initialize_ix(
+            min_players,
+            min_buy_in,
+            max_buy_in,
+            action_timeout_slots,
+        ),
+    };
+
+    let message = Message::new(&[init_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    let config_account = svm.get_account(&config_key).unwrap();
+    assert_eq!(config_account.owner, Address::from(&program_id));
+
+    let config = unsafe { Config::from_bytes_unchecked(&config_account.data) };
+    assert!(config.is_initialized());
+    assert_eq!(config.min_players, min_players);
+    assert_eq!(config.min_buy_in, min_buy_in);
+    assert_eq!(config.max_buy_in, max_buy_in);
+    assert_eq!(config.action_timeout_slots, action_timeout_slots);
+    assert_eq!(Address::from(config.crisps_mint), crisps_mint);
+    assert_eq!(Address::from(config.authority), authority_key);
+    assert_eq!(Address::from(config.entropy_program), entropy_program);
+}
+
+/// Test: CreateTable creates PDA table + vault token account (AC-3.2)
+#[test]
+fn test_create_table_creates_vault_account() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+    let config_key = config_pda(&program_id);
+
+    let table_id = 7u64;
+    let small_blind = 1_000_000u64;
+    let big_blind = 2_000_000u64;
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+
+    let mut svm = setup_svm(&program_id);
+    set_token_mint_account(&mut svm, crisps_mint, &authority_key);
+    set_empty_system_account(&mut svm, config_key);
+    set_empty_system_account(&mut svm, entropy_program);
+    set_empty_system_account(&mut svm, table_key);
+    set_empty_system_account(&mut svm, vault_key);
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+
+    let init_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: authority_key,
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: crisps_mint,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: entropy_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: SYSTEM_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_initialize_ix(2, 100_000_000, 1_000_000_000, 250),
+    };
+
+    let init_message = Message::new(&[init_ix], Some(&authority_key));
+    let init_tx = Transaction::new(&[&authority], init_message, svm.latest_blockhash());
+    svm.send_transaction(init_tx).unwrap();
+
+    let create_table_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: table_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: authority_key,
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: crisps_mint,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: TOKEN_2022_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: SYSTEM_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_create_table_ix(table_id, small_blind, big_blind),
+    };
+
+    let message = Message::new(&[create_table_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    let table_account = svm.get_account(&table_key).unwrap();
+    assert_eq!(table_account.owner, Address::from(&program_id));
+    let table = unsafe { Table::from_bytes_unchecked(&table_account.data) };
+    assert!(table.is_initialized());
+    assert_eq!(table.table_id, table_id);
+    assert_eq!(table.small_blind, small_blind);
+    assert_eq!(table.big_blind, big_blind);
+    assert_eq!(Address::from(table.vault), vault_key);
+
+    let vault_account = svm.get_account(&vault_key).unwrap();
+    assert_eq!(vault_account.owner, TOKEN_2022_PROGRAM_ID);
+    let (vault_mint, vault_owner) = read_token_account_mint_owner(&vault_account.data);
+    assert_eq!(vault_mint, crisps_mint);
+    assert_eq!(vault_owner, vault_key);
+    assert_eq!(parse_token_amount(&vault_account.data), 0);
 }
 
 /// Test: Join table (debit player, credit vault)
@@ -1596,4 +1858,1067 @@ fn build_settle_ix(hand_strengths: &[u64; 10]) -> Vec<u8> {
         data.extend_from_slice(&strength.to_le_bytes());
     }
     data
+}
+
+// =============================================================================
+// AC-3.4 to AC-3.6: Staking Pool Token Flow Tests (LiteSVM with real Token-2022)
+// =============================================================================
+
+fn staking_pool_pda(program_id: &Address) -> Address {
+    Address::find_program_address(&[StakingPool::SEEDS_PREFIX], program_id).0
+}
+
+fn stake_vault_pda(program_id: &Address) -> Address {
+    Address::find_program_address(&[StakingPool::STAKE_VAULT_SEEDS_PREFIX], program_id).0
+}
+
+fn rewards_vault_pda(program_id: &Address) -> Address {
+    Address::find_program_address(&[StakingPool::REWARDS_VAULT_SEEDS_PREFIX], program_id).0
+}
+
+fn staker_position_pda(program_id: &Address, staker: &Address) -> Address {
+    Address::find_program_address(&[StakerPosition::SEEDS_PREFIX, staker.as_ref()], program_id).0
+}
+
+/// Build instruction data for DepositStake
+fn build_deposit_stake_ix(amount: u64) -> Vec<u8> {
+    let mut data = vec![ix_disc::DEPOSIT_STAKE, 0, 0, 0, 0, 0, 0, 0]; // discriminator + padding
+    data.extend_from_slice(&amount.to_le_bytes());
+    data
+}
+
+/// Build instruction data for WithdrawStake
+fn build_withdraw_stake_ix(amount: u64) -> Vec<u8> {
+    let mut data = vec![ix_disc::WITHDRAW_STAKE, 0, 0, 0, 0, 0, 0, 0]; // discriminator + padding
+    data.extend_from_slice(&amount.to_le_bytes());
+    data
+}
+
+/// Build instruction data for ClaimRewards
+fn build_claim_rewards_ix() -> Vec<u8> {
+    vec![ix_disc::CLAIM_REWARDS]
+}
+
+/// Build instruction data for SweepRake
+fn build_sweep_rake_ix() -> Vec<u8> {
+    vec![ix_disc::SWEEP_RAKE]
+}
+
+/// Create staking pool account data
+///
+/// StakingPool layout (96 bytes):
+///   discriminator: u8 (1) @ offset 0
+///   initialized: u8 (1) @ offset 1
+///   _padding: [u8; 6] (6) @ offset 2
+///   total_staked: u64 (8) @ offset 8
+///   accumulated_rewards: u64 (8) @ offset 16
+///   total_distributed: u64 (8) @ offset 24
+///   stake_vault: Pubkey (32) @ offset 32
+///   rewards_vault: Pubkey (32) @ offset 64
+fn create_staking_pool_data(
+    stake_vault: &Address,
+    rewards_vault: &Address,
+    total_staked: u64,
+    accumulated_rewards: u64,
+    total_distributed: u64,
+) -> Vec<u8> {
+    let mut data = vec![0u8; STAKING_POOL_SIZE];
+    data[0] = acc_disc::STAKING_POOL;
+    data[1] = 1; // initialized
+    // padding [2..8]
+    data[8..16].copy_from_slice(&total_staked.to_le_bytes());
+    data[16..24].copy_from_slice(&accumulated_rewards.to_le_bytes());
+    data[24..32].copy_from_slice(&total_distributed.to_le_bytes());
+    data[32..64].copy_from_slice(stake_vault.as_ref());
+    data[64..96].copy_from_slice(rewards_vault.as_ref());
+    data
+}
+
+/// Create staker position account data
+///
+/// StakerPosition layout (64 bytes):
+///   discriminator: u8 (1) @ offset 0
+///   initialized: u8 (1) @ offset 1
+///   _padding: [u8; 6] (6) @ offset 2
+///   staker: Pubkey (32) @ offset 8
+///   staked_amount: u64 (8) @ offset 40
+///   rewards_claimed: u64 (8) @ offset 48
+///   last_rewards_per_token: u64 (8) @ offset 56
+fn create_staker_position_data(
+    staker: &Address,
+    staked_amount: u64,
+    rewards_claimed: u64,
+    last_rewards_per_token: u64,
+) -> Vec<u8> {
+    let mut data = vec![0u8; STAKER_POSITION_SIZE];
+    data[0] = acc_disc::STAKER_POSITION;
+    data[1] = 1; // initialized
+    // padding [2..8]
+    data[8..40].copy_from_slice(staker.as_ref());
+    data[40..48].copy_from_slice(&staked_amount.to_le_bytes());
+    data[48..56].copy_from_slice(&rewards_claimed.to_le_bytes());
+    data[56..64].copy_from_slice(&last_rewards_per_token.to_le_bytes());
+    data
+}
+
+/// Parse staking pool total_staked from raw data
+fn parse_staking_pool_total_staked(data: &[u8]) -> u64 {
+    u64::from_le_bytes(data[8..16].try_into().unwrap())
+}
+
+/// Parse staking pool accumulated_rewards from raw data
+fn parse_staking_pool_accumulated_rewards(data: &[u8]) -> u64 {
+    u64::from_le_bytes(data[16..24].try_into().unwrap())
+}
+
+/// Parse staker position staked_amount from raw data
+fn parse_staker_position_staked_amount(data: &[u8]) -> u64 {
+    u64::from_le_bytes(data[40..48].try_into().unwrap())
+}
+
+/// Parse staker position rewards_claimed from raw data
+fn parse_staker_position_rewards_claimed(data: &[u8]) -> u64 {
+    u64::from_le_bytes(data[48..56].try_into().unwrap())
+}
+
+/// Test: Deposit stake (debit staker token, credit stake vault) - AC-3.5
+///
+/// AC-3.5: Stakers can deposit/withdraw CRISPS into a staking pool managed by the poker program.
+///
+/// This test validates:
+/// 1. Staker's token account is debited by the deposit amount
+/// 2. Stake vault is credited by the deposit amount
+/// 3. StakerPosition.staked_amount is updated
+/// 4. StakingPool.total_staked is updated
+#[test]
+fn test_deposit_stake_debits_staker_credits_vault() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let staker = Keypair::new();
+    let staker_key = staker.pubkey();
+    let authority = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    // Derive PDAs
+    let config_key = config_pda(&program_id);
+    let staking_pool_key = staking_pool_pda(&program_id);
+    let stake_vault_key = stake_vault_pda(&program_id);
+    let rewards_vault_key = rewards_vault_pda(&program_id);
+    let staker_position_key = staker_position_pda(&program_id, &staker_key);
+    let staker_token_key = new_unique_address();
+
+    // Test parameters
+    let deposit_amount = 100_000_000u64; // 100 CRISPS
+    let initial_staker_balance = 500_000_000u64; // 500 CRISPS
+    let initial_vault_balance = 0u64;
+    let initial_pool_staked = 0u64;
+
+    // Expected final states
+    let expected_staker_balance = initial_staker_balance - deposit_amount;
+    let expected_vault_balance = initial_vault_balance + deposit_amount;
+    let expected_pool_staked = initial_pool_staked + deposit_amount;
+
+    // Create LiteSVM instance with programs loaded
+    let mut svm = setup_svm(&program_id);
+
+    // Set up accounts
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority,
+        &entropy_program,
+        100_000_000, // min_buy_in
+        1_000_000_000, // max_buy_in
+    );
+
+    let staking_pool_data = create_staking_pool_data(
+        &stake_vault_key,
+        &rewards_vault_key,
+        initial_pool_staked,
+        0, // accumulated_rewards
+        0, // total_distributed
+    );
+
+    // Create uninitialized staker position (will be initialized by deposit)
+    let staker_position_data = vec![0u8; STAKER_POSITION_SIZE];
+
+    let mint_data = create_mint_data(&authority);
+    let staker_token_data = create_token_account_data(&crisps_mint, &staker_key, initial_staker_balance);
+    // Stake vault is owned by itself (self-ownership PDA pattern for transfer_signed)
+    let stake_vault_data = create_token_account_data(&crisps_mint, &stake_vault_key, initial_vault_balance);
+
+    // Set accounts in SVM
+    svm.set_account(
+        config_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+            data: config_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staking_pool_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staking_pool_data.len()),
+            data: staking_pool_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staker_position_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staker_position_data.len()),
+            data: staker_position_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        crisps_mint,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+            data: mint_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staker_token_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staker_token_data.len()),
+            data: staker_token_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        stake_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(stake_vault_data.len()),
+            data: stake_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    // Fund the staker for transaction fees
+    svm.airdrop(&staker_key, 10_000_000_000).unwrap();
+
+    // Build DepositStake instruction
+    // Accounts:
+    //   0. [writable] Staking pool PDA
+    //   1. [writable] Staker position PDA
+    //   2. [writable] Stake vault token account
+    //   3. [writable] Staker's token account
+    //   4. [signer] Staker
+    //   5. [] Config
+    //   6. [] Token-2022 program
+    //   7. [] System program
+    let deposit_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: staking_pool_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_position_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: stake_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_token_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_key,
+                is_signer: true,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: TOKEN_2022_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: SYSTEM_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_deposit_stake_ix(deposit_amount),
+    };
+
+    let message = Message::new(&[deposit_ix], Some(&staker_key));
+    let tx = Transaction::new(&[&staker], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    // Verify token balances
+    let staker_account = svm.get_account(&staker_token_key).unwrap();
+    let vault_account = svm.get_account(&stake_vault_key).unwrap();
+
+    assert_eq!(
+        parse_token_amount(&staker_account.data),
+        expected_staker_balance,
+        "Staker balance should be debited"
+    );
+    assert_eq!(
+        parse_token_amount(&vault_account.data),
+        expected_vault_balance,
+        "Stake vault balance should be credited"
+    );
+
+    // Verify staking pool state
+    let pool_account = svm.get_account(&staking_pool_key).unwrap();
+    assert_eq!(
+        parse_staking_pool_total_staked(&pool_account.data),
+        expected_pool_staked,
+        "StakingPool.total_staked should be updated"
+    );
+
+    // Verify staker position state
+    let position_account = svm.get_account(&staker_position_key).unwrap();
+    assert_eq!(
+        parse_staker_position_staked_amount(&position_account.data),
+        deposit_amount,
+        "StakerPosition.staked_amount should match deposit"
+    );
+
+    println!("✓ test_deposit_stake_debits_staker_credits_vault passed (AC-3.5)");
+}
+
+/// Test: Withdraw stake (credit staker token, debit stake vault) - AC-3.5
+///
+/// AC-3.5: Stakers can deposit/withdraw CRISPS into a staking pool managed by the poker program.
+///
+/// This test validates:
+/// 1. Staker's token account is credited by the withdrawal amount
+/// 2. Stake vault is debited by the withdrawal amount
+/// 3. StakerPosition.staked_amount is updated
+/// 4. StakingPool.total_staked is updated
+#[test]
+fn test_withdraw_stake_credits_staker_debits_vault() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let staker = Keypair::new();
+    let staker_key = staker.pubkey();
+    let authority = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    // Derive PDAs
+    let config_key = config_pda(&program_id);
+    let staking_pool_key = staking_pool_pda(&program_id);
+    let stake_vault_key = stake_vault_pda(&program_id);
+    let rewards_vault_key = rewards_vault_pda(&program_id);
+    let staker_position_key = staker_position_pda(&program_id, &staker_key);
+    let staker_token_key = new_unique_address();
+
+    // Test parameters - staker already has 200 CRISPS staked
+    let initial_staked_amount = 200_000_000u64; // 200 CRISPS staked
+    let withdraw_amount = 75_000_000u64; // Withdraw 75 CRISPS
+    let initial_staker_balance = 100_000_000u64; // 100 CRISPS in wallet
+    let initial_vault_balance = initial_staked_amount;
+    let initial_pool_staked = initial_staked_amount;
+
+    // Expected final states
+    let expected_staker_balance = initial_staker_balance + withdraw_amount;
+    let expected_vault_balance = initial_vault_balance - withdraw_amount;
+    let expected_pool_staked = initial_pool_staked - withdraw_amount;
+    let expected_position_staked = initial_staked_amount - withdraw_amount;
+
+    // Create LiteSVM instance with programs loaded
+    let mut svm = setup_svm(&program_id);
+
+    // Set up accounts
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    let staking_pool_data = create_staking_pool_data(
+        &stake_vault_key,
+        &rewards_vault_key,
+        initial_pool_staked,
+        0,
+        0,
+    );
+
+    let staker_position_data = create_staker_position_data(
+        &staker_key,
+        initial_staked_amount,
+        0,
+        0,
+    );
+
+    let mint_data = create_mint_data(&authority);
+    let staker_token_data = create_token_account_data(&crisps_mint, &staker_key, initial_staker_balance);
+    // Stake vault is owned by itself (self-ownership PDA pattern for transfer_signed)
+    let stake_vault_data = create_token_account_data(&crisps_mint, &stake_vault_key, initial_vault_balance);
+
+    // Set accounts in SVM
+    svm.set_account(
+        config_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+            data: config_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staking_pool_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staking_pool_data.len()),
+            data: staking_pool_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staker_position_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staker_position_data.len()),
+            data: staker_position_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        crisps_mint,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+            data: mint_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staker_token_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staker_token_data.len()),
+            data: staker_token_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        stake_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(stake_vault_data.len()),
+            data: stake_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    // Fund the staker for transaction fees
+    svm.airdrop(&staker_key, 10_000_000_000).unwrap();
+
+    // Build WithdrawStake instruction
+    // Accounts:
+    //   0. [writable] Staking pool PDA
+    //   1. [writable] Staker position PDA
+    //   2. [writable] Stake vault token account
+    //   3. [writable] Staker's token account
+    //   4. [signer] Staker
+    //   5. [] Config
+    //   6. [] Token-2022 program
+    let withdraw_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: staking_pool_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_position_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: stake_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_token_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_key,
+                is_signer: true,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: TOKEN_2022_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_withdraw_stake_ix(withdraw_amount),
+    };
+
+    let message = Message::new(&[withdraw_ix], Some(&staker_key));
+    let tx = Transaction::new(&[&staker], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    // Verify token balances
+    let staker_account = svm.get_account(&staker_token_key).unwrap();
+    let vault_account = svm.get_account(&stake_vault_key).unwrap();
+
+    assert_eq!(
+        parse_token_amount(&staker_account.data),
+        expected_staker_balance,
+        "Staker balance should be credited"
+    );
+    assert_eq!(
+        parse_token_amount(&vault_account.data),
+        expected_vault_balance,
+        "Stake vault balance should be debited"
+    );
+
+    // Verify staking pool state
+    let pool_account = svm.get_account(&staking_pool_key).unwrap();
+    assert_eq!(
+        parse_staking_pool_total_staked(&pool_account.data),
+        expected_pool_staked,
+        "StakingPool.total_staked should be updated"
+    );
+
+    // Verify staker position state
+    let position_account = svm.get_account(&staker_position_key).unwrap();
+    assert_eq!(
+        parse_staker_position_staked_amount(&position_account.data),
+        expected_position_staked,
+        "StakerPosition.staked_amount should be reduced"
+    );
+
+    println!("✓ test_withdraw_stake_credits_staker_debits_vault passed (AC-3.5)");
+}
+
+/// Test: Claim rewards (proportional distribution) - AC-3.6
+///
+/// AC-3.6: Rake distributions are proportional to staked balances and are claimable via an on-chain instruction.
+///
+/// This test validates:
+/// 1. Staker receives proportional share of accumulated rewards
+/// 2. Rewards vault is debited by claimed amount
+/// 3. StakerPosition.rewards_claimed is updated
+/// 4. StakingPool.accumulated_rewards is reduced
+#[test]
+fn test_claim_rewards_proportional_distribution() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let staker = Keypair::new();
+    let staker_key = staker.pubkey();
+    let authority = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    // Derive PDAs
+    let config_key = config_pda(&program_id);
+    let staking_pool_key = staking_pool_pda(&program_id);
+    let stake_vault_key = stake_vault_pda(&program_id);
+    let rewards_vault_key = rewards_vault_pda(&program_id);
+    let staker_position_key = staker_position_pda(&program_id, &staker_key);
+    let staker_token_key = new_unique_address();
+
+    // Test scenario:
+    // - Total staked in pool: 1000 CRISPS
+    // - This staker has: 400 CRISPS staked (40% of pool)
+    // - Accumulated rewards: 100 CRISPS
+    // - Expected claim: 40 CRISPS (40% of 100)
+    let total_staked = 1_000_000_000u64; // 1000 CRISPS
+    let staker_stake = 400_000_000u64; // 400 CRISPS (40%)
+    let accumulated_rewards = 100_000_000u64; // 100 CRISPS rewards
+    let expected_claim = 40_000_000u64; // 40% of 100 = 40 CRISPS
+
+    let initial_staker_balance = 50_000_000u64; // 50 CRISPS in wallet
+    let initial_rewards_vault = accumulated_rewards;
+
+    // Expected final states
+    let expected_staker_balance = initial_staker_balance + expected_claim;
+    let expected_rewards_vault = initial_rewards_vault - expected_claim;
+
+    // Create LiteSVM instance with programs loaded
+    let mut svm = setup_svm(&program_id);
+
+    // Set up accounts
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    let staking_pool_data = create_staking_pool_data(
+        &stake_vault_key,
+        &rewards_vault_key,
+        total_staked,
+        accumulated_rewards,
+        0, // total_distributed
+    );
+
+    let staker_position_data = create_staker_position_data(
+        &staker_key,
+        staker_stake,
+        0, // rewards_claimed (none yet)
+        0, // last_rewards_per_token
+    );
+
+    let mint_data = create_mint_data(&authority);
+    let staker_token_data = create_token_account_data(&crisps_mint, &staker_key, initial_staker_balance);
+    // Rewards vault is owned by itself (self-ownership PDA pattern for transfer_signed)
+    let rewards_vault_data = create_token_account_data(&crisps_mint, &rewards_vault_key, initial_rewards_vault);
+
+    // Set accounts in SVM
+    svm.set_account(
+        config_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+            data: config_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staking_pool_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staking_pool_data.len()),
+            data: staking_pool_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staker_position_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staker_position_data.len()),
+            data: staker_position_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        crisps_mint,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+            data: mint_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staker_token_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staker_token_data.len()),
+            data: staker_token_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        rewards_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(rewards_vault_data.len()),
+            data: rewards_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    // Fund the staker for transaction fees
+    svm.airdrop(&staker_key, 10_000_000_000).unwrap();
+
+    // Build ClaimRewards instruction
+    // Accounts:
+    //   0. [writable] Staking pool PDA
+    //   1. [writable] Staker position PDA
+    //   2. [writable] Rewards vault token account
+    //   3. [writable] Staker's token account
+    //   4. [signer] Staker
+    //   5. [] Config
+    //   6. [] Token-2022 program
+    let claim_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: staking_pool_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_position_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: rewards_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_token_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staker_key,
+                is_signer: true,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: TOKEN_2022_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_claim_rewards_ix(),
+    };
+
+    let message = Message::new(&[claim_ix], Some(&staker_key));
+    let tx = Transaction::new(&[&staker], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    // Verify token balances
+    let staker_account = svm.get_account(&staker_token_key).unwrap();
+    let rewards_account = svm.get_account(&rewards_vault_key).unwrap();
+
+    assert_eq!(
+        parse_token_amount(&staker_account.data),
+        expected_staker_balance,
+        "Staker balance should be credited with proportional rewards"
+    );
+    assert_eq!(
+        parse_token_amount(&rewards_account.data),
+        expected_rewards_vault,
+        "Rewards vault should be debited"
+    );
+
+    // Verify staking pool state
+    let pool_account = svm.get_account(&staking_pool_key).unwrap();
+    let remaining_rewards = parse_staking_pool_accumulated_rewards(&pool_account.data);
+    assert_eq!(
+        remaining_rewards,
+        accumulated_rewards - expected_claim,
+        "StakingPool.accumulated_rewards should be reduced"
+    );
+
+    // Verify staker position state
+    let position_account = svm.get_account(&staker_position_key).unwrap();
+    let rewards_claimed = parse_staker_position_rewards_claimed(&position_account.data);
+    assert_eq!(
+        rewards_claimed, expected_claim,
+        "StakerPosition.rewards_claimed should track claimed amount"
+    );
+
+    println!("✓ test_claim_rewards_proportional_distribution passed (AC-3.6)");
+    println!("  - Staker stake: {} CRISPS ({}% of pool)", staker_stake / 1_000_000, (staker_stake * 100) / total_staked);
+    println!("  - Accumulated rewards: {} CRISPS", accumulated_rewards / 1_000_000);
+    println!("  - Claimed: {} CRISPS (proportional share)", expected_claim / 1_000_000);
+}
+
+/// Test: Sweep rake from table to staking pool - AC-3.4
+///
+/// AC-3.4: Standard rake is charged per hand and accumulated in a staking rewards pool.
+///
+/// This test validates:
+/// 1. Rake is transferred from table vault to rewards vault
+/// 2. Table.rake_accumulated is reset to 0
+/// 3. StakingPool.accumulated_rewards is increased
+#[test]
+fn test_sweep_rake_table_to_rewards_vault() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let caller = Keypair::new();
+    let caller_key = caller.pubkey();
+    let authority = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    // Derive PDAs
+    let table_id = 1u64;
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let table_vault_key = vault_pda(&program_id, table_id);
+    let staking_pool_key = staking_pool_pda(&program_id);
+    let stake_vault_key = stake_vault_pda(&program_id);
+    let rewards_vault_key = rewards_vault_pda(&program_id);
+
+    // Test parameters
+    let rake_amount = 5_000_000u64; // 5 CRISPS rake accumulated
+    let initial_table_vault = 100_000_000u64; // 100 CRISPS in table vault (includes rake)
+    let initial_rewards_vault = 50_000_000u64; // 50 CRISPS already in rewards
+    let initial_pool_rewards = 50_000_000u64;
+
+    // Expected final states
+    let expected_table_vault = initial_table_vault - rake_amount;
+    let expected_rewards_vault = initial_rewards_vault + rake_amount;
+    let expected_pool_rewards = initial_pool_rewards + rake_amount;
+
+    // Create LiteSVM instance with programs loaded
+    let mut svm = setup_svm(&program_id);
+
+    // Set up accounts
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    // Create table with accumulated rake
+    let mut table_data = create_table_data(table_id, 1_000_000, 2_000_000, &table_vault_key);
+    // Set rake_accumulated at offset 72
+    table_data[72..80].copy_from_slice(&rake_amount.to_le_bytes());
+
+    let staking_pool_data = create_staking_pool_data(
+        &stake_vault_key,
+        &rewards_vault_key,
+        500_000_000, // total_staked
+        initial_pool_rewards,
+        0,
+    );
+
+    let mint_data = create_mint_data(&authority);
+    // Table vault is owned by itself (self-ownership PDA pattern for transfer_signed)
+    let table_vault_data = create_token_account_data(&crisps_mint, &table_vault_key, initial_table_vault);
+    // Rewards vault is owned by itself (self-ownership PDA pattern for transfer_signed)
+    let rewards_vault_data = create_token_account_data(&crisps_mint, &rewards_vault_key, initial_rewards_vault);
+
+    // Set accounts in SVM
+    svm.set_account(
+        config_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+            data: config_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        table_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
+            data: table_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        staking_pool_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(staking_pool_data.len()),
+            data: staking_pool_data,
+            owner: Address::from(&program_id),
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        crisps_mint,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+            data: mint_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        table_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(table_vault_data.len()),
+            data: table_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    svm.set_account(
+        rewards_vault_key,
+        Account {
+            lamports: svm.minimum_balance_for_rent_exemption(rewards_vault_data.len()),
+            data: rewards_vault_data,
+            owner: TOKEN_2022_PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+
+    // Fund the caller for transaction fees (anyone can sweep)
+    svm.airdrop(&caller_key, 10_000_000_000).unwrap();
+
+    // Build SweepRake instruction
+    // Accounts:
+    //   0. [writable] Table
+    //   1. [writable] Table vault token account
+    //   2. [writable] Staking pool PDA
+    //   3. [writable] Rewards vault token account
+    //   4. [] Config
+    //   5. [] Token-2022 program
+    let sweep_ix = Instruction {
+        program_id: Address::from(&program_id),
+        accounts: vec![
+            AccountMeta {
+                pubkey: table_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: table_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: staking_pool_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: rewards_vault_key,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: config_key,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: TOKEN_2022_PROGRAM_ID,
+                is_signer: false,
+                is_writable: false,
+            },
+        ],
+        data: build_sweep_rake_ix(),
+    };
+
+    let message = Message::new(&[sweep_ix], Some(&caller_key));
+    let tx = Transaction::new(&[&caller], message, svm.latest_blockhash());
+    svm.send_transaction(tx).unwrap();
+
+    // Verify token balances
+    let table_vault_account = svm.get_account(&table_vault_key).unwrap();
+    let rewards_vault_account = svm.get_account(&rewards_vault_key).unwrap();
+
+    assert_eq!(
+        parse_token_amount(&table_vault_account.data),
+        expected_table_vault,
+        "Table vault should be debited by rake amount"
+    );
+    assert_eq!(
+        parse_token_amount(&rewards_vault_account.data),
+        expected_rewards_vault,
+        "Rewards vault should be credited with rake"
+    );
+
+    // Verify table state (rake_accumulated reset)
+    let table_account = svm.get_account(&table_key).unwrap();
+    let table_rake = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
+    assert_eq!(table_rake, 0, "Table.rake_accumulated should be reset to 0");
+
+    // Verify staking pool state
+    let pool_account = svm.get_account(&staking_pool_key).unwrap();
+    assert_eq!(
+        parse_staking_pool_accumulated_rewards(&pool_account.data),
+        expected_pool_rewards,
+        "StakingPool.accumulated_rewards should be increased"
+    );
+
+    println!("✓ test_sweep_rake_table_to_rewards_vault passed (AC-3.4)");
+    println!("  - Rake swept: {} CRISPS", rake_amount / 1_000_000);
+    println!("  - Rewards vault: {} -> {} CRISPS", initial_rewards_vault / 1_000_000, expected_rewards_vault / 1_000_000);
 }
