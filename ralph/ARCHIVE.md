@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Action wiring (fold/check/call/raise/shove/join/leave). AC-CI3.1 to AC-CI3.7. Validation: hook tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Transaction wiring + signing + status surfacing. AC-CI2.1 to AC-CI2.4, AC-PQ.CI1. Validation: hook tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
