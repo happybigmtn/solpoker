@@ -8,6 +8,14 @@ license = "MIT"
 default = ["std"]
 std = []
 shortdeck = []
+proptest = ["dep:proptest"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+proptest = "1.5"
+
+[dependencies.proptest]
+version = "1.5"
+optional = true
