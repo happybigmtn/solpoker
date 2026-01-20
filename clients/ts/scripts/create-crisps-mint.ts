@@ -3,10 +3,15 @@
  *
  * This script:
  * 1. Creates a new Token-2022 mint with 9 decimals
- * 2. Initializes MetadataPointer extension (points to mint itself)
- * 3. Initializes TokenMetadata extension (name, symbol, URI)
+ * 2. Adds MetadataPointer extension (self-referential)
+ * 3. Adds TokenMetadata extension with name, symbol, URI
  * 4. Sets the authority wallet as mint authority
  * 5. Saves the mint address for subsequent scripts
+ *
+ * Token-2022 Extension Order (Critical):
+ * - Extensions must be initialized BEFORE InitializeMint
+ * - TokenMetadata must be initialized AFTER InitializeMint (it requires mint authority)
+ * - Account space must be pre-allocated for ALL extensions
  *
  * Usage: npx tsx scripts/create-crisps-mint.ts
  *
@@ -23,15 +28,14 @@ import {
   getBase64EncodedWireTransaction,
   generateKeyPairSigner,
   pipe,
-  some,
   type TransactionSigner,
   type Rpc,
 } from "@solana/kit";
 import { getCreateAccountInstruction } from "@solana-program/system";
 import {
-  getInitializeMint2Instruction,
-  getInitializeMetadataPointerInstruction,
-  getInitializeTokenMetadataInstruction,
+  getInitializeMintInstruction,
+  getPreInitializeInstructionsForMintExtensions,
+  getPostInitializeInstructionsForMintExtensions,
   getMintSize,
   extension,
   TOKEN_2022_PROGRAM_ADDRESS,
@@ -106,7 +110,7 @@ async function sendAndConfirmTransaction(
 }
 
 async function main() {
-  console.log("Creating CRISPS Token-2022 mint on devnet...\n");
+  console.log("Creating CRISPS Token-2022 mint on devnet with metadata...\n");
   logRpcConfig();
   console.log();
 
@@ -129,14 +133,16 @@ async function main() {
   const mint = await generateKeyPairSigner();
   console.log(`New mint address: ${mint.address}`);
 
-  // Define extensions for size calculation
-  // MetadataPointer (64 bytes) + TokenMetadata (variable, depends on strings)
+  // ===== Build extensions =====
+  // MetadataPointer extension (points to the mint itself for self-referential metadata)
   const metadataPointerExt = extension("MetadataPointer", {
-    authority: some(signer.address),
-    metadataAddress: some(mint.address), // Metadata stored in mint account itself
+    authority: signer.address,
+    metadataAddress: mint.address,
   });
+
+  // TokenMetadata extension with actual values
   const tokenMetadataExt = extension("TokenMetadata", {
-    updateAuthority: some(signer.address),
+    updateAuthority: signer.address,
     mint: mint.address,
     name: CRISPS_NAME,
     symbol: CRISPS_SYMBOL,
@@ -144,75 +150,68 @@ async function main() {
     additionalMetadata: new Map(),
   });
 
-  // Calculate mint size with extensions
-  const mintSize = getMintSize([metadataPointerExt, tokenMetadataExt]);
-  console.log(`Mint size (with metadata): ${mintSize} bytes`);
+  const extensions = [metadataPointerExt, tokenMetadataExt];
 
-  const mintRent = await rpc.getMinimumBalanceForRentExemption(BigInt(mintSize)).send();
+  // Calculate sizes:
+  // - Full size with all extensions (for rent)
+  // - Size without post-initialize extensions (for initial allocation)
+  const fullMintSize = getMintSize(extensions);
+  const initialMintSize = getMintSize([metadataPointerExt]); // TokenMetadata is post-initialize
+  console.log(`Full mint size: ${fullMintSize} bytes`);
+  console.log(`Initial mint size (without TokenMetadata): ${initialMintSize} bytes`);
+
+  // Pay rent for full size upfront
+  const mintRent = await rpc.getMinimumBalanceForRentExemption(BigInt(fullMintSize)).send();
   console.log(`Rent-exempt minimum: ${mintRent} lamports`);
 
   // Get latest blockhash
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
-  // Build instructions
+  // ===== Build instructions using helper functions =====
+  // 1. Create account (allocate space for pre-initialize extensions only, but pay for full rent)
   const createAccountIx = getCreateAccountInstruction({
     payer: signer,
     newAccount: mint,
     lamports: mintRent,
-    space: mintSize,
+    space: initialMintSize, // Only MetadataPointer space initially
     programAddress: TOKEN_2022_PROGRAM_ADDRESS,
   });
 
-  // Initialize MetadataPointer extension BEFORE InitializeMint2
-  // This tells Token-2022 where to find the metadata (pointing to the mint itself)
-  const initMetadataPointerIx = getInitializeMetadataPointerInstruction({
-    mint: mint.address,
-    authority: some(signer.address),
-    metadataAddress: some(mint.address), // Self-referential: metadata stored in mint
-  });
+  // 2. Pre-initialize extension instructions (MetadataPointer)
+  const preInitIxs = getPreInitializeInstructionsForMintExtensions(mint.address, extensions);
 
-  const initializeMintIx = getInitializeMint2Instruction({
+  // 3. Initialize the mint
+  const initializeMintIx = getInitializeMintInstruction({
     mint: mint.address,
     decimals: CRISPS_DECIMALS,
     mintAuthority: signer.address,
     freezeAuthority: signer.address,
   });
 
-  // Initialize TokenMetadata AFTER InitializeMint2
-  // The metadata extension requires the mint to be initialized first
-  const initTokenMetadataIx = getInitializeTokenMetadataInstruction({
-    metadata: mint.address, // Metadata stored in mint account
-    updateAuthority: signer.address,
-    mint: mint.address,
-    mintAuthority: signer,
-    name: CRISPS_NAME,
-    symbol: CRISPS_SYMBOL,
-    uri: CRISPS_URI,
-  });
+  // 4. Post-initialize extension instructions (TokenMetadata - handles realloc internally)
+  const postInitIxs = getPostInitializeInstructionsForMintExtensions(mint.address, signer, extensions);
 
-  // Build transaction - order matters:
-  // 1. CreateAccount (allocates space for mint + extensions)
-  // 2. InitializeMetadataPointer (sets up extension before mint init)
-  // 3. InitializeMint2 (initializes the base mint)
-  // 4. InitializeTokenMetadata (writes metadata after mint init)
-  const transactionMessage = pipe(
+  console.log(`Pre-init instructions: ${preInitIxs.length}`);
+  console.log(`Post-init instructions: ${postInitIxs.length}`);
+
+  // Build and send single transaction
+  const txMessage = pipe(
     createTransactionMessage({ version: 0 }),
     (m) => setTransactionMessageFeePayerSigner(signer, m),
     (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
     (m) =>
       appendTransactionMessageInstructions(
-        [createAccountIx, initMetadataPointerIx, initializeMintIx, initTokenMetadataIx],
+        [createAccountIx, ...preInitIxs, initializeMintIx, ...postInitIxs],
         m
       )
   );
 
-  // Sign and send
-  console.log("\nCreating mint account...");
-  const signedTx = await signTransactionMessageWithSigners(transactionMessage);
+  console.log("\nCreating mint with MetadataPointer + TokenMetadata...");
+  const signedTx = await signTransactionMessageWithSigners(txMessage);
   const signature = await sendAndConfirmTransaction(rpc, signedTx, "confirmed");
   console.log(`Mint created: ${signature}`);
 
-  // Verify the mint
+  // ===== VERIFICATION =====
   console.log("\nVerifying mint account...");
   const mintInfo = await rpc.getAccountInfo(mint.address, { encoding: "base64" }).send();
 
@@ -220,28 +219,19 @@ async function main() {
     throw new Error("Mint account not found after creation");
   }
 
-  // Check owner is Token-2022 program
   const owner = mintInfo.value.owner;
   if (owner !== TOKEN_2022_PROGRAM_ADDRESS) {
     throw new Error(`Unexpected mint owner: ${owner} (expected ${TOKEN_2022_PROGRAM_ADDRESS})`);
   }
   console.log(`  Owner: ${owner} ✓ (Token-2022)`);
 
-  // Parse mint data to verify decimals
   const data = Buffer.from(mintInfo.value.data[0], "base64");
-  // Mint layout: mintAuthorityOption(4) + mintAuthority(32) + supply(8) + decimals(1) + ...
-  const decimals = data[44]; // 4 + 32 + 8 = 44
+  const decimals = data[44];
   if (decimals !== CRISPS_DECIMALS) {
     throw new Error(`Unexpected decimals: ${decimals} (expected ${CRISPS_DECIMALS})`);
   }
   console.log(`  Decimals: ${decimals} ✓`);
-
-  // Verify account size indicates extensions are present
-  // Base mint is 82 bytes, with extensions it should be larger
-  if (data.length <= 82) {
-    throw new Error(`Mint account too small (${data.length} bytes), metadata extension missing`);
-  }
-  console.log(`  Account size: ${data.length} bytes ✓ (includes metadata extension)`);
+  console.log(`  Account size: ${data.length} bytes ✓ (includes extensions)`);
 
   // Save mint address
   writeFileSync(MINT_ADDRESS_FILE, mint.address);

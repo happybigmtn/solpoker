@@ -15,13 +15,14 @@ import {
   address,
   getProgramDerivedAddress,
   getBase58Decoder,
+  createSolanaRpc,
   type Address,
 } from "@solana/kit";
-import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
+import { TOKEN_2022_PROGRAM_ADDRESS, fetchMint, isExtension } from "@solana-program/token-2022";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRpc, logRpcConfig } from "./utils/rpc.js";
+import { createRpc, logRpcConfig, getRpcUrl } from "./utils/rpc.js";
 
 // Program IDs
 const ENTROPY_PROGRAM_ID = address("GG5nqvfpYHXyMF5A5yyMYjTCKQmKTDjMheJ4iCRSvTRf");
@@ -73,101 +74,6 @@ function parseMintAccount(data: Uint8Array): {
     freezeAuthorityOption: view.getUint32(46, true),
     freezeAuthority: decoder.decode(data.slice(50, 82)),
   };
-}
-
-/**
- * Parse Token-2022 TokenMetadata extension from mint account data.
- * Returns null if not found.
- *
- * Extension layout (after base mint at offset 82):
- * - Account type (1 byte): 0x01 for Mint
- * - Extensions array...
- *
- * Each extension:
- * - Type (2 bytes, little-endian): ExtensionType enum
- * - Length (2 bytes, little-endian): Length of extension data
- * - Data (variable): Extension-specific data
- *
- * TokenMetadata extension type = 22
- * TokenMetadata data layout:
- * - UpdateAuthority (32 bytes, Option<Pubkey>: 4 byte discriminant + 32 bytes if Some)
- * - Mint (32 bytes)
- * - Name (4 byte length prefix + string)
- * - Symbol (4 byte length prefix + string)
- * - URI (4 byte length prefix + string)
- * - Additional metadata (map - we skip for now)
- */
-function parseTokenMetadataExtension(data: Uint8Array): {
-  name: string;
-  symbol: string;
-  uri: string;
-} | null {
-  // Skip base mint (82 bytes) and account type byte
-  const MINT_SIZE = 82;
-  const ACCOUNT_TYPE_SIZE = 1;
-  const METADATA_EXTENSION_TYPE = 22;
-
-  if (data.length <= MINT_SIZE + ACCOUNT_TYPE_SIZE) {
-    return null;
-  }
-
-  let offset = MINT_SIZE + ACCOUNT_TYPE_SIZE;
-
-  // Iterate through extensions
-  while (offset + 4 <= data.length) {
-    const view = new DataView(data.buffer, data.byteOffset + offset, 4);
-    const extensionType = view.getUint16(0, true);
-    const extensionLength = view.getUint16(2, true);
-    offset += 4;
-
-    if (extensionType === METADATA_EXTENSION_TYPE) {
-      // Found TokenMetadata extension
-      const extData = data.slice(offset, offset + extensionLength);
-      return parseTokenMetadataData(extData);
-    }
-
-    offset += extensionLength;
-  }
-
-  return null;
-}
-
-function parseTokenMetadataData(data: Uint8Array): {
-  name: string;
-  symbol: string;
-  uri: string;
-} {
-  const decoder = new TextDecoder("utf-8");
-  let offset = 0;
-
-  // UpdateAuthority: Option<Pubkey> (1 byte discriminant + optional 32 bytes)
-  const hasUpdateAuthority = data[offset] === 1;
-  offset += 1;
-  if (hasUpdateAuthority) {
-    offset += 32;
-  }
-
-  // Mint: Pubkey (32 bytes)
-  offset += 32;
-
-  // Name: length-prefixed string (4 bytes length + string)
-  const nameLen = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
-  offset += 4;
-  const name = decoder.decode(data.slice(offset, offset + nameLen));
-  offset += nameLen;
-
-  // Symbol: length-prefixed string
-  const symbolLen = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
-  offset += 4;
-  const symbol = decoder.decode(data.slice(offset, offset + symbolLen));
-  offset += symbolLen;
-
-  // URI: length-prefixed string
-  const uriLen = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
-  offset += 4;
-  const uri = decoder.decode(data.slice(offset, offset + uriLen));
-
-  return { name, symbol, uri };
 }
 
 function parsePokerConfig(data: Uint8Array): {
@@ -284,37 +190,49 @@ async function main() {
       });
 
       if (hasExtensions) {
-        // Parse metadata if present
-        // Token-2022 extension layout: type_padding(1) + type(1) + length(2) + data
-        // We need to search for TokenMetadata extension (type 22)
-        const metadata = parseTokenMetadataExtension(new Uint8Array(data));
-        if (metadata) {
-          console.log(`  Metadata Name: ${metadata.name}`);
-          console.log(`  Metadata Symbol: ${metadata.symbol}`);
-          console.log(`  Metadata URI: ${metadata.uri}`);
+        // Use fetchMint to properly decode extensions
+        const kitRpc = createSolanaRpc(getRpcUrl());
+        const mintAccount = await fetchMint(kitRpc, mintAddress);
+        const extensions = mintAccount.data.extensions;
 
-          results.push({
-            name: "AC-D3.4: Metadata name is correct",
-            passed: metadata.name === EXPECTED_NAME,
-            message: `Name: "${metadata.name}" (expected: "${EXPECTED_NAME}")`,
-          });
+        if (extensions.__option === "Some") {
+          // Find TokenMetadata extension
+          const tokenMetadata = extensions.value.find((ext) => isExtension("TokenMetadata", ext));
 
-          results.push({
-            name: "AC-D3.4: Metadata symbol is correct",
-            passed: metadata.symbol === EXPECTED_SYMBOL,
-            message: `Symbol: "${metadata.symbol}" (expected: "${EXPECTED_SYMBOL}")`,
-          });
+          if (tokenMetadata && isExtension("TokenMetadata", tokenMetadata)) {
+            console.log(`  Metadata Name: ${tokenMetadata.name}`);
+            console.log(`  Metadata Symbol: ${tokenMetadata.symbol}`);
+            console.log(`  Metadata URI: ${tokenMetadata.uri}`);
 
-          results.push({
-            name: "AC-D3.4: Metadata URI is correct",
-            passed: metadata.uri === EXPECTED_URI,
-            message: `URI: "${metadata.uri}" (expected: "${EXPECTED_URI}")`,
-          });
+            results.push({
+              name: "AC-D3.4: Metadata name is correct",
+              passed: tokenMetadata.name === EXPECTED_NAME,
+              message: `Name: "${tokenMetadata.name}" (expected: "${EXPECTED_NAME}")`,
+            });
+
+            results.push({
+              name: "AC-D3.4: Metadata symbol is correct",
+              passed: tokenMetadata.symbol === EXPECTED_SYMBOL,
+              message: `Symbol: "${tokenMetadata.symbol}" (expected: "${EXPECTED_SYMBOL}")`,
+            });
+
+            results.push({
+              name: "AC-D3.4: Metadata URI is correct",
+              passed: tokenMetadata.uri === EXPECTED_URI,
+              message: `URI: "${tokenMetadata.uri}" (expected: "${EXPECTED_URI}")`,
+            });
+          } else {
+            results.push({
+              name: "AC-D3.4: TokenMetadata extension present",
+              passed: false,
+              message: "TokenMetadata extension not found in mint account",
+            });
+          }
         } else {
           results.push({
             name: "AC-D3.4: TokenMetadata extension present",
             passed: false,
-            message: "TokenMetadata extension not found in mint account",
+            message: "No extensions found in mint account",
           });
         }
       }

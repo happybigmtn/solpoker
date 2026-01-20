@@ -2,17 +2,17 @@
 
 Active specifications with acceptance criteria. Read this first to understand scope.
 
-## Active Specs
+## Active Specs (Production Readiness)
 
-- `onchain-poker.md` — Full on-chain multiplayer poker with CRISPS + entropy-style RNG (AC-1.1 to AC-8.3)
-- `ui-minimal.md` — Jony Ive minimal UI with superhuman keyboard control and latest Solana adapters (AC-1.1 to AC-11.1, AC-PQ.1 to AC-PQ.3)
-- `client-integration.md` — SDK + UI wiring for PDAs, transactions, and table flows (AC-CI1.1 to AC-CI6.4, AC-PQ.CI1 to AC-PQ.CI3)
-- `entropy-provider.md` — Off-chain entropy provider service (AC-EP1.1 to AC-EP6.3, AC-PQ.EP1 to AC-PQ.EP2)
-- `devnet-deployment.md` — Devnet deployment automation and verification (AC-D1.1 to AC-D6.6)
+- `production-release.md` — Release engineering, governance, upgrades, and migrations (AC-PR1.1 to AC-PR1.9)
+- `security-assurance.md` — Threat modeling, audits, and security testing (AC-SEC1.1 to AC-SEC1.9)
+- `observability-ops.md` — Logs, metrics, alerts, and operational runbooks (AC-OPS1.1 to AC-OPS1.8)
+- `reliability-scalability.md` — Load, resilience, and abuse controls (AC-REL1.1 to AC-REL1.7)
+- `data-integrity.md` — Indexing, reconciliation, and retention (AC-DATA1.1 to AC-DATA1.5)
 
 ## Planning Artifacts
 
-- `sprint-plan.md` — Sprint/task breakdown with validation notes.
+None (sprint plan archived).
 
 ## Archived
 

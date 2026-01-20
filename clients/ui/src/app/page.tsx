@@ -1,4 +1,5 @@
 import { WalletConnect } from '@/components/wallet-connect';
+import { BalanceDisplay } from '@/components/balance-display';
 import { Lobby } from '@/components/lobby';
 import type { Address } from '@solana/kit';
 
@@ -19,7 +20,11 @@ export default function Home() {
 
       <header className="flex h-16 items-center justify-between border-b border-zinc-200 px-6 dark:border-zinc-800">
         <h1 className="text-lg font-semibold">RoboPoker</h1>
-        <WalletConnect />
+        <div className="flex items-center gap-4">
+          {/* AC-D6.2: Display SOL + CRISPS balances when wallet connected */}
+          <BalanceDisplay crispsMint={crispsMint} />
+          <WalletConnect />
+        </div>
       </header>
 
       <main id="main" className="flex-1 p-6">
