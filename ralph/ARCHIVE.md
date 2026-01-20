@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Table discovery + card rendering. AC-CI5.1 to AC-CI6.4, AC-PQ.CI3. Validation: component tests.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Error handling + simulation surfacing. AC-CI4.1 to AC-CI4.4, AC-PQ.CI2. Validation: error mapping tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
