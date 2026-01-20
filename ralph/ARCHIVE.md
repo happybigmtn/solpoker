@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Poker CPI to entropy + single-provider enforcement. AC-2.4 to AC-2.5. Validation: CPI integration test.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Commitment verification + randomness derivation + bond slashing. AC-2.1 to AC-2.3. Validation: unit tests for commit/reveal correctness.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
