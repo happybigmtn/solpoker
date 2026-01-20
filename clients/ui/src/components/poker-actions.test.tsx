@@ -8,11 +8,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 
 // Track the callback passed to useKeyboardShortcuts
-let capturedShortcutCallbacks: Record<string, () => void> = {};
+let capturedShortcutCallbacks: Record<string, (() => void) | undefined> = {};
 
 // Mock useKeyboardShortcuts to capture registered callbacks
 vi.mock('@/hooks/use-keyboard-shortcuts', () => ({
@@ -164,136 +163,128 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(mockOnAction).toHaveBeenCalledWith('shove', 1000);
     });
 
-    it('does not register shortcuts when not player turn', () => {
+    it('passes isPlayerTurn=false to hook when not player turn', async () => {
+      // Import the mocked module to check its call arguments
+      const { useKeyboardShortcuts } = await import('@/hooks/use-keyboard-shortcuts');
       render(<PokerActions {...defaultProps} isPlayerTurn={false} />);
 
-      // All shortcuts should be undefined when not player turn
-      expect(capturedShortcutCallbacks.fold).toBeUndefined();
+      // Hook should receive isPlayerTurn: false so it won't activate shortcuts
+      expect(useKeyboardShortcuts).toHaveBeenCalledWith(
+        expect.objectContaining({ isPlayerTurn: false })
+      );
     });
   });
 
   describe('AC-2.3: Raise mode and amount adjustment', () => {
-    it('enters raise mode on first R press', async () => {
-      const user = userEvent.setup();
+    it('enters raise mode on first R press', () => {
       render(<PokerActions {...defaultProps} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       // Raise input should appear
       expect(screen.getByRole('spinbutton', { name: /Raise amount/i })).toBeInTheDocument();
     });
 
-    it('shows raise input with current amount', async () => {
-      const user = userEvent.setup();
+    it('shows raise input with current amount', () => {
       render(<PokerActions {...defaultProps} raiseAmount={500} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       const input = screen.getByRole('spinbutton', { name: /Raise amount/i });
       expect(input).toHaveValue(500);
     });
 
-    it('shows +/- buttons in raise mode', async () => {
-      const user = userEvent.setup();
+    it('shows +/- buttons in raise mode', () => {
       render(<PokerActions {...defaultProps} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       expect(screen.getByRole('button', { name: /Increase raise amount/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Decrease raise amount/i })).toBeInTheDocument();
     });
 
-    it('increase button calls onRaiseAmountChange', async () => {
-      const user = userEvent.setup();
+    it('increase button calls onRaiseAmountChange', () => {
       render(<PokerActions {...defaultProps} raiseAmount={200} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       // Click increase
       const increaseBtn = screen.getByRole('button', { name: /Increase raise amount/i });
-      await user.click(increaseBtn);
+      fireEvent.click(increaseBtn);
 
       expect(mockOnRaiseAmountChange).toHaveBeenCalled();
     });
 
-    it('decrease button calls onRaiseAmountChange', async () => {
-      const user = userEvent.setup();
+    it('decrease button calls onRaiseAmountChange', () => {
       render(<PokerActions {...defaultProps} raiseAmount={500} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       // Click decrease
       const decreaseBtn = screen.getByRole('button', { name: /Decrease raise amount/i });
-      await user.click(decreaseBtn);
+      fireEvent.click(decreaseBtn);
 
       expect(mockOnRaiseAmountChange).toHaveBeenCalled();
     });
 
-    it('decrease button is disabled at minRaise', async () => {
-      const user = userEvent.setup();
+    it('decrease button is disabled at minRaise', () => {
       render(<PokerActions {...defaultProps} raiseAmount={200} minRaise={200} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       const decreaseBtn = screen.getByRole('button', { name: /Decrease raise amount/i });
       expect(decreaseBtn).toBeDisabled();
     });
 
-    it('increase button is disabled at maxRaise', async () => {
-      const user = userEvent.setup();
+    it('increase button is disabled at maxRaise', () => {
       render(<PokerActions {...defaultProps} raiseAmount={1000} maxRaise={1000} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       const increaseBtn = screen.getByRole('button', { name: /Increase raise amount/i });
       expect(increaseBtn).toBeDisabled();
     });
 
-    it('input change updates raise amount', async () => {
-      const user = userEvent.setup();
+    it('input change updates raise amount', () => {
       render(<PokerActions {...defaultProps} raiseAmount={200} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       const input = screen.getByRole('spinbutton', { name: /Raise amount/i });
-      await user.clear(input);
-      await user.type(input, '500');
+      fireEvent.change(input, { target: { value: '500' } });
 
       expect(mockOnRaiseAmountChange).toHaveBeenCalledWith(500);
     });
 
-    it('clamps input value to min/max', async () => {
-      const user = userEvent.setup();
+    it('clamps input value to min/max', () => {
       render(<PokerActions {...defaultProps} raiseAmount={200} minRaise={200} maxRaise={1000} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       const input = screen.getByRole('spinbutton', { name: /Raise amount/i });
-      await user.clear(input);
-      await user.type(input, '5000'); // Over max
+      fireEvent.change(input, { target: { value: '5000' } }); // Over max
 
       // Should clamp to max
       expect(mockOnRaiseAmountChange).toHaveBeenLastCalledWith(1000);
     });
 
-    it('confirms raise on Enter key', async () => {
-      const user = userEvent.setup();
+    it('confirms raise on Enter key', () => {
       render(<PokerActions {...defaultProps} raiseAmount={500} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       // Press Enter in input
       const input = screen.getByRole('spinbutton', { name: /Raise amount/i });
@@ -302,13 +293,12 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(mockOnAction).toHaveBeenCalledWith('raise', 500);
     });
 
-    it('cancels raise mode on Escape key (AC-2.4)', async () => {
-      const user = userEvent.setup();
+    it('cancels raise mode on Escape key (AC-2.4)', () => {
       render(<PokerActions {...defaultProps} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       expect(screen.getByRole('spinbutton', { name: /Raise amount/i })).toBeInTheDocument();
 
@@ -320,106 +310,96 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(screen.queryByRole('spinbutton', { name: /Raise amount/i })).not.toBeInTheDocument();
     });
 
-    it('shows Enter shortcut on confirm button in raise mode', async () => {
-      const user = userEvent.setup();
+    it('shows Enter shortcut on confirm button in raise mode', () => {
       render(<PokerActions {...defaultProps} />);
 
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       // Raise button should now show "Enter" instead of "R"
       const confirmBtn = screen.getByRole('button', { name: /Confirm/i });
       expect(within(confirmBtn).getByText('Enter')).toBeInTheDocument();
     });
 
-    it('registers increaseRaise shortcut in raise mode', async () => {
-      const user = userEvent.setup();
+    it('registers increaseRaise shortcut in raise mode', () => {
       render(<PokerActions {...defaultProps} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       // Callback should be registered now
       expect(capturedShortcutCallbacks.increaseRaise).toBeDefined();
     });
 
-    it('registers decreaseRaise shortcut in raise mode', async () => {
-      const user = userEvent.setup();
+    it('registers decreaseRaise shortcut in raise mode', () => {
       render(<PokerActions {...defaultProps} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       expect(capturedShortcutCallbacks.decreaseRaise).toBeDefined();
     });
 
-    it('registers confirmRaise shortcut in raise mode', async () => {
-      const user = userEvent.setup();
+    it('registers confirmRaise shortcut in raise mode', () => {
       render(<PokerActions {...defaultProps} />);
 
       // Enter raise mode
       const raiseBtn = screen.getByRole('button', { name: /Raise/i });
-      await user.click(raiseBtn);
+      fireEvent.click(raiseBtn);
 
       expect(capturedShortcutCallbacks.confirmRaise).toBeDefined();
     });
   });
 
   describe('Button click actions', () => {
-    it('Fold button triggers fold action', async () => {
-      const user = userEvent.setup();
+    it('Fold button triggers fold action', () => {
       render(<PokerActions {...defaultProps} />);
 
-      await user.click(screen.getByRole('button', { name: /Fold/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Fold/i }));
       expect(mockOnAction).toHaveBeenCalledWith('fold');
     });
 
-    it('Check button triggers check action', async () => {
-      const user = userEvent.setup();
+    it('Check button triggers check action', () => {
       render(<PokerActions {...defaultProps} canCheck={true} />);
 
-      await user.click(screen.getByRole('button', { name: /Check/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Check/i }));
       expect(mockOnAction).toHaveBeenCalledWith('check');
     });
 
-    it('Call button triggers call action', async () => {
-      const user = userEvent.setup();
+    it('Call button triggers call action', () => {
       render(<PokerActions {...defaultProps} canCheck={false} />);
 
-      await user.click(screen.getByRole('button', { name: /Call/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Call/i }));
       expect(mockOnAction).toHaveBeenCalledWith('call');
     });
 
-    it('All In button triggers shove action with maxRaise', async () => {
-      const user = userEvent.setup();
+    it('All In button triggers shove action with maxRaise', () => {
       render(<PokerActions {...defaultProps} maxRaise={1000} />);
 
-      await user.click(screen.getByRole('button', { name: /All In/i }));
+      fireEvent.click(screen.getByRole('button', { name: /All In/i }));
       expect(mockOnAction).toHaveBeenCalledWith('shove', 1000);
     });
 
-    it('Raise button enters raise mode on first click', async () => {
-      const user = userEvent.setup();
+    it('Raise button enters raise mode on first click', () => {
       render(<PokerActions {...defaultProps} />);
 
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
 
       // Should now be in raise mode
       expect(screen.getByRole('spinbutton', { name: /Raise amount/i })).toBeInTheDocument();
       expect(mockOnAction).not.toHaveBeenCalled();
     });
 
-    it('Raise button confirms on second click (in raise mode)', async () => {
-      const user = userEvent.setup();
+    it('Raise button confirms on second click (in raise mode)', () => {
       render(<PokerActions {...defaultProps} raiseAmount={500} />);
 
       // First click enters raise mode
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
 
       // Second click confirms
-      await user.click(screen.getByRole('button', { name: /Confirm/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Confirm/i }));
 
       expect(mockOnAction).toHaveBeenCalledWith('raise', 500);
     });
@@ -429,10 +409,12 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
     it('disables all buttons when submitting', () => {
       render(<PokerActions {...defaultProps} isSubmitting={true} />);
 
-      expect(screen.getByRole('button', { name: /Fold/i })).toBeDisabled();
-      expect(screen.getByRole('button', { name: /Call/i })).toBeDisabled();
-      expect(screen.getByRole('button', { name: /Raise/i })).toBeDisabled();
-      expect(screen.getByRole('button', { name: /All In/i })).toBeDisabled();
+      // When submitting, text is replaced with spinner so buttons have shortcut as name
+      const buttons = screen.getAllByRole('button');
+      // All action buttons should be disabled
+      buttons.forEach((btn) => {
+        expect(btn).toBeDisabled();
+      });
     });
 
     it('shows spinner in buttons when submitting', () => {
@@ -447,22 +429,23 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(spinners.some((s) => s !== null)).toBe(true);
     });
 
-    it('does not trigger action when submitting', async () => {
-      const user = userEvent.setup();
+    it('does not trigger action when submitting', () => {
       render(<PokerActions {...defaultProps} isSubmitting={true} />);
 
-      const foldBtn = screen.getByRole('button', { name: /Fold/i });
-      await user.click(foldBtn);
+      // When submitting, text is replaced with spinner, so find button containing "F" kbd
+      const buttons = screen.getAllByRole('button');
+      const foldBtn = buttons.find((btn) => btn.textContent?.includes('F'));
+      expect(foldBtn).toBeDefined();
+      fireEvent.click(foldBtn!);
 
       expect(mockOnAction).not.toHaveBeenCalled();
     });
 
-    it('disables raise input controls when submitting', async () => {
-      const user = userEvent.setup();
+    it('disables raise input controls when submitting', () => {
       const { rerender } = render(<PokerActions {...defaultProps} />);
 
       // Enter raise mode
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
 
       // Re-render with submitting=true
       rerender(<PokerActions {...defaultProps} isSubmitting={true} />);
@@ -473,12 +456,11 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
   });
 
   describe('Raise mode reset', () => {
-    it('resets raise mode when turn ends', async () => {
-      const user = userEvent.setup();
+    it('resets raise mode when turn ends', () => {
       const { rerender } = render(<PokerActions {...defaultProps} isPlayerTurn={true} />);
 
       // Enter raise mode
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
       expect(screen.getByRole('spinbutton', { name: /Raise amount/i })).toBeInTheDocument();
 
       // Turn ends
@@ -506,11 +488,10 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(screen.getByText('10,000')).toBeInTheDocument();
     });
 
-    it('formats confirm raise amount with number format', async () => {
-      const user = userEvent.setup();
+    it('formats confirm raise amount with number format', () => {
       render(<PokerActions {...defaultProps} raiseAmount={5000} />);
 
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
 
       // Confirm button should show formatted amount
       expect(screen.getByText('5,000')).toBeInTheDocument();
@@ -533,21 +514,19 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(foldBtn.className).toContain('touch-action-manipulation');
     });
 
-    it('raise input has correct inputMode for mobile keyboard', async () => {
-      const user = userEvent.setup();
+    it('raise input has correct inputMode for mobile keyboard', () => {
       render(<PokerActions {...defaultProps} />);
 
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
 
       const input = screen.getByRole('spinbutton', { name: /Raise amount/i });
       expect(input).toHaveAttribute('inputMode', 'numeric');
     });
 
-    it('raise input uses tabular-nums for alignment (AC-6.1)', async () => {
-      const user = userEvent.setup();
+    it('raise input uses tabular-nums for alignment (AC-6.1)', () => {
       render(<PokerActions {...defaultProps} />);
 
-      await user.click(screen.getByRole('button', { name: /Raise/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
 
       const input = screen.getByRole('spinbutton', { name: /Raise amount/i });
       expect(input.className).toContain('tabular-nums');

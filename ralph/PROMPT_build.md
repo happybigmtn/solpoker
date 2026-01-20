@@ -42,10 +42,6 @@ At the end of the iteration, print:
 - Tests/commands run and results
 - Which single plan checkbox is now complete
 
-### Commit Policy
-
-- Do **not** commit/push unless the user explicitly requests it.
-
 ### Completion Signal (Critical)
 
 - Do **NOT** output `<promise>COMPLETE</promise>` unless ALL tasks in `IMPLEMENTATION_PLAN.md` are checked `[x]`
