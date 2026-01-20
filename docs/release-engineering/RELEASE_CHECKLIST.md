@@ -111,7 +111,7 @@ If issues are discovered post-deployment:
 
 ### Immediate Response (< 15 minutes)
 1. **Assess severity**: Is this a security issue or funds-at-risk?
-2. **Pause if needed**: Use emergency pause procedure (see AC-PR1.6)
+2. **Pause if needed**: Use emergency pause procedure (see `GOVERNANCE.md` - Emergency Pause/Disable Procedure)
 3. **Communicate**: Alert team via designated channel
 
 ### Rollback Steps (if required)

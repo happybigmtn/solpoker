@@ -18,6 +18,8 @@ Release engineering ensures that program deployments are:
 | AC-PR1.2 | On-chain verification with stored artifacts | `scripts/verify-programs.sh` |
 | AC-PR1.3 | Release artifacts with checksums | `target/release-artifacts/` |
 | AC-PR1.4 | Mainnet release checklist | `RELEASE_CHECKLIST.md` |
+| AC-PR1.5 | Upgrade authority multisig with rotation | `GOVERNANCE.md` |
+| AC-PR1.6 | Emergency pause/disable procedure | `GOVERNANCE.md` |
 
 ## Toolchain Versions
 
@@ -56,7 +58,8 @@ This generates:
 ```
 docs/release-engineering/
 ├── README.md                 # This file
-└── RELEASE_CHECKLIST.md      # Mainnet deployment checklist
+├── RELEASE_CHECKLIST.md      # Mainnet deployment checklist
+└── GOVERNANCE.md             # Upgrade authority & emergency procedures
 
 scripts/
 ├── build-release.sh          # Reproducible build script
