@@ -10,6 +10,12 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Betting rules + legal action enforcement. AC-5.1 to AC-5.3. Validation: illegal action failure tests.
+  - LiteSVM invalid action tests: out-of-turn, check-when-bet, raise bounds (AC-5.2, AC-5.3).
+  - LiteSVM valid action tests: call/raise/fold success paths (AC-5.1, AC-5.2).
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Table create/join/leave + timeouts. AC-4.1 to AC-4.4. Validation: lifecycle tests + timeout cases.
   - LiteSVM table lifecycle create/join/leave test (AC-4.2).
   - LiteSVM timeout deadline + fallback tests (AC-4.4).

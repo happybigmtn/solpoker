@@ -8,9 +8,6 @@
 ### Phase 1: Core Program Architecture
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
-- [x] Betting rules + legal action enforcement. AC-5.1 to AC-5.3. Validation: illegal action failure tests.
-  - [x] LiteSVM invalid action tests: out-of-turn, check-when-bet, raise bounds (AC-5.2, AC-5.3).
-  - [x] LiteSVM valid action tests: call/raise/fold success paths (AC-5.1, AC-5.2).
 - [x] Settlement + payout invariants. AC-6.1 to AC-6.2. Validation: side-pot payout tests.
   - [x] LiteSVM settlement tests: heads-up, side-pot all-in, invariant violation checks (AC-6.1, AC-6.2).
 
