@@ -9,16 +9,6 @@
 ### Phase 2: Entropy On-Chain + Privacy
 ### Phase 3: Token, Table Lifecycle, Betting, Settlement
 ### Phase 4: Security + Testing + SDK Generation
-- [x] Owner/signer/PDA validation + account duplication checks. AC-7.1 to AC-7.3. Validation: negative tests.
-  - [x] LiteSVM test: Initialize rejects missing authority signer (AC-7.1).
-  - [x] LiteSVM test: JoinTable rejects missing player signer (AC-7.1).
-  - [x] LiteSVM test: PlayerAction rejects missing player signer (AC-7.1).
-  - [x] LiteSVM test: Initialize rejects wrong config PDA (AC-7.2).
-  - [x] LiteSVM test: CreateTable rejects wrong table PDA (AC-7.2).
-  - [x] LiteSVM test: JoinTable rejects wrong vault account (AC-7.2).
-  - [x] LiteSVM test: CreateTable rejects duplicate mutable accounts (AC-7.3).
-  - [x] LiteSVM test: JoinTable rejects duplicate mutable accounts (AC-7.3).
-  - [x] LiteSVM test: LeaveTable rejects duplicate mutable accounts (AC-7.3).
 - [x] Instruction unit tests + full-hand integration test. AC-8.1 to AC-8.2. Validation: LiteSVM/Mollusk + Surfpool as needed.
 - [x] Typed SDK generated from IDL with core instruction builders. AC-8.3. Validation: SDK smoke tests.
 

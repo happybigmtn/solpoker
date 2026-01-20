@@ -10,6 +10,19 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Owner/signer/PDA validation + account duplication checks. AC-7.1 to AC-7.3. Validation: negative tests.
+  - LiteSVM test: Initialize rejects missing authority signer (AC-7.1).
+  - LiteSVM test: JoinTable rejects missing player signer (AC-7.1).
+  - LiteSVM test: PlayerAction rejects missing player signer (AC-7.1).
+  - LiteSVM test: Initialize rejects wrong config PDA (AC-7.2).
+  - LiteSVM test: CreateTable rejects wrong table PDA (AC-7.2).
+  - LiteSVM test: JoinTable rejects wrong vault account (AC-7.2).
+  - LiteSVM test: CreateTable rejects duplicate mutable accounts (AC-7.3).
+  - LiteSVM test: JoinTable rejects duplicate mutable accounts (AC-7.3).
+  - LiteSVM test: LeaveTable rejects duplicate mutable accounts (AC-7.3).
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Settlement + payout invariants. AC-6.1 to AC-6.2. Validation: side-pot payout tests.
   - LiteSVM settlement tests: heads-up, side-pot all-in, invariant violation checks (AC-6.1, AC-6.2).
   - Commit: (see git log)
