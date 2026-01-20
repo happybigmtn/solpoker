@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Layout + state messaging + performance constraints. AC-3.1 to AC-4.10. Validation: render tests + bundle check.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Keyboard-first UX (palette + shortcuts + raise input). AC-2.1 to AC-2.4. Validation: component tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
