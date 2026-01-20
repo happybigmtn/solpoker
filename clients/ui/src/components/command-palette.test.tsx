@@ -466,8 +466,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
   });
 
   describe('Mouse interaction', () => {
-    it('selects action on click', async () => {
-      const user = userEvent.setup();
+    it('selects action on click', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -478,14 +477,13 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       );
 
       const connectWallet = screen.getByRole('option', { name: /Connect Wallet/i });
-      await user.click(connectWallet);
+      fireEvent.click(connectWallet);
 
       expect(mockOnAction).toHaveBeenCalledWith('connectWallet');
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it('closes on backdrop click', async () => {
-      const user = userEvent.setup();
+    it('closes on backdrop click', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -496,13 +494,12 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
 
       // Click on the backdrop (the outer div)
       const backdrop = screen.getByRole('dialog');
-      await user.click(backdrop);
+      fireEvent.click(backdrop);
 
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it('does not close on palette click', async () => {
-      const user = userEvent.setup();
+    it('does not close on palette click', () => {
       render(
         <CommandPalette
           isOpen={true}
@@ -513,7 +510,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
 
       // Click on the input (inside the palette)
       const input = screen.getByRole('searchbox');
-      await user.click(input);
+      fireEvent.click(input);
 
       // Should not close (onClose from backdrop shouldn't fire)
       expect(mockOnClose).toHaveBeenCalledTimes(0);
@@ -536,9 +533,8 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       expect(screen.getByRole('option', { name: /Custom Action/i })).toBeInTheDocument();
     });
 
-    it('executes custom command function', async () => {
+    it('executes custom command function', () => {
       const customFn = vi.fn();
-      const user = userEvent.setup();
 
       render(
         <CommandPalette
@@ -552,7 +548,7 @@ describe('CommandPalette (AC-2.1, AC-2.4, AC-5.3)', () => {
       );
 
       const customOption = screen.getByRole('option', { name: /Run Custom/i });
-      await user.click(customOption);
+      fireEvent.click(customOption);
 
       expect(customFn).toHaveBeenCalled();
       expect(mockOnClose).toHaveBeenCalled();
