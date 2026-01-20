@@ -10,6 +10,10 @@ Format suggestions:
 
 ## 2026-01-20
 
+- Request subscription + concurrency handling. AC-EP4.1 to AC-EP4.3. Validation: multi-request simulation.
+  - Commit: (see git log)
+  - Notes: Archived from implementation plan after review.
+
 - Slot monitoring + reveal + randomness. AC-EP3.1 to AC-EP3.4. Validation: deadline + randomness tests.
   - Commit: (see git log)
   - Notes: Archived from implementation plan after review.
