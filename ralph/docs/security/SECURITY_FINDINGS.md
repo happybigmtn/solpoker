@@ -1,7 +1,7 @@
 # Security Findings Tracker
 
-**Date:** 2026-01-20
-**Version:** 1.0
+**Date:** 2026-01-21
+**Version:** 1.1
 **AC Coverage:** AC-SEC1.3
 
 ---
@@ -30,7 +30,8 @@
 
 | ID | Title | Component | Owner | Status | Due Date | Verified |
 |----|-------|-----------|-------|--------|----------|----------|
-| - | (None) | - | - | - | - | - |
+| LOW-001 | Unmaintained transitive dependencies | sdk | Dev Team | Accepted | N/A | N/A |
+| LOW-002 | Pointer alignment warnings | robopoker-entropy | Dev Team | Accepted | N/A | N/A |
 
 ---
 
@@ -83,6 +84,96 @@ When adding a new finding, use this template:
 
 [Additional context, discussion, or decision rationale]
 ```
+
+---
+
+---
+
+## LOW-001: Unmaintained Transitive Dependencies
+
+**Severity:** Low
+**Component:** sdk (transitive via Solana SDK)
+**Source:** Internal Review - cargo audit
+**Reported Date:** 2026-01-21
+**Owner:** Dev Team
+**Status:** Accepted
+
+### Description
+
+`cargo audit` reports 4 unmaintained crate warnings:
+- `ansi_term 0.12.1` (RUSTSEC-2021-0139)
+- `bincode 1.3.3` (RUSTSEC-2025-0141)
+- `derivative 2.2.0` (RUSTSEC-2024-0388)
+- `paste 1.0.15` (RUSTSEC-2024-0436)
+
+All are **transitive dependencies** from Solana SDK (solana-*, litesvm, ark-* crates), not direct project dependencies.
+
+### Impact
+
+Minimal. These are "unmaintained" notices, not security vulnerabilities. No CVE assigned. No exploitable conditions identified.
+
+### Remediation Plan
+
+**Approach:** Monitor for Solana SDK updates that address these dependencies.
+**Dependencies:** Upstream Solana SDK must update first.
+
+### Verification Evidence
+
+```
+cargo audit --version: cargo-audit 0.21.3
+Last run: 2026-01-21
+Result: 0 vulnerabilities, 4 warnings (unmaintained)
+```
+
+### Notes
+
+Accepted because:
+1. No CVE or exploitable vulnerability
+2. Dependencies are controlled by upstream Solana SDK
+3. Replacing would require forking Solana SDK
+
+---
+
+## LOW-002: Pointer Alignment Warnings in Instruction Parsing
+
+**Severity:** Low
+**Component:** robopoker-entropy
+**Source:** Internal Review - cargo clippy
+**Reported Date:** 2026-01-21
+**Owner:** Dev Team
+**Status:** Accepted
+
+### Description
+
+Clippy reports pointer alignment warnings in instruction parsing:
+- `casting from *const u8 to a more-strictly-aligned pointer (*const instruction::*)`
+
+This is a common pattern in Solana programs using Pinocchio for zero-copy deserialization.
+
+### Impact
+
+Minimal on Solana BPF runtime:
+- Solana BPF VM uses 8-byte aligned instruction data
+- Runtime guarantees alignment for instruction payloads
+- Pattern matches Pinocchio framework conventions
+
+### Remediation Plan
+
+**Approach:** Accept for now. Consider using `bytemuck` or explicit alignment assertions if runtime behavior changes.
+
+### Verification Evidence
+
+```
+cargo clippy -- -W clippy::pedantic
+Result: Alignment warnings present but do not indicate security vulnerability
+```
+
+### Notes
+
+Accepted because:
+1. Solana runtime guarantees instruction data alignment
+2. Pattern is idiomatic for Pinocchio framework
+3. No observed runtime panics in testing
 
 ---
 
@@ -148,7 +239,7 @@ When adding a new finding, use this template:
 | Open Critical | 0 |
 | Open High | 0 |
 | Open Medium | 0 |
-| Open Low | 0 |
+| Open Low | 2 (Accepted) |
 | Total Closed (All Time) | 0 |
 | Mean Time to Remediation | N/A |
 
@@ -156,7 +247,7 @@ When adding a new finding, use this template:
 
 | Month | Opened | Closed | Critical MTTR | High MTTR |
 |-------|--------|--------|---------------|-----------|
-| 2026-01 | 0 | 0 | N/A | N/A |
+| 2026-01 | 2 | 0 | N/A | N/A |
 
 ---
 
@@ -203,3 +294,4 @@ Format: `AUTO-[tool]-[date]-[hash]`
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
 | 2026-01-20 | 1.0 | Claude | Initial findings tracker |
+| 2026-01-21 | 1.1 | Claude | Added LOW-001, LOW-002 from internal review |

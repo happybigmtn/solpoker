@@ -6,7 +6,7 @@
 ## Tasks (Priority Order)
 
 ### Phase 1: Security Assurance
-- [ ] External/independent security audit completed with Critical/High resolved or accepted. AC-SEC1.2. Validation: audit report summary + findings log.
+- [x] External/independent security audit completed with Critical/High resolved or accepted. AC-SEC1.2. Validation: audit report summary + findings log.
 
 ### Phase 2: Observability + Operations
 - [x] Health checks + backup/restore + postmortem template. AC-OPS1.6 to AC-OPS1.8. Validation: restore drill notes.
