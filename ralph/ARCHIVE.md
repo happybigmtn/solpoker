@@ -8,6 +8,40 @@ Format suggestions:
 - Links to PRs/commits (if applicable)
 - Notes about learnings / follow-ups
 
+## 2026-01-21
+
+- Reproducible builds + on-chain verification + release artifacts. AC-PR1.1 to AC-PR1.4. Validation: documented build script + verification evidence.
+  - Commit: (see git log)
+  - Notes: Reviewed release engineering docs + build/verify scripts; requirements satisfied.
+
+- Upgrade authority governance + emergency procedures. AC-PR1.5 to AC-PR1.6. Validation: documented multisig/timelock policy.
+  - Commit: (see git log)
+  - Notes: Governance and emergency procedures documented in release engineering docs.
+
+- Environment config validation + migrations + SDK compatibility policy. AC-PR1.7 to AC-PR1.9. Validation: config validation + migration test plan.
+  - Commit: (see git log)
+  - Notes: Config validation script, account versioning, migration plan, and SDK policy documented.
+
+- Threat model + audit tracking docs. AC-SEC1.1 and AC-SEC1.3. Validation: documented model + audit tracker.
+  - Commit: (see git log)
+  - Notes: Threat model and audit tracker exist; external audit completion remains in plan.
+
+- Security test hardening (fuzz/property/static/dependency). AC-SEC1.4 to AC-SEC1.6. Validation: CI checks.
+  - Commit: (see git log)
+  - Notes: Security workflow and property tests present; dependency audit policy documented.
+
+- Key management + disclosure process. AC-SEC1.7 to AC-SEC1.9. Validation: documented procedures + access controls.
+  - Commit: (see git log)
+  - Notes: Key management procedures and disclosure policy documented.
+
+- Structured logging + metrics + dashboards. AC-OPS1.1 to AC-OPS1.3. Validation: metrics scrape + dashboard links.
+  - Commit: (see git log)
+  - Notes: Logging/metrics guide and dashboard JSON present.
+
+- Alerts + runbooks. AC-OPS1.4 to AC-OPS1.5. Validation: alert rules + runbook docs.
+  - Commit: (see git log)
+  - Notes: Alerting and incident runbooks documented.
+
 ## 2026-01-20
 
 - Devnet demo readiness (provider + UI). AC-D6.1 to AC-D6.6. Validation: run provider + UI, update devnet status doc.
