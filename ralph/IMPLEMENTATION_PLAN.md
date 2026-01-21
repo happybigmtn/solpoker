@@ -16,8 +16,8 @@
 - [x] Key management + disclosure process. AC-SEC1.7 to AC-SEC1.9. Validation: documented procedures + access controls.
 
 ### Phase 3: Observability + Operations
-- [ ] Structured logging + metrics + dashboards. AC-OPS1.1 to AC-OPS1.3. Validation: metrics scrape + dashboard links.
-- [ ] Alerts + runbooks. AC-OPS1.4 to AC-OPS1.5. Validation: alert rules + runbook docs.
+- [x] Structured logging + metrics + dashboards. AC-OPS1.1 to AC-OPS1.3. Validation: metrics scrape + dashboard links.
+- [x] Alerts + runbooks. AC-OPS1.4 to AC-OPS1.5. Validation: alert rules + runbook docs.
 - [ ] Health checks + backup/restore + postmortem template. AC-OPS1.6 to AC-OPS1.8. Validation: restore drill notes.
 
 ### Phase 4: Reliability + Scalability
