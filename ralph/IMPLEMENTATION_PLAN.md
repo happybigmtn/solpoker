@@ -9,7 +9,7 @@
 - [ ] External/independent security audit completed with Critical/High resolved or accepted. AC-SEC1.2. Validation: audit report summary + findings log.
 
 ### Phase 2: Observability + Operations
-- [ ] Health checks + backup/restore + postmortem template. AC-OPS1.6 to AC-OPS1.8. Validation: restore drill notes.
+- [x] Health checks + backup/restore + postmortem template. AC-OPS1.6 to AC-OPS1.8. Validation: restore drill notes.
 
 ### Phase 3: Reliability + Scalability
 - [ ] Load tests + compute/fee tuning. AC-REL1.1 to AC-REL1.2. Validation: load test report.
