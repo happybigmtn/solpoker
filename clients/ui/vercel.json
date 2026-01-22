@@ -1,0 +1,40 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "out",
+  "env": {
+    "NEXT_PUBLIC_SOLANA_RPC_URL": "https://devnet.helius-rpc.com?api-key=081b9a02-7c49-4b85-83b8-1c5dcacbb323",
+    "NEXT_PUBLIC_SOLANA_WS_URL": "wss://devnet.helius-rpc.com?api-key=081b9a02-7c49-4b85-83b8-1c5dcacbb323",
+    "NEXT_PUBLIC_ENTROPY_PROGRAM_ID": "GG5nqvfpYHXyMF5A5yyMYjTCKQmKTDjMheJ4iCRSvTRf",
+    "NEXT_PUBLIC_POKER_PROGRAM_ID": "CNLMFh8DNRLyrx5x1ecrspTHpa3nTzMaophZxxUjgKMi",
+    "NEXT_PUBLIC_ENTROPY_CONFIG_PDA": "4KoZtJGw1CPqY5diQFsqbt4FMHuz4iGU8Z9cEp9z34yJ",
+    "NEXT_PUBLIC_POKER_CONFIG_PDA": "Dw4j2QqQdFVfca4tnByNUr3wKTaak1po7x9QR2QbBEZH",
+    "NEXT_PUBLIC_CRISPS_MINT": "7HK33BUJivS2nSsJjZwgpBDQRrSY59WeCYmSQQtJqW3B"
+  },
+  "rewrites": [
+    {
+      "source": "/table/:path*",
+      "destination": "/table.html"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
