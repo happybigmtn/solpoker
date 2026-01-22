@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install",
-  "buildCommand": "npm run build --workspace=ui",
+  "buildCommand": "npm run build --workspace=ts && npm run build --workspace=ui",
   "outputDirectory": "ui/out",
   "env": {
     "NEXT_PUBLIC_SOLANA_RPC_URL": "https://devnet.helius-rpc.com?api-key=081b9a02-7c49-4b85-83b8-1c5dcacbb323",
