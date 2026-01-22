@@ -211,6 +211,23 @@ export function isProgramInvoked(logs: string[], programId: string): boolean {
 }
 
 /**
+ * Find the program that actually failed by looking for "Program X failed" in logs.
+ *
+ * @param logs - Array of transaction logs
+ * @returns The program ID that failed, or undefined if not found
+ */
+export function findFailedProgram(logs: string[]): string | undefined {
+  for (const log of logs) {
+    // Match "Program <ID> failed: " patterns
+    const match = log.match(/Program\s+([A-Za-z0-9]+)\s+failed/);
+    if (match) {
+      return match[1];
+    }
+  }
+  return undefined;
+}
+
+/**
  * Decoded program error with context.
  */
 export interface DecodedProgramError {
@@ -261,18 +278,39 @@ export function decodeProgramError(
     return undefined;
   }
 
-  // Determine which program emitted the error
+  // Determine which program emitted the error by finding which one failed
   let program: 'poker' | 'entropy' | 'unknown' = 'unknown';
   let message: string;
 
-  if (logs && pokerProgramId && isProgramInvoked(logs, pokerProgramId)) {
+  // First, try to find the actual program that failed from logs
+  const failedProgramId = logs ? findFailedProgram(logs) : undefined;
+
+  if (failedProgramId && pokerProgramId && failedProgramId === pokerProgramId) {
+    program = 'poker';
+    message = POKER_ERROR_MESSAGES[finalCode] ?? `Poker program error ${finalCode}. Please try again.`;
+  } else if (failedProgramId && entropyProgramId && failedProgramId === entropyProgramId) {
+    program = 'entropy';
+    message = ENTROPY_ERROR_MESSAGES[finalCode] ?? `Entropy program error ${finalCode}. Please try again.`;
+  } else if (failedProgramId) {
+    // Error came from a program that's not poker or entropy (e.g., System Program, Token Program, ATA Program)
+    // Provide a generic message instead of misattributing to poker
+    program = 'unknown';
+    // Check for common system program errors
+    if (finalCode === 0 || finalCode === 1) {
+      // System program error 1 is often "account already in use" or similar
+      message = `System error: Account already exists or is in use. Please try again or contact support.`;
+    } else {
+      message = `Transaction failed with error ${finalCode}. Please try again or contact support.`;
+    }
+  } else if (logs && pokerProgramId && isProgramInvoked(logs, pokerProgramId)) {
+    // Fall back to checking if poker was invoked (less reliable)
     program = 'poker';
     message = POKER_ERROR_MESSAGES[finalCode] ?? `Poker program error ${finalCode}. Please try again.`;
   } else if (logs && entropyProgramId && isProgramInvoked(logs, entropyProgramId)) {
     program = 'entropy';
     message = ENTROPY_ERROR_MESSAGES[finalCode] ?? `Entropy program error ${finalCode}. Please try again.`;
   } else {
-    // Try poker first since it's more common, then entropy
+    // No logs available - try poker first since it's more common, then entropy
     if (finalCode in POKER_ERROR_MESSAGES) {
       program = 'poker';
       message = POKER_ERROR_MESSAGES[finalCode];

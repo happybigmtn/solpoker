@@ -220,6 +220,14 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   const retryTx = hasTableTx ? retryTableAction : retryPlayerAction;
   const isPending = isPlayerActionPending || isTableActionPending;
 
+  // Check if all required addresses are ready for join action
+  const isJoinReady = Boolean(
+    derivedAddresses.tableAddress &&
+    derivedAddresses.vaultAddress &&
+    derivedAddresses.configAddress &&
+    derivedAddresses.playerTokenAccount
+  );
+
   const resetTxState = useCallback(() => {
     resetPlayerTxState();
     resetTableTxState();
@@ -445,10 +453,10 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
               <button
                 type="button"
                 onClick={() => handleAction('joinTable')}
-                disabled={isPending}
+                disabled={isPending || !isJoinReady}
                 className="rounded-lg px-4 py-1.5 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isPending ? 'Joining...' : 'Join Table'}
+                {isPending ? 'Joining...' : !isJoinReady ? 'Loading...' : 'Join Table'}
               </button>
             )}
             {/* Connect wallet prompt when not connected */}

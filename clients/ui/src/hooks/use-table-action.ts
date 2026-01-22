@@ -197,12 +197,27 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
    */
   const joinTable = useCallback(
     async (buyInAmount: bigint): Promise<TableActionResult> => {
-      if (!tableAddress || !vaultAddress || !configAddress || !playerTokenAccount || !pokerProgramId || !crispsMint) {
-        const error = 'Table info is still loading. Please try again in a moment.';
+      // Validate all required addresses are properly derived (not empty strings or null)
+      const isTableAddressValid = tableAddress && tableAddress.length > 10;
+      const isVaultAddressValid = vaultAddress && vaultAddress.length > 10;
+      const isConfigAddressValid = configAddress && configAddress.length > 10;
+      const isPlayerTokenAccountValid = playerTokenAccount && playerTokenAccount.length > 10;
+      const isProgramIdValid = pokerProgramId && pokerProgramId.length > 10;
+      const isMintValid = crispsMint && crispsMint.length > 10;
+
+      if (!isTableAddressValid || !isVaultAddressValid || !isConfigAddressValid || !isPlayerTokenAccountValid || !isProgramIdValid || !isMintValid) {
+        const missingParts: string[] = [];
+        if (!isTableAddressValid) missingParts.push('table');
+        if (!isVaultAddressValid) missingParts.push('vault');
+        if (!isConfigAddressValid) missingParts.push('config');
+        if (!isPlayerTokenAccountValid) missingParts.push('token account');
+        if (!isProgramIdValid) missingParts.push('program ID');
+        if (!isMintValid) missingParts.push('mint');
+        const error = `Waiting for ${missingParts.join(', ')} to load. Please try again in a moment.`;
         setTxState('failed');
         setTxError(error);
-        setIsRetryable(false);
-        return { state: 'failed', error, isRetryable: false };
+        setIsRetryable(true);
+        return { state: 'failed', error, isRetryable: true };
       }
 
       // Check wallet connection
