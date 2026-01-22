@@ -1,0 +1,12 @@
+{
+  "name": "solpoker-clients",
+  "private": true,
+  "workspaces": [
+    "ts",
+    "ui"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=ui",
+    "dev": "npm run dev --workspace=ui"
+  }
+}
