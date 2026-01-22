@@ -13,6 +13,7 @@ import {
   getProgramDerivedAddress,
   getAddressEncoder,
 } from "@solana/kit";
+import { TOKEN_2022_PROGRAM_ID, SYSTEM_PROGRAM_ID } from "./constants.js";
 
 // ============================================================================
 // Poker Program PDAs
@@ -215,12 +216,8 @@ export async function deriveRequestPda(
 // ============================================================================
 
 /** Associated Token Account Program ID */
-const ASSOCIATED_TOKEN_PROGRAM_ID: Address =
+export const ASSOCIATED_TOKEN_PROGRAM_ID: Address =
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address;
-
-/** Token-2022 Program ID */
-const TOKEN_2022_PROGRAM_ID: Address =
-  "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" as Address;
 
 /**
  * Derive an Associated Token Account (ATA) PDA.
@@ -237,7 +234,7 @@ const TOKEN_2022_PROGRAM_ID: Address =
 export async function deriveAssociatedTokenAccount(
   wallet: Address,
   mint: Address,
-  tokenProgramId: Address = TOKEN_2022_PROGRAM_ID
+  tokenProgramId: Address = TOKEN_2022_PROGRAM_ID as Address
 ): Promise<readonly [Address, number]> {
   const encoder = getAddressEncoder();
   const walletBytes = encoder.encode(wallet);
@@ -248,6 +245,58 @@ export async function deriveAssociatedTokenAccount(
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ID,
     seeds: [walletBytes, tokenProgramBytes, mintBytes],
   });
+}
+
+/**
+ * Account meta structure for instruction building.
+ */
+export interface AccountMeta {
+  address: Address;
+  role: 'readonly' | 'writable' | 'readonly_signer' | 'writable_signer';
+}
+
+/**
+ * Build account metas for creating an Associated Token Account (idempotent).
+ * This instruction will create the ATA if it doesn't exist, or succeed silently if it does.
+ *
+ * Accounts:
+ * 0. [writable, signer] Payer (funding account)
+ * 1. [writable] Associated token account address
+ * 2. [] Wallet address
+ * 3. [] Token mint
+ * 4. [] System program
+ * 5. [] Token program (Token-2022)
+ *
+ * @param payer - The payer for account creation (writable, signer)
+ * @param ata - The ATA address to create
+ * @param wallet - The wallet that will own the ATA
+ * @param mint - The token mint address
+ * @param tokenProgramId - Token program ID (defaults to Token-2022)
+ */
+export function getCreateAtaIdempotentAccountMetas(params: {
+  payer: Address;
+  ata: Address;
+  wallet: Address;
+  mint: Address;
+  tokenProgramId?: Address;
+}): AccountMeta[] {
+  const tokenProgram = params.tokenProgramId ?? (TOKEN_2022_PROGRAM_ID as Address);
+  return [
+    { address: params.payer, role: 'writable_signer' },
+    { address: params.ata, role: 'writable' },
+    { address: params.wallet, role: 'readonly' },
+    { address: params.mint, role: 'readonly' },
+    { address: SYSTEM_PROGRAM_ID as Address, role: 'readonly' },
+    { address: tokenProgram, role: 'readonly' },
+  ];
+}
+
+/**
+ * Build instruction data for CreateIdempotent (instruction discriminator = 1).
+ * This is a single byte: 0x01.
+ */
+export function buildCreateAtaIdempotentData(): Uint8Array {
+  return new Uint8Array([1]); // CreateIdempotent = 1
 }
 
 // ============================================================================

@@ -117,7 +117,7 @@ function TableRow({
       <td className="px-4 py-3 text-right">
         {canNavigate ? (
           <Link
-            href={`/table/${table.address}`}
+            href={`/table/${table.tableId.toString()}`}
             className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               canJoin
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900'

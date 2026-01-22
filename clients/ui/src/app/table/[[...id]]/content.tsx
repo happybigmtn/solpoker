@@ -59,15 +59,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   const playerAddress = wallet?.account?.address?.toString();
   const isWalletConnected = Boolean(wallet);
 
-  // AC-4.1: Subscribe to on-chain table state
-  const { store, error, isConnected: isRpcConnected } = useTableSubscription(tableId);
-
-  // Get table state for action computation
-  const currentActor = useCurrentActor(store);
-  const currentBet = useCurrentBet(store);
-  const minRaise = useMinRaise(store);
-
-  // Async PDA derivation (simplified - in production, use a proper loading state)
+  // Async PDA derivation - must happen before subscription
   const [derivedAddresses, setDerivedAddresses] = useState<{
     tableAddress: Address | null;
     configAddress: Address | null;
@@ -81,14 +73,36 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   });
 
   // Derive PDAs on mount/tableId change
+  // tableId can be either:
+  // - A numeric string (e.g., "1769038940393") -> derive PDA from it
+  // - A base58 address (e.g., "C88F6MDei8EKUTrtpVB5cBNgkMg2GMz1wnwaNZfnm1GC") -> use directly
   useEffect(() => {
     if (!POKER_PROGRAM_ID || !CRISPS_MINT) return;
 
     const derivePdas = async () => {
       try {
-        const tableIdBigInt = BigInt(tableId);
-        const [tablePda] = await deriveTablePda(POKER_PROGRAM_ID, tableIdBigInt);
-        const [vaultPda] = await deriveVaultPda(POKER_PROGRAM_ID, tableIdBigInt);
+        let tableAddress: Address;
+        let vaultAddress: Address | null = null;
+
+        // Check if tableId looks like a numeric string or a base58 address
+        // Base58 addresses are typically 32-44 characters and contain letters
+        const isNumeric = /^\d+$/.test(tableId);
+
+        if (isNumeric) {
+          // Numeric table ID - derive PDAs
+          const tableIdBigInt = BigInt(tableId);
+          const [tablePda] = await deriveTablePda(POKER_PROGRAM_ID, tableIdBigInt);
+          const [vaultPda] = await deriveVaultPda(POKER_PROGRAM_ID, tableIdBigInt);
+          tableAddress = tablePda;
+          vaultAddress = vaultPda;
+        } else {
+          // Assume it's a base58 table address - use directly
+          // We can't derive vault without the numeric ID, but we can still view the table
+          tableAddress = tableId as Address;
+          // Vault will need to be fetched from table data or derived another way
+          vaultAddress = null;
+        }
+
         const [configPda] = await derivePokerConfigPda(POKER_PROGRAM_ID);
 
         let playerTokenAccount: Address | null = null;
@@ -101,9 +115,9 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
         }
 
         setDerivedAddresses({
-          tableAddress: tablePda,
+          tableAddress,
           configAddress: configPda,
-          vaultAddress: vaultPda,
+          vaultAddress,
           playerTokenAccount,
         });
       } catch (err) {
@@ -113,6 +127,55 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
 
     derivePdas();
   }, [tableId, playerAddress, POKER_PROGRAM_ID, CRISPS_MINT]);
+
+  // AC-4.1: Subscribe to on-chain table state using the derived PDA
+  // Pass empty string while PDA is being derived - useTableSubscription handles this gracefully
+  const tableAddressForSubscription = derivedAddresses.tableAddress ?? '';
+  const { store, error, isConnected: isRpcConnected } = useTableSubscription(tableAddressForSubscription);
+
+  // Get table state for action computation
+  const currentActor = useCurrentActor(store);
+  const currentBet = useCurrentBet(store);
+  const minRaise = useMinRaise(store);
+
+  // Derive vault address from store once table data is loaded
+  // This handles the case when URL contains a base58 address instead of numeric ID
+  useEffect(() => {
+    if (!POKER_PROGRAM_ID || !store) return;
+    if (derivedAddresses.vaultAddress !== null) return; // Already have vault
+
+    const deriveVaultFromStore = async (tableIdFromStore: bigint) => {
+      try {
+        if (tableIdFromStore && tableIdFromStore !== 0n) {
+          const [vaultPda] = await deriveVaultPda(POKER_PROGRAM_ID, tableIdFromStore);
+          setDerivedAddresses((prev) => ({
+            ...prev,
+            vaultAddress: vaultPda,
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to derive vault from store:', err);
+      }
+    };
+
+    // Check initial state
+    const initialState = store.getState();
+    if (initialState.tableId && initialState.tableId !== 0n) {
+      deriveVaultFromStore(initialState.tableId);
+      return;
+    }
+
+    // Subscribe to state changes to detect when tableId becomes available
+    const unsubscribe = store.subscribe(() => {
+      const state = store.getState();
+      if (state.tableId && state.tableId !== 0n) {
+        deriveVaultFromStore(state.tableId);
+        unsubscribe(); // Only need to derive once
+      }
+    });
+
+    return unsubscribe;
+  }, [store, derivedAddresses.vaultAddress, POKER_PROGRAM_ID]);
 
   // AC-CI2.1–AC-CI3.5: Use real transaction hook for player actions
   const {
@@ -146,6 +209,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     pokerProgramId: POKER_PROGRAM_ID ?? ('' as Address),
     configAddress: derivedAddresses.configAddress ?? ('' as Address),
     playerTokenAccount: derivedAddresses.playerTokenAccount ?? ('' as Address),
+    crispsMint: CRISPS_MINT ?? ('' as Address),
   });
 
   const hasTableTx = tableTxState !== 'idle';
@@ -374,8 +438,25 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
             />
           </div>
 
-          {/* Panel toggle buttons (AC-7.1: URL state) */}
+          {/* Panel toggle and table action buttons */}
           <div className="mx-auto flex flex-wrap gap-2 lg:mx-0">
+            {/* Join Table button - shown when player is not seated */}
+            {playerSeatIndex === -1 && isWalletConnected && (
+              <button
+                type="button"
+                onClick={() => handleAction('joinTable')}
+                disabled={isPending}
+                className="rounded-lg px-4 py-1.5 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPending ? 'Joining...' : 'Join Table'}
+              </button>
+            )}
+            {/* Connect wallet prompt when not connected */}
+            {!isWalletConnected && (
+              <span className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                Connect wallet to join
+              </span>
+            )}
             <button
               type="button"
               onClick={() => handlePanelChange(activePanel === 'history' ? null : 'history')}
@@ -400,14 +481,16 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
             >
               Settings
             </button>
-            {/* AC-5.7: Destructive action with confirmation */}
-            <button
-              type="button"
-              onClick={handleLeaveTableRequest}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              Leave Table
-            </button>
+            {/* Leave Table - only shown when seated */}
+            {playerSeatIndex >= 0 && (
+              <button
+                type="button"
+                onClick={handleLeaveTableRequest}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                Leave Table
+              </button>
+            )}
           </div>
 
           {/* Mobile panels */}

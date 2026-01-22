@@ -41,3 +41,6 @@ infra/crash.log
 infra/override.tf
 infra/override.tf.json
 infra/.terraform.lock.hcl
+
+# Local Netlify folder
+.netlify

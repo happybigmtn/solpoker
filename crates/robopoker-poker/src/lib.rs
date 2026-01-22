@@ -26,7 +26,7 @@ pub mod state;
 pub mod token_cpi;
 
 // Program ID - will be replaced with actual deployed address
-pinocchio_pubkey::declare_id!("3oG9MCSnE7UJDQKzEoJdmHrZ3qA7Y5ADdWbYqH1KpxLv");
+pinocchio_pubkey::declare_id!("CNLMFh8DNRLyrx5x1ecrspTHpa3nTzMaophZxxUjgKMi");
 
 pinocchio::program_entrypoint!(process_instruction);
 

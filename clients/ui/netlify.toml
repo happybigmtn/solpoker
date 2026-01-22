@@ -1,0 +1,33 @@
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_PUBLIC_SOLANA_RPC_URL = "https://api.devnet.solana.com"
+  NEXT_PUBLIC_SOLANA_WS_URL = "wss://api.devnet.solana.com"
+  NEXT_PUBLIC_ENTROPY_PROGRAM_ID = "GG5nqvfpYHXyMF5A5yyMYjTCKQmKTDjMheJ4iCRSvTRf"
+  NEXT_PUBLIC_POKER_PROGRAM_ID = "CNLMFh8DNRLyrx5x1ecrspTHpa3nTzMaophZxxUjgKMi"
+  NEXT_PUBLIC_ENTROPY_CONFIG_PDA = "4KoZtJGw1CPqY5diQFsqbt4FMHuz4iGU8Z9cEp9z34yJ"
+  NEXT_PUBLIC_POKER_CONFIG_PDA = "Dw4j2QqQdFVfca4tnByNUr3wKTaak1po7x9QR2QbBEZH"
+  NEXT_PUBLIC_CRISPS_MINT = "7HK33BUJivS2nSsJjZwgpBDQRrSY59WeCYmSQQtJqW3B"
+
+# SPA fallback for table routes - must come before catch-all
+[[redirects]]
+  from = "/table/*"
+  to = "/table.html"
+  status = 200
+
+# SPA fallback for other client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

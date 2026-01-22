@@ -36,6 +36,9 @@ import {
   buildLeaveTableData,
   getLeaveTableAccountMetas,
   TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getCreateAtaIdempotentAccountMetas,
+  buildCreateAtaIdempotentData,
   formatTransactionError,
   isNetworkError,
   isUserRejection,
@@ -56,6 +59,8 @@ export interface UseTableActionConfig {
   configAddress: Address;
   /** Player's CRISPS token account address */
   playerTokenAccount: Address;
+  /** CRISPS mint address */
+  crispsMint: Address;
 }
 
 /**
@@ -151,6 +156,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
     pokerProgramId,
     configAddress,
     playerTokenAccount,
+    crispsMint,
   } = config;
   const { wallet } = useWalletConnection();
 
@@ -191,7 +197,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
    */
   const joinTable = useCallback(
     async (buyInAmount: bigint): Promise<TableActionResult> => {
-      if (!tableAddress || !vaultAddress || !configAddress || !playerTokenAccount || !pokerProgramId) {
+      if (!tableAddress || !vaultAddress || !configAddress || !playerTokenAccount || !pokerProgramId || !crispsMint) {
         const error = 'Table info is still loading. Please try again in a moment.';
         setTxState('failed');
         setTxError(error);
@@ -221,6 +227,27 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         // Create wallet transaction signer
         const { signer: walletSigner } = createWalletTransactionSigner(wallet);
 
+        // Build create ATA idempotent instruction (creates if doesn't exist, succeeds if exists)
+        const createAtaAccountMetas = getCreateAtaIdempotentAccountMetas({
+          payer: playerAddress,
+          ata: playerTokenAccount,
+          wallet: playerAddress,
+          mint: crispsMint,
+          tokenProgramId: TOKEN_2022_PROGRAM_ID as Address,
+        });
+
+        const createAtaBaseInstruction: Instruction = {
+          programAddress: ASSOCIATED_TOKEN_PROGRAM_ID as Address,
+          accounts: createAtaAccountMetas.map((meta) => ({
+            address: meta.address as Address,
+            role: mapStringRoleToAccountRole(meta.role),
+          })),
+          data: buildCreateAtaIdempotentData(),
+        };
+
+        // Attach signer to the create ATA instruction
+        const createAtaInstruction = addSignersToInstruction([walletSigner], createAtaBaseInstruction);
+
         // AC-CI3.6: Build join table instruction data
         const instructionData = buildJoinTableData({ buyInAmount });
 
@@ -245,17 +272,19 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         };
 
         // Attach signer to the instruction for the player account
-        const instruction = addSignersToInstruction([walletSigner], baseInstruction);
+        const joinInstruction = addSignersToInstruction([walletSigner], baseInstruction);
 
         // Get latest blockhash for transaction lifetime
         const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
         // AC-CI2.2: Build transaction using SDK instruction builders
+        // First create ATA (idempotent), then join table
         const transactionMessage = pipe(
           createTransactionMessage({ version: 0 }),
           (tx) => setTransactionMessageFeePayerSigner(walletSigner, tx),
           (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(instruction, tx)
+          (tx) => appendTransactionMessageInstruction(createAtaInstruction, tx),
+          (tx) => appendTransactionMessageInstruction(joinInstruction, tx)
         );
 
         // AC-CI2.3: Sign transaction via connected wallet
@@ -277,12 +306,26 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         setTxSignature(signature);
         return { state: 'confirmed', signature };
       } catch (err) {
+        // Log the raw error for debugging
+        console.error('[joinTable] Raw error:', err);
+        console.error('[joinTable] Error type:', err?.constructor?.name);
+        if (err instanceof Error) {
+          console.error('[joinTable] Error message:', err.message);
+          console.error('[joinTable] Error stack:', err.stack);
+        }
+
         const logs = extractLogs(err);
+        if (logs) {
+          console.error('[joinTable] Transaction logs:', logs);
+        }
+
         const userFriendlyError = formatTransactionError(
           err instanceof Error ? err : String(err),
           logs,
           pokerProgramId
         );
+        console.error('[joinTable] Formatted error:', userFriendlyError);
+
         const retryable = isNetworkError(err instanceof Error ? err : String(err));
         const userRejected = isUserRejection(err instanceof Error ? err : String(err));
         const shouldRetry = retryable && !userRejected;
@@ -294,7 +337,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry };
       }
     },
-    [wallet, rpc, rpcSubscriptions, tableAddress, vaultAddress, pokerProgramId, configAddress, playerTokenAccount]
+    [wallet, rpc, rpcSubscriptions, tableAddress, vaultAddress, pokerProgramId, configAddress, playerTokenAccount, crispsMint]
   );
 
   /**

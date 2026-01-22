@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useSyncExternalStore, useRef } from 'react';
-import { useRpcSubscriptions } from './use-rpc';
+import { useRpc, useRpcSubscriptions } from './use-rpc';
 import { createTableStore, type TableStore } from '@/stores/table-store';
 import {
   type TableState,
@@ -250,6 +250,7 @@ export interface TableSubscriptionContextValue {
  * @param tableAddress - Base58 table account address
  */
 export function useTableSubscription(tableAddress: string) {
+  const rpc = useRpc();
   const rpcSubscriptions = useRpcSubscriptions();
   const store = useMemo(() => createTableStore(), []);
   const errorRef = useRef<Error | null>(null);
@@ -264,17 +265,35 @@ export function useTableSubscription(tableAddress: string) {
     const abort = new AbortController();
     abortRef.current = abort;
 
-    async function subscribe() {
+    async function fetchAndSubscribe() {
       try {
-        // Use accountNotifications to subscribe to account changes
-        // @solana/kit returns an async iterable
+        // First, fetch initial account data via HTTP RPC
+        // This gives us the current state immediately
+        const { value: accountInfo } = await rpc.getAccountInfo(
+          tableAddress as Parameters<typeof rpc.getAccountInfo>[0],
+          { encoding: 'base64', commitment: 'confirmed' }
+        ).send();
+
+        if (abort.signal.aborted) return;
+
+        if (accountInfo && accountInfo.data) {
+          const dataArray = accountInfo.data as unknown as [string, string];
+          const [base64Data] = dataArray;
+          const data = Uint8Array.from(atob(base64Data), (c) =>
+            c.charCodeAt(0)
+          );
+          const tableState = parseTableData(data);
+          store.setState(tableState);
+        }
+
+        isConnectedRef.current = true;
+        errorRef.current = null;
+
+        // Then subscribe to account changes via WebSocket
         const notifications = rpcSubscriptions.accountNotifications(
           tableAddress as Parameters<typeof rpcSubscriptions.accountNotifications>[0],
           { encoding: 'base64', commitment: 'confirmed' }
         );
-
-        isConnectedRef.current = true;
-        errorRef.current = null;
 
         // Subscribe to notifications using async iterator
         const asyncIterable = await notifications.subscribe({ abortSignal: abort.signal });
@@ -301,13 +320,13 @@ export function useTableSubscription(tableAddress: string) {
       }
     }
 
-    subscribe();
+    fetchAndSubscribe();
 
     return () => {
       abort.abort();
       isConnectedRef.current = false;
     };
-  }, [tableAddress, rpcSubscriptions, store]);
+  }, [tableAddress, rpc, rpcSubscriptions, store]);
 
   return {
     store,

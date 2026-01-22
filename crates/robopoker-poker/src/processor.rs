@@ -226,10 +226,7 @@ fn process_create_table(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult 
     if !config.is_initialized() {
         return Err(PokerError::NotInitialized.into());
     }
-    // Verify payer is authority and mint matches config
-    if payer_info.key() != &config.authority {
-        return Err(PokerError::MissingSigner.into());
-    }
+    // Verify mint matches config (anyone can create tables)
     if crisps_mint_info.key() != &config.crisps_mint {
         return Err(PokerError::InvalidMint.into());
     }
