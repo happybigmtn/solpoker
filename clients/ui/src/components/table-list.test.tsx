@@ -170,7 +170,8 @@ describe('TableList (AC-CI5.2)', () => {
       // Table 1 (WAITING, 3/10) should have Join button
       const joinLinks = screen.getAllByRole('link', { name: 'Join' });
       expect(joinLinks).toHaveLength(1);
-      expect(joinLinks[0]).toHaveAttribute('href', '/table/table1Address');
+      // Links use tableId, not address
+      expect(joinLinks[0]).toHaveAttribute('href', '/table/1');
     });
 
     it('AC-CI5.2: shows Watch button for PLAYING tables', () => {
@@ -179,7 +180,8 @@ describe('TableList (AC-CI5.2)', () => {
       // Table 2 (PLAYING) should have Watch button
       const watchLinks = screen.getAllByRole('link', { name: 'Watch' });
       expect(watchLinks).toHaveLength(1);
-      expect(watchLinks[0]).toHaveAttribute('href', '/table/table2Address');
+      // Links use tableId, not address
+      expect(watchLinks[0]).toHaveAttribute('href', '/table/2');
     });
 
     it('AC-CI5.2: disables join for full WAITING tables', () => {

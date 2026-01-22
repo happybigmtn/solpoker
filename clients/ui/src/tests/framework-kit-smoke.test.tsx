@@ -45,13 +45,22 @@ vi.mock('@solana/kit', () => ({
   setTransactionMessageFeePayerSigner: vi.fn(() => (tx: unknown) => tx),
   setTransactionMessageLifetimeUsingBlockhash: vi.fn(() => (tx: unknown) => tx),
   appendTransactionMessageInstruction: vi.fn(() => (tx: unknown) => tx),
+  appendTransactionMessageInstructions: vi.fn(() => (tx: unknown) => tx),
   signTransactionMessageWithSigners: vi.fn(() => Promise.resolve({})),
   sendAndConfirmTransactionFactory: vi.fn(() => vi.fn(() => Promise.resolve())),
   getSignatureFromTransaction: vi.fn(() => 'mockSig'),
   assertIsSendableTransaction: vi.fn(),
+  compileTransaction: vi.fn(() => ({})),
+  getBase64EncodedWireTransaction: vi.fn(() => 'base64tx'),
   createSolanaRpc: vi.fn(() => ({
     getLatestBlockhash: vi.fn(() => ({
       send: vi.fn(() => Promise.resolve({ value: { blockhash: 'mock', lastValidBlockHeight: 100n } })),
+    })),
+    getAccountInfo: vi.fn(() => ({
+      send: vi.fn(() => Promise.resolve({ value: null })),
+    })),
+    simulateTransaction: vi.fn(() => ({
+      send: vi.fn(() => Promise.resolve({ value: { err: null, logs: [] } })),
     })),
   })),
   createSolanaRpcSubscriptions: vi.fn(() => ({
@@ -60,6 +69,10 @@ vi.mock('@solana/kit', () => ({
     })),
   })),
   addSignersToInstruction: vi.fn((signers, instruction) => instruction),
+  // Base58 codec - decoder converts bytes to string
+  getBase58Decoder: vi.fn(() => ({
+    decode: vi.fn((bytes: Uint8Array) => 'mockBase58Address'),
+  })),
 }));
 
 // Import after mocks

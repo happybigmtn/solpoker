@@ -7,7 +7,7 @@
  * AC-CI5.4: Created table redirects to the table view.
  */
 
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useState } from 'react';
 import { useWalletConnection } from '@solana/react-hooks';
 import { createWalletTransactionSigner } from '@solana/client';
 import {
@@ -15,18 +15,20 @@ import {
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
-  appendTransactionMessageInstruction,
+  appendTransactionMessageInstructions,
   signTransactionMessageWithSigners,
   sendAndConfirmTransactionFactory,
   getSignatureFromTransaction,
   assertIsSendableTransaction,
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
+  compileTransaction,
+  getBase64EncodedWireTransaction,
   addSignersToInstruction,
   AccountRole,
   type Address,
   type Instruction,
 } from '@solana/kit';
+import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
+import { useRpc, useRpcSubscriptions } from './use-rpc';
 import {
   buildCreateTableData,
   getCreateTableAccountMetas,
@@ -130,24 +132,15 @@ export function useCreateTable(config: UseCreateTableConfig): UseCreateTableRetu
   const { pokerProgramId, crispsMint } = config;
   const { wallet } = useWalletConnection();
 
+  // Use shared RPC clients (single connection for the app)
+  const rpc = useRpc();
+  const rpcSubscriptions = useRpcSubscriptions();
+
   const [txState, setTxState] = useState<TransactionState>('idle');
   const [txSignature, setTxSignature] = useState<string>();
   const [tableAddress, setTableAddress] = useState<Address>();
   const [txError, setTxError] = useState<string>();
   const [isRetryable, setIsRetryable] = useState(false);
-
-  // Create RPC clients (memoized)
-  const { rpc, rpcSubscriptions } = useMemo(() => {
-    const httpUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-    const wsUrl =
-      process.env.NEXT_PUBLIC_SOLANA_WS_URL ||
-      httpUrl.replace('https', 'wss').replace('http', 'ws');
-
-    return {
-      rpc: createSolanaRpc(httpUrl),
-      rpcSubscriptions: createSolanaRpcSubscriptions(wsUrl),
-    };
-  }, []);
 
   const resetTxState = useCallback(() => {
     setTxState('idle');
@@ -190,6 +183,10 @@ export function useCreateTable(config: UseCreateTableConfig): UseCreateTableRetu
         // Create wallet transaction signer
         const { signer: walletSigner } = createWalletTransactionSigner(wallet);
 
+        // Build compute budget instructions for priority fees
+        const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 300_000 });
+        const priorityFeeIx = getSetComputeUnitPriceInstruction({ microLamports: 1000n });
+
         // Build create table instruction data
         const instructionData = buildCreateTableData({ tableId, smallBlind, bigBlind });
 
@@ -220,13 +217,29 @@ export function useCreateTable(config: UseCreateTableConfig): UseCreateTableRetu
         // Get latest blockhash for transaction lifetime
         const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
-        // Build transaction
+        // Build transaction with compute budget + create table instruction
         const transactionMessage = pipe(
           createTransactionMessage({ version: 0 }),
           (tx) => setTransactionMessageFeePayerSigner(walletSigner, tx),
           (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(instruction, tx)
+          (tx) => appendTransactionMessageInstructions([computeBudgetIx, priorityFeeIx, instruction], tx)
         );
+
+        // Simulate transaction before signing to catch errors early
+        const compiledTx = compileTransaction(transactionMessage);
+        const simulationResult = await rpc.simulateTransaction(
+          getBase64EncodedWireTransaction(compiledTx),
+          { commitment: 'confirmed', encoding: 'base64' }
+        ).send();
+
+        if (simulationResult.value.err) {
+          const logs = simulationResult.value.logs ?? undefined;
+          throw new Error(formatTransactionError(
+            new Error(`Simulation failed: ${JSON.stringify(simulationResult.value.err)}`),
+            logs,
+            pokerProgramId
+          ));
+        }
 
         // Sign transaction via connected wallet
         const signedTransaction = await signTransactionMessageWithSigners(transactionMessage);

@@ -10,7 +10,7 @@
  * AC-PQ.CI1: Transaction submission feels immediate; no visible delay before pending state.
  */
 
-import { useCallback, useState, useMemo, useRef } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { useWalletConnection } from '@solana/react-hooks';
 import { createWalletTransactionSigner } from '@solana/client';
 import {
@@ -18,18 +18,20 @@ import {
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
-  appendTransactionMessageInstruction,
+  appendTransactionMessageInstructions,
   signTransactionMessageWithSigners,
   sendAndConfirmTransactionFactory,
   getSignatureFromTransaction,
   assertIsSendableTransaction,
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
+  compileTransaction,
+  getBase64EncodedWireTransaction,
   addSignersToInstruction,
   AccountRole,
   type Address,
   type Instruction,
 } from '@solana/kit';
+import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
+import { useRpc, useRpcSubscriptions } from './use-rpc';
 import {
   buildPlayerActionData,
   getPlayerActionAccountMetas,
@@ -171,24 +173,15 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
   const { tableAddress, pokerProgramId, configAddress, clockAddress = CLOCK_SYSVAR } = config;
   const { wallet } = useWalletConnection();
 
+  // Use shared RPC clients (single connection for the app)
+  const rpc = useRpc();
+  const rpcSubscriptions = useRpcSubscriptions();
+
   const [txState, setTxState] = useState<TransactionState>('idle');
   const [txSignature, setTxSignature] = useState<string>();
   const [txError, setTxError] = useState<string>();
   const [isRetryable, setIsRetryable] = useState(false);
   const lastActionRef = useRef<{ action: PlayerActionType; amount?: bigint } | null>(null);
-
-  // Create RPC clients (memoized)
-  const { rpc, rpcSubscriptions } = useMemo(() => {
-    const httpUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-    const wsUrl =
-      process.env.NEXT_PUBLIC_SOLANA_WS_URL ||
-      httpUrl.replace('https', 'wss').replace('http', 'ws');
-
-    return {
-      rpc: createSolanaRpc(httpUrl),
-      rpcSubscriptions: createSolanaRpcSubscriptions(wsUrl),
-    };
-  }, []);
 
   const resetTxState = useCallback(() => {
     setTxState('idle');
@@ -200,6 +193,23 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
 
   const executeAction = useCallback(
     async (action: PlayerActionType, amount?: bigint): Promise<PlayerActionResult> => {
+      // Validate all required addresses are properly derived
+      const isTableAddressValid = tableAddress && tableAddress.length > 10;
+      const isConfigAddressValid = configAddress && configAddress.length > 10;
+      const isProgramIdValid = pokerProgramId && pokerProgramId.length > 10;
+
+      if (!isTableAddressValid || !isConfigAddressValid || !isProgramIdValid) {
+        const missingParts: string[] = [];
+        if (!isTableAddressValid) missingParts.push('table');
+        if (!isConfigAddressValid) missingParts.push('config');
+        if (!isProgramIdValid) missingParts.push('program ID');
+        const error = `Waiting for ${missingParts.join(', ')} to load. Please try again in a moment.`;
+        setTxState('failed');
+        setTxError(error);
+        setIsRetryable(true);
+        return { state: 'failed', error, isRetryable: true };
+      }
+
       // Check wallet connection
       if (!wallet) {
         const error = 'Wallet not connected. Please connect your wallet to continue.';
@@ -220,8 +230,11 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         const playerAddress = wallet.account.address;
 
         // Create wallet transaction signer
-        // This wraps the wallet session into a TransactionSigner for @solana/kit
-        const { signer: walletSigner, mode } = createWalletTransactionSigner(wallet);
+        const { signer: walletSigner } = createWalletTransactionSigner(wallet);
+
+        // Build compute budget instructions for priority fees
+        const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 200_000 });
+        const priorityFeeIx = getSetComputeUnitPriceInstruction({ microLamports: 1000n });
 
         // Build instruction data
         // AC-CI3.1–AC-CI3.5: Correct instruction discriminator for each action
@@ -241,7 +254,6 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         });
 
         // Convert SDK account metas to @solana/kit instruction format
-        // Map string roles to AccountRole enum values
         const baseInstruction: Instruction = {
           programAddress: pokerProgramId,
           accounts: sdkAccountMetas.map((meta) => ({
@@ -252,20 +264,34 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         };
 
         // Attach signer to the instruction for the player account
-        // This associates the wallet signer with the player's signer account
         const instruction = addSignersToInstruction([walletSigner], baseInstruction);
 
         // Get latest blockhash for transaction lifetime
         const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
-        // Build transaction message
-        // AC-CI2.1: Builds transaction using SDK instruction builders (not mocked)
+        // Build transaction message with compute budget + action instruction
         const transactionMessage = pipe(
           createTransactionMessage({ version: 0 }),
           (tx) => setTransactionMessageFeePayerSigner(walletSigner, tx),
           (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(instruction, tx)
+          (tx) => appendTransactionMessageInstructions([computeBudgetIx, priorityFeeIx, instruction], tx)
         );
+
+        // Simulate transaction before signing to catch errors early
+        const compiledTx = compileTransaction(transactionMessage);
+        const simulationResult = await rpc.simulateTransaction(
+          getBase64EncodedWireTransaction(compiledTx),
+          { commitment: 'confirmed', encoding: 'base64' }
+        ).send();
+
+        if (simulationResult.value.err) {
+          const logs = simulationResult.value.logs ?? undefined;
+          throw new Error(formatTransactionError(
+            new Error(`Simulation failed: ${JSON.stringify(simulationResult.value.err)}`),
+            logs,
+            pokerProgramId
+          ));
+        }
 
         // AC-CI2.3: Sign transaction via connected wallet
         const signedTransaction = await signTransactionMessageWithSigners(transactionMessage);
@@ -274,17 +300,8 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         // Get signature (available after signing)
         const signature = getSignatureFromTransaction(signedTransaction);
 
-        // AC-CI2.3: Send to RPC
-        // AC-CI2.4: Await confirmation
-        if (mode === 'send') {
-          // Wallet only supports sendTransaction (already sent during signing)
-          // Just wait for confirmation via signature status
-          // The sendAndConfirm factory should handle this
-        }
-
+        // AC-CI2.3: Send to RPC, AC-CI2.4: Await confirmation
         const sendAndConfirmTransaction = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions });
-        // The signed transaction has blockhash lifetime from setTransactionMessageLifetimeUsingBlockhash.
-        // The type assertion is needed because the generic type inference loses the lifetime info.
         await sendAndConfirmTransaction(
           signedTransaction as Parameters<typeof sendAndConfirmTransaction>[0],
           { commitment: 'confirmed' }

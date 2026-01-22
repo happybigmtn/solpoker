@@ -10,7 +10,7 @@
  * AC-CI3.7: Leave table action sends a `leave_table` transaction.
  */
 
-import { useCallback, useState, useMemo, useRef } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { useWalletConnection } from '@solana/react-hooks';
 import { createWalletTransactionSigner } from '@solana/client';
 import {
@@ -18,18 +18,20 @@ import {
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
-  appendTransactionMessageInstruction,
+  appendTransactionMessageInstructions,
   signTransactionMessageWithSigners,
   sendAndConfirmTransactionFactory,
   getSignatureFromTransaction,
   assertIsSendableTransaction,
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
+  compileTransaction,
+  getBase64EncodedWireTransaction,
   addSignersToInstruction,
   AccountRole,
   type Address,
   type Instruction,
 } from '@solana/kit';
+import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
+import { useRpc, useRpcSubscriptions } from './use-rpc';
 import {
   buildJoinTableData,
   getJoinTableAccountMetas,
@@ -160,6 +162,10 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
   } = config;
   const { wallet } = useWalletConnection();
 
+  // Use shared RPC clients (single connection for the app)
+  const rpc = useRpc();
+  const rpcSubscriptions = useRpcSubscriptions();
+
   const [txState, setTxState] = useState<TransactionState>('idle');
   const [txSignature, setTxSignature] = useState<string>();
   const [txError, setTxError] = useState<string>();
@@ -169,19 +175,6 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
     | { type: 'leave' }
     | null
   >(null);
-
-  // Create RPC clients (memoized)
-  const { rpc, rpcSubscriptions } = useMemo(() => {
-    const httpUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-    const wsUrl =
-      process.env.NEXT_PUBLIC_SOLANA_WS_URL ||
-      httpUrl.replace('https', 'wss').replace('http', 'ws');
-
-    return {
-      rpc: createSolanaRpc(httpUrl),
-      rpcSubscriptions: createSolanaRpcSubscriptions(wsUrl),
-    };
-  }, []);
 
   const resetTxState = useCallback(() => {
     setTxState('idle');
@@ -242,26 +235,47 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         // Create wallet transaction signer
         const { signer: walletSigner } = createWalletTransactionSigner(wallet);
 
-        // Build create ATA idempotent instruction (creates if doesn't exist, succeeds if exists)
-        const createAtaAccountMetas = getCreateAtaIdempotentAccountMetas({
-          payer: playerAddress,
-          ata: playerTokenAccount,
-          wallet: playerAddress,
-          mint: crispsMint,
-          tokenProgramId: TOKEN_2022_PROGRAM_ID as Address,
-        });
+        // Build compute budget instructions for priority fees
+        const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 300_000 });
+        const priorityFeeIx = getSetComputeUnitPriceInstruction({ microLamports: 1000n });
 
-        const createAtaBaseInstruction: Instruction = {
-          programAddress: ASSOCIATED_TOKEN_PROGRAM_ID as Address,
-          accounts: createAtaAccountMetas.map((meta) => ({
-            address: meta.address as Address,
-            role: mapStringRoleToAccountRole(meta.role),
-          })),
-          data: buildCreateAtaIdempotentData(),
-        };
+        // Check if ATA already exists to avoid unnecessary instruction
+        let ataExists = false;
+        try {
+          const ataInfo = await rpc.getAccountInfo(playerTokenAccount, { encoding: 'base64' }).send();
+          ataExists = ataInfo.value !== null && ataInfo.value.data.length > 0;
+          console.log('[joinTable] ATA exists:', ataExists, 'address:', playerTokenAccount);
+        } catch (e) {
+          console.log('[joinTable] ATA check failed, will try to create:', e);
+        }
 
-        // Attach signer to the create ATA instruction
-        const createAtaInstruction = addSignersToInstruction([walletSigner], createAtaBaseInstruction);
+        // Build instructions array - start with compute budget
+        const instructions: Instruction[] = [computeBudgetIx, priorityFeeIx];
+
+        if (!ataExists) {
+          // Build create ATA idempotent instruction (creates if doesn't exist, succeeds if exists)
+          const createAtaAccountMetas = getCreateAtaIdempotentAccountMetas({
+            payer: playerAddress,
+            ata: playerTokenAccount,
+            wallet: playerAddress,
+            mint: crispsMint,
+            tokenProgramId: TOKEN_2022_PROGRAM_ID as Address,
+          });
+
+          const createAtaBaseInstruction: Instruction = {
+            programAddress: ASSOCIATED_TOKEN_PROGRAM_ID as Address,
+            accounts: createAtaAccountMetas.map((meta) => ({
+              address: meta.address as Address,
+              role: mapStringRoleToAccountRole(meta.role),
+            })),
+            data: buildCreateAtaIdempotentData(),
+          };
+
+          // Attach signer to the create ATA instruction
+          const createAtaInstruction = addSignersToInstruction([walletSigner], createAtaBaseInstruction);
+          instructions.push(createAtaInstruction);
+          console.log('[joinTable] Adding ATA creation instruction');
+        }
 
         // AC-CI3.6: Build join table instruction data
         const instructionData = buildJoinTableData({ buyInAmount });
@@ -288,19 +302,35 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
 
         // Attach signer to the instruction for the player account
         const joinInstruction = addSignersToInstruction([walletSigner], baseInstruction);
+        instructions.push(joinInstruction);
+        console.log('[joinTable] Adding join table instruction, total instructions:', instructions.length);
 
         // Get latest blockhash for transaction lifetime
         const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
         // AC-CI2.2: Build transaction using SDK instruction builders
-        // First create ATA (idempotent), then join table
         const transactionMessage = pipe(
           createTransactionMessage({ version: 0 }),
           (tx) => setTransactionMessageFeePayerSigner(walletSigner, tx),
           (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(createAtaInstruction, tx),
-          (tx) => appendTransactionMessageInstruction(joinInstruction, tx)
+          (tx) => appendTransactionMessageInstructions(instructions, tx)
         );
+
+        // Simulate transaction before signing to catch errors early
+        const compiledTx = compileTransaction(transactionMessage);
+        const simulationResult = await rpc.simulateTransaction(
+          getBase64EncodedWireTransaction(compiledTx),
+          { commitment: 'confirmed', encoding: 'base64' }
+        ).send();
+
+        if (simulationResult.value.err) {
+          const logs = simulationResult.value.logs ?? undefined;
+          throw new Error(formatTransactionError(
+            new Error(`Simulation failed: ${JSON.stringify(simulationResult.value.err)}`),
+            logs,
+            pokerProgramId
+          ));
+        }
 
         // AC-CI2.3: Sign transaction via connected wallet
         const signedTransaction = await signTransactionMessageWithSigners(transactionMessage);
@@ -390,6 +420,10 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
       // Create wallet transaction signer
       const { signer: walletSigner } = createWalletTransactionSigner(wallet);
 
+      // Build compute budget instructions for priority fees
+      const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 200_000 });
+      const priorityFeeIx = getSetComputeUnitPriceInstruction({ microLamports: 1000n });
+
       // AC-CI3.7: Build leave table instruction data
       const instructionData = buildLeaveTableData();
 
@@ -424,8 +458,24 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         createTransactionMessage({ version: 0 }),
         (tx) => setTransactionMessageFeePayerSigner(walletSigner, tx),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => appendTransactionMessageInstruction(instruction, tx)
+        (tx) => appendTransactionMessageInstructions([computeBudgetIx, priorityFeeIx, instruction], tx)
       );
+
+      // Simulate transaction before signing to catch errors early
+      const compiledTx = compileTransaction(transactionMessage);
+      const simulationResult = await rpc.simulateTransaction(
+        getBase64EncodedWireTransaction(compiledTx),
+        { commitment: 'confirmed', encoding: 'base64' }
+      ).send();
+
+      if (simulationResult.value.err) {
+        const logs = simulationResult.value.logs ?? undefined;
+        throw new Error(formatTransactionError(
+          new Error(`Simulation failed: ${JSON.stringify(simulationResult.value.err)}`),
+          logs,
+          pokerProgramId
+        ));
+      }
 
       // AC-CI2.3: Sign transaction via connected wallet
       const signedTransaction = await signTransactionMessageWithSigners(transactionMessage);

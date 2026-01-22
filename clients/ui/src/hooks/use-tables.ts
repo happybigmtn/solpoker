@@ -7,9 +7,10 @@
  * AC-CI5.2: UI displays table list with blinds, player count, and join option.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createSolanaRpc, type Address } from '@solana/kit';
+import { useState, useEffect, useCallback } from 'react';
+import { type Address } from '@solana/kit';
 import { ACCOUNT_DISCRIMINATOR, TABLE_SIZE } from '@robopoker/client';
+import { useRpc } from './use-rpc';
 import { parseTableData } from './use-table-subscription';
 import type { TableState } from '@/types/table';
 
@@ -86,11 +87,8 @@ export function useTables(config: UseTablesConfig): UseTablesReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>();
 
-  // Create RPC client (memoized)
-  const rpc = useMemo(() => {
-    const httpUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-    return createSolanaRpc(httpUrl);
-  }, []);
+  // Use shared RPC client (single connection for the app)
+  const rpc = useRpc();
 
   /**
    * Fetch all table accounts via getProgramAccounts.

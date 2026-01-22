@@ -24,7 +24,36 @@ vi.mock('@solana/client', () => ({
   })),
 }));
 
+// Mock RPC functions
+const mockSimulateTransaction = vi.fn(() => ({
+  send: vi.fn(() => Promise.resolve({ value: { err: null, logs: [] } })),
+}));
+const mockGetAccountInfo = vi.fn(() => ({
+  send: vi.fn(() => Promise.resolve({ value: null })),
+}));
+const mockRpc = {
+  getLatestBlockhash: vi.fn(() => ({
+    send: vi.fn(() => Promise.resolve({ value: { blockhash: 'mockBlockhash', lastValidBlockHeight: 1000n } })),
+  })),
+  getAccountInfo: mockGetAccountInfo,
+  simulateTransaction: mockSimulateTransaction,
+};
+const mockRpcSubscriptions = {};
+
+// Mock use-rpc hooks
+vi.mock('./use-rpc', () => ({
+  useRpc: vi.fn(() => mockRpc),
+  useRpcSubscriptions: vi.fn(() => mockRpcSubscriptions),
+}));
+
+// Mock @solana-program/compute-budget
+vi.mock('@solana-program/compute-budget', () => ({
+  getSetComputeUnitLimitInstruction: vi.fn(() => ({ programAddress: 'computeBudget', data: new Uint8Array() })),
+  getSetComputeUnitPriceInstruction: vi.fn(() => ({ programAddress: 'computeBudget', data: new Uint8Array() })),
+}));
+
 // Mock @solana/kit
+
 vi.mock('@solana/kit', () => ({
   AccountRole: {
     READONLY: 0,
@@ -43,14 +72,19 @@ vi.mock('@solana/kit', () => ({
   setTransactionMessageFeePayerSigner: vi.fn((signer) => (tx: unknown) => ({ ...tx, feePayer: signer })),
   setTransactionMessageLifetimeUsingBlockhash: vi.fn((blockhash) => (tx: unknown) => ({ ...tx, blockhash })),
   appendTransactionMessageInstruction: vi.fn((instruction) => (tx: unknown) => ({ ...tx, instructions: [instruction] })),
+  appendTransactionMessageInstructions: vi.fn((instructions) => (tx: unknown) => ({ ...tx, instructions })),
   signTransactionMessageWithSigners: vi.fn(() => Promise.resolve({ signatures: ['mockSig'] })),
   sendAndConfirmTransactionFactory: vi.fn(() => vi.fn(() => Promise.resolve())),
   getSignatureFromTransaction: vi.fn(() => 'mockSignature123'),
   assertIsSendableTransaction: vi.fn(),
+  compileTransaction: vi.fn(() => ({})),
+  getBase64EncodedWireTransaction: vi.fn(() => 'base64tx'),
   createSolanaRpc: vi.fn(() => ({
     getLatestBlockhash: vi.fn(() => ({
       send: vi.fn(() => Promise.resolve({ value: { blockhash: 'mockBlockhash', lastValidBlockHeight: 1000n } })),
     })),
+    getAccountInfo: mockGetAccountInfo,
+    simulateTransaction: mockSimulateTransaction,
   })),
   createSolanaRpcSubscriptions: vi.fn(() => ({})),
   addSignersToInstruction: vi.fn((signers, instruction) => ({ ...instruction, signers })),
@@ -87,10 +121,22 @@ vi.mock('@robopoker/client', () => ({
     { address: 'tokenProgram', role: 'readonly' },
   ]),
   TOKEN_2022_PROGRAM_ID: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
+  ASSOCIATED_TOKEN_PROGRAM_ID: 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
   POKER_DISCRIMINATOR: {
     JOIN_TABLE: 2,
     LEAVE_TABLE: 3,
   },
+  // ATA creation mocks
+  getCreateAtaIdempotentAccountMetas: vi.fn(() => [
+    { address: 'payerAddress', role: 'writable_signer' },
+    { address: 'ataAddress', role: 'writable' },
+    { address: 'walletAddress', role: 'readonly' },
+    { address: 'mintAddress', role: 'readonly' },
+    { address: 'systemProgram', role: 'readonly' },
+    { address: 'tokenProgram', role: 'readonly' },
+    { address: 'associatedTokenProgram', role: 'readonly' },
+  ]),
+  buildCreateAtaIdempotentData: vi.fn(() => new Uint8Array([1])),
   formatTransactionError: vi.fn((error) => {
     const msg = typeof error === 'string' ? error : error.message;
     if (msg.includes('network')) return 'Network error. Please check your connection and try again.';
@@ -136,6 +182,7 @@ describe('useTableAction', () => {
     pokerProgramId: 'mockProgramId' as Address,
     configAddress: 'mockConfigAddress' as Address,
     playerTokenAccount: 'mockPlayerTokenAccount' as Address,
+    crispsMint: 'mockCrispsMint' as Address,
   };
 
   const mockWallet = {
@@ -157,6 +204,14 @@ describe('useTableAction', () => {
       disconnect: vi.fn(),
     });
     mockSendAndConfirmTransactionFactory.mockReturnValue(vi.fn(() => Promise.resolve()));
+    // Reset simulation mock to return success by default
+    mockSimulateTransaction.mockReturnValue({
+      send: vi.fn(() => Promise.resolve({ value: { err: null, logs: [] } })),
+    });
+    // Reset getAccountInfo mock to return null (account doesn't exist)
+    mockGetAccountInfo.mockReturnValue({
+      send: vi.fn(() => Promise.resolve({ value: null })),
+    });
   });
 
   describe('joinTable (AC-CI3.6)', () => {
@@ -386,10 +441,12 @@ describe('useTableAction', () => {
 
     it('AC-CI4.4: surfaces simulation/preflight errors with user-friendly message', async () => {
       // Simulation errors occur during preflight check before transaction lands on-chain
-      const sendAndConfirm = vi.fn(() =>
-        Promise.reject(new Error('Transaction simulation failed: custom program error: 0x6'))
-      );
-      mockSendAndConfirmTransactionFactory.mockReturnValue(sendAndConfirm);
+      // With pre-send simulation, we catch errors early
+      mockSimulateTransaction.mockReturnValueOnce({
+        send: vi.fn(() => Promise.resolve({
+          value: { err: { InstructionError: [0, { Custom: 6 }] }, logs: ['Program log: TableFull'] },
+        })),
+      });
 
       const { result } = renderHook(() => useTableAction(mockConfig));
 
@@ -399,7 +456,6 @@ describe('useTableAction', () => {
 
       expect(result.current.txState).toBe('failed');
       // AC-CI4.4: Simulation error surfaced with decoded program error message
-      // Error code 0x6 = TableFull
       expect(result.current.txError).toBeDefined();
       // Simulation errors are not retryable (program logic failure, not network)
       expect(result.current.isRetryable).toBe(false);

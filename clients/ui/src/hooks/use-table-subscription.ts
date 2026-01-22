@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo, useSyncExternalStore, useRef } from 'react';
+import { getBase58Decoder } from '@solana/kit';
 import { useRpc, useRpcSubscriptions } from './use-rpc';
 import { createTableStore, type TableStore } from '@/stores/table-store';
 import {
@@ -164,6 +165,9 @@ function parseSeat(
   };
 }
 
+// Use kit's base58 decoder for converting bytes to base58 string
+const base58Decoder = getBase58Decoder();
+
 /**
  * Check if all bytes are zero.
  */
@@ -181,53 +185,11 @@ function encodeHex(bytes: Uint8Array): string {
 }
 
 /**
- * Base58 alphabet (Bitcoin/Solana style).
- */
-const BASE58_ALPHABET =
-  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-
-/**
- * Encode bytes as base58 string.
- * Simple implementation for pubkey display.
+ * Encode bytes as base58 string using @solana/kit codec.
  */
 function encodeBase58(bytes: Uint8Array): string {
   if (bytes.length === 0) return '';
-
-  // Count leading zeros
-  let zeros = 0;
-  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
-    zeros++;
-  }
-
-  // Convert to base58
-  const size = Math.ceil(bytes.length * 138 / 100) + 1;
-  const b58 = new Uint8Array(size);
-  let length = 0;
-
-  for (let i = zeros; i < bytes.length; i++) {
-    let carry = bytes[i];
-    let j = 0;
-    for (let k = size - 1; k >= 0 && (carry !== 0 || j < length); k--, j++) {
-      carry += 256 * b58[k];
-      b58[k] = carry % 58;
-      carry = Math.floor(carry / 58);
-    }
-    length = j;
-  }
-
-  // Skip leading zeros in b58
-  let start = size - length;
-  while (start < size && b58[start] === 0) {
-    start++;
-  }
-
-  // Build result
-  let result = '1'.repeat(zeros);
-  for (let i = start; i < size; i++) {
-    result += BASE58_ALPHABET[b58[i]];
-  }
-
-  return result;
+  return base58Decoder.decode(bytes);
 }
 
 /**
@@ -256,16 +218,19 @@ export function useTableSubscription(tableAddress: string) {
   const errorRef = useRef<Error | null>(null);
   const isConnectedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const subscriptionPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     if (!tableAddress) return;
 
     // Clean up previous subscription
-    abortRef.current?.abort();
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
     const abort = new AbortController();
     abortRef.current = abort;
 
-    async function fetchAndSubscribe() {
+    async function fetchAndSubscribe(): Promise<void> {
       try {
         // First, fetch initial account data via HTTP RPC
         // This gives us the current state immediately
@@ -313,18 +278,24 @@ export function useTableSubscription(tableAddress: string) {
           }
         }
       } catch (err) {
-        // Ignore abort errors
-        if (err instanceof Error && err.name === 'AbortError') return;
+        // Ignore abort errors - these are expected during cleanup
+        if (err instanceof Error && (err.name === 'AbortError' || abort.signal.aborted)) {
+          return;
+        }
+        console.error('[useTableSubscription] Error:', err);
         errorRef.current = err as Error;
         isConnectedRef.current = false;
       }
     }
 
-    fetchAndSubscribe();
+    // Track the subscription promise for potential cleanup awaiting
+    subscriptionPromiseRef.current = fetchAndSubscribe();
 
     return () => {
       abort.abort();
       isConnectedRef.current = false;
+      // Note: We don't await the promise here as useEffect cleanup must be sync,
+      // but the abort signal will cleanly terminate the async iterator
     };
   }, [tableAddress, rpc, rpcSubscriptions, store]);
 

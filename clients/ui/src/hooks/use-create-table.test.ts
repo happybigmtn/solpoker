@@ -21,6 +21,30 @@ vi.mock('@solana/client', () => ({
   })),
 }));
 
+// Mock RPC functions
+const mockSimulateTransaction = vi.fn(() => ({
+  send: vi.fn(() => Promise.resolve({ value: { err: null, logs: [] } })),
+}));
+const mockRpc = {
+  getLatestBlockhash: vi.fn(() => ({
+    send: vi.fn(() => Promise.resolve({ value: { blockhash: 'mockBlockhash', lastValidBlockHeight: 1000n } })),
+  })),
+  simulateTransaction: mockSimulateTransaction,
+};
+const mockRpcSubscriptions = {};
+
+// Mock use-rpc hooks
+vi.mock('./use-rpc', () => ({
+  useRpc: vi.fn(() => mockRpc),
+  useRpcSubscriptions: vi.fn(() => mockRpcSubscriptions),
+}));
+
+// Mock @solana-program/compute-budget
+vi.mock('@solana-program/compute-budget', () => ({
+  getSetComputeUnitLimitInstruction: vi.fn(() => ({ programAddress: 'computeBudget', data: new Uint8Array() })),
+  getSetComputeUnitPriceInstruction: vi.fn(() => ({ programAddress: 'computeBudget', data: new Uint8Array() })),
+}));
+
 // Mock @solana/kit
 vi.mock('@solana/kit', () => ({
   AccountRole: {
@@ -40,15 +64,14 @@ vi.mock('@solana/kit', () => ({
   setTransactionMessageFeePayerSigner: vi.fn((signer) => (tx: unknown) => ({ ...tx, feePayer: signer })),
   setTransactionMessageLifetimeUsingBlockhash: vi.fn((blockhash) => (tx: unknown) => ({ ...tx, blockhash })),
   appendTransactionMessageInstruction: vi.fn((instruction) => (tx: unknown) => ({ ...tx, instructions: [instruction] })),
+  appendTransactionMessageInstructions: vi.fn((instructions) => (tx: unknown) => ({ ...tx, instructions })),
   signTransactionMessageWithSigners: vi.fn(() => Promise.resolve({ signatures: ['mockSig'] })),
   sendAndConfirmTransactionFactory: vi.fn(() => vi.fn(() => Promise.resolve())),
   getSignatureFromTransaction: vi.fn(() => 'mockSignature123'),
   assertIsSendableTransaction: vi.fn(),
-  createSolanaRpc: vi.fn(() => ({
-    getLatestBlockhash: vi.fn(() => ({
-      send: vi.fn(() => Promise.resolve({ value: { blockhash: 'mockBlockhash', lastValidBlockHeight: 1000n } })),
-    })),
-  })),
+  compileTransaction: vi.fn(() => ({})),
+  getBase64EncodedWireTransaction: vi.fn(() => 'base64tx'),
+  createSolanaRpc: vi.fn(() => mockRpc),
   createSolanaRpcSubscriptions: vi.fn(() => ({})),
   addSignersToInstruction: vi.fn((signers, instruction) => ({ ...instruction, signers })),
 }));
