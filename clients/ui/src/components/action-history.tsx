@@ -72,6 +72,7 @@ export const ActionHistory = memo(function ActionHistory({
         className="max-h-48 overflow-y-auto p-2"
         role="log"
         aria-live="polite"
+        aria-relevant="additions text"
         aria-label="Recent poker actions"
       >
         {entries.slice(-maxVisible).map((entry, i) => (
@@ -156,6 +157,8 @@ function ActionBadge({ action }: { action: ActionHistoryEntry['action'] }) {
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${className}`}
+      data-action-badge
+      data-action={action}
     >
       {label}
     </span>

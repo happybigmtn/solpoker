@@ -3,7 +3,7 @@
 //! All structures use fixed-size layouts suitable for on-chain storage.
 //! Fields are ordered largest-to-smallest for optimal alignment.
 //!
-//! # Account Byte Sizes (AC-1.5)
+//! # Account Byte Sizes (AC-POK1.5)
 //!
 //! | Account    | Size (bytes) | Notes                       |
 //! |------------|-------------:|-----------------------------|
@@ -15,6 +15,14 @@
 
 use pinocchio::pubkey::Pubkey;
 
+use crate::error::EntropyError;
+
+#[inline]
+fn is_aligned<T>(data: *const u8) -> bool {
+    let align = core::mem::align_of::<T>();
+    (data as usize) & (align - 1) == 0
+}
+
 /// Size constants for account data
 pub const CONFIG_SIZE: usize = core::mem::size_of::<Config>();
 pub const COMMITMENT_SIZE: usize = core::mem::size_of::<Commitment>();
@@ -25,6 +33,19 @@ pub mod discriminator {
     pub const CONFIG: u8 = 1;
     pub const COMMITMENT: u8 = 2;
     pub const REQUEST: u8 = 3;
+    pub const TYPE_MASK: u8 = 0x0F;
+    pub const VERSION_MASK: u8 = 0xF0;
+    pub const VERSION_SHIFT: u8 = 4;
+
+    #[inline]
+    pub fn account_type(value: u8) -> u8 {
+        value & TYPE_MASK
+    }
+
+    #[inline]
+    pub fn account_version(value: u8) -> u8 {
+        (value & VERSION_MASK) >> VERSION_SHIFT
+    }
 }
 
 /// Global configuration account (PDA: [b"config"])
@@ -40,7 +61,7 @@ pub struct Config {
     pub initialized: u8,
     /// Padding for alignment
     pub _padding: [u8; 6],
-    /// The authorized entropy provider pubkey (AC-2.5: single-provider mode)
+    /// The authorized entropy provider pubkey (AC-POK2.5: single-provider mode)
     pub provider: Pubkey,
     /// Authority that can update config
     pub authority: Pubkey,
@@ -55,8 +76,24 @@ pub struct Config {
 impl Config {
     pub const SEEDS: &'static [&'static [u8]] = &[b"config"];
 
-    /// Load config from account data (zero-copy)
-    ///
+    /// Load config from account data (zero-copy with alignment check)
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<&Self, EntropyError> {
+        if data.len() < CONFIG_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(EntropyError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &*(data.as_ptr() as *const Self) })
+    }
+
+    /// Load mutable config from account data (zero-copy with alignment check)
+    #[inline]
+    pub fn from_bytes_mut(data: &mut [u8]) -> Result<&mut Self, EntropyError> {
+        if data.len() < CONFIG_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(EntropyError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &mut *(data.as_mut_ptr() as *mut Self) })
+    }
+
     /// # Safety
     /// Caller must ensure data length >= CONFIG_SIZE and alignment is correct
     #[inline]
@@ -64,8 +101,6 @@ impl Config {
         unsafe { &*(data.as_ptr() as *const Self) }
     }
 
-    /// Load mutable config from account data (zero-copy)
-    ///
     /// # Safety
     /// Caller must ensure data length >= CONFIG_SIZE and alignment is correct
     #[inline]
@@ -108,19 +143,33 @@ pub struct Commitment {
 }
 
 impl Commitment {
-    /// Load commitment from account data (zero-copy)
-    ///
+    /// Load commitment from account data (zero-copy with alignment check)
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<&Self, EntropyError> {
+        if data.len() < COMMITMENT_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(EntropyError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &*(data.as_ptr() as *const Self) })
+    }
+
+    /// Load mutable commitment from account data (zero-copy with alignment check)
+    #[inline]
+    pub fn from_bytes_mut(data: &mut [u8]) -> Result<&mut Self, EntropyError> {
+        if data.len() < COMMITMENT_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(EntropyError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &mut *(data.as_mut_ptr() as *mut Self) })
+    }
+
     /// # Safety
-    /// Caller must ensure data length >= COMMITMENT_SIZE
+    /// Caller must ensure data length >= COMMITMENT_SIZE and alignment is correct
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
     }
 
-    /// Load mutable commitment from account data (zero-copy)
-    ///
     /// # Safety
-    /// Caller must ensure data length >= COMMITMENT_SIZE
+    /// Caller must ensure data length >= COMMITMENT_SIZE and alignment is correct
     #[inline]
     pub unsafe fn from_bytes_unchecked_mut(data: &mut [u8]) -> &mut Self {
         unsafe { &mut *(data.as_mut_ptr() as *mut Self) }
@@ -182,19 +231,33 @@ pub struct Request {
 }
 
 impl Request {
-    /// Load request from account data (zero-copy)
-    ///
+    /// Load request from account data (zero-copy with alignment check)
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<&Self, EntropyError> {
+        if data.len() < REQUEST_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(EntropyError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &*(data.as_ptr() as *const Self) })
+    }
+
+    /// Load mutable request from account data (zero-copy with alignment check)
+    #[inline]
+    pub fn from_bytes_mut(data: &mut [u8]) -> Result<&mut Self, EntropyError> {
+        if data.len() < REQUEST_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(EntropyError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &mut *(data.as_mut_ptr() as *mut Self) })
+    }
+
     /// # Safety
-    /// Caller must ensure data length >= REQUEST_SIZE
+    /// Caller must ensure data length >= REQUEST_SIZE and alignment is correct
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
     }
 
-    /// Load mutable request from account data (zero-copy)
-    ///
     /// # Safety
-    /// Caller must ensure data length >= REQUEST_SIZE
+    /// Caller must ensure data length >= REQUEST_SIZE and alignment is correct
     #[inline]
     pub unsafe fn from_bytes_unchecked_mut(data: &mut [u8]) -> &mut Self {
         unsafe { &mut *(data.as_mut_ptr() as *mut Self) }
@@ -219,7 +282,7 @@ pub mod request_status {
     pub const FINALIZED: u8 = 1;
 }
 
-/// Derive randomness from preimage and slothash (AC-2.2)
+/// Derive randomness from preimage and slothash (AC-POK2.2)
 ///
 /// The randomness is XOR of the preimage and slothash, providing:
 /// - Unpredictability from slothash (derived from validator VRF)

@@ -1,5 +1,5 @@
 /**
- * SDK smoke tests for core instruction flows (AC-8.3)
+ * SDK smoke tests for core instruction flows (AC-POK8.3)
  *
  * Verifies that the typed SDK can build valid instructions for complete game flows.
  * These tests demonstrate the SDK can construct proper instruction data and account
@@ -58,7 +58,7 @@ const AUTHORITY = address("H23jVpt1CPdGSoHPb3mE8nxsWYbWrZMCgkLT1qLGAJMG");
 const PLAYER = address("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin");
 const PLAYER_TOKEN = address("H23jVpt1CPdGSoHPb3mE8nxsWYbWrZMCgkLT1qLGAJMG");
 
-describe("SDK Core Flow Smoke Tests (AC-8.3)", () => {
+describe("SDK Core Flow Smoke Tests (AC-POK8.3)", () => {
   describe("Program Initialization Flow", () => {
     it("can build complete initialization transaction components", async () => {
       // Derive config PDA
@@ -444,10 +444,10 @@ describe("IDL Consistency", () => {
     ).toBe(getLayoutSize("initialize"));
 
     expect(
-      buildCreateTableData({ tableId: 0n, smallBlind: 0n, bigBlind: 0n }).length
+      buildCreateTableData({ tableId: 0n, smallBlind: 1n, bigBlind: 2n }).length
     ).toBe(getLayoutSize("createTable"));
 
-    expect(buildJoinTableData({ buyInAmount: 0n }).length).toBe(
+    expect(buildJoinTableData({ buyInAmount: 100n }).length).toBe(
       getLayoutSize("joinTable")
     );
 

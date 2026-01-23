@@ -364,6 +364,45 @@ export function useCurrentActor(store: TableStore): number {
 }
 
 /**
+ * Hook to use the dealer position with re-render only when it changes.
+ *
+ * AC-UI9.3: Avoids full-table re-renders on unrelated updates.
+ */
+export function useDealerPosition(store: TableStore): number {
+  return useSyncExternalStore(
+    store.subscribeDealerPosition,
+    store.getDealerPosition,
+    store.getDealerPosition
+  );
+}
+
+/**
+ * Hook to use the revealed seed with re-render only when it changes.
+ *
+ * AC-UI9.3: Avoids full-table re-renders on unrelated updates.
+ */
+export function useRevealedSeed(store: TableStore): string {
+  return useSyncExternalStore(
+    store.subscribeRevealedSeed,
+    store.getRevealedSeed,
+    store.getRevealedSeed
+  );
+}
+
+/**
+ * Hook to use seat statuses with re-render only when any status changes.
+ *
+ * AC-UI9.3: Scopes updates to avoid full-table re-renders.
+ */
+export function useSeatStatuses(store: TableStore): number[] {
+  return useSyncExternalStore(
+    store.subscribeSeatStatuses,
+    store.getSeatStatuses,
+    store.getSeatStatuses
+  );
+}
+
+/**
  * Hook to use the table status with re-render only when status changes.
  *
  * AC-4.1: Only re-renders when the table status changes.

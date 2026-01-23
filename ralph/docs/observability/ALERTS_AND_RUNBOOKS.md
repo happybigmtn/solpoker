@@ -863,6 +863,9 @@ All runbooks accessible at:
 - Internal: This document
 - Published: https://docs.robopoker.io/runbooks/
 
+Walkthrough evidence is tracked in:
+- `ralph/docs/observability/RUNBOOK_WALKTHROUGHS.md`
+
 ---
 
 ## 5. Implementation Checklist

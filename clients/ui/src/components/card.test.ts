@@ -1,7 +1,7 @@
 /**
  * Tests for card component utilities.
  *
- * AC-CI6.1: Card index 0–51 maps to correct suit/rank.
+ * AC-UI2.2: Card index 0–51 maps to correct suit/rank.
  */
 
 import { describe, it, expect } from 'vitest';

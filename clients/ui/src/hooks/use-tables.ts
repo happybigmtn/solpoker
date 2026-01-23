@@ -7,7 +7,7 @@
  * AC-CI5.2: UI displays table list with blinds, player count, and join option.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { type Address } from '@solana/kit';
 import { ACCOUNT_DISCRIMINATOR, TABLE_SIZE } from '@robopoker/client';
 import { useRpc } from './use-rpc';
@@ -55,6 +55,8 @@ export interface UseTablesReturn {
   error?: string;
   /** Refresh the table list */
   refresh: () => Promise<void>;
+  /** Whether a refresh is pending (non-blocking) */
+  isRefreshing: boolean;
 }
 
 /**
@@ -86,6 +88,8 @@ export function useTables(config: UseTablesConfig): UseTablesReturn {
   const [tables, setTables] = useState<TableSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>();
+  // useTransition for non-blocking refresh updates (React Best Practice: rerender-transitions)
+  const [isRefreshing, startTransition] = useTransition();
 
   // Use shared RPC client (single connection for the app)
   const rpc = useRpc();
@@ -144,13 +148,17 @@ export function useTables(config: UseTablesConfig): UseTablesReturn {
       }
 
       // Sort by tableId for consistent ordering
-      tableSummaries.sort((a, b) => {
+      // Using toSorted() for immutability (React Best Practice: js-tosorted-immutable)
+      const sortedTables = tableSummaries.toSorted((a, b) => {
         if (a.tableId < b.tableId) return -1;
         if (a.tableId > b.tableId) return 1;
         return 0;
       });
 
-      setTables(tableSummaries);
+      // Wrap in startTransition for non-blocking updates (React Best Practice: rerender-transitions)
+      startTransition(() => {
+        setTables(sortedTables);
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch tables';
       setError(message);
@@ -170,5 +178,6 @@ export function useTables(config: UseTablesConfig): UseTablesReturn {
     isLoading,
     error,
     refresh: fetchTables,
+    isRefreshing,
   };
 }

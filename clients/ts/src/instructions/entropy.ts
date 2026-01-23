@@ -174,6 +174,7 @@ export function buildEntropySlashData(): Uint8Array {
 export function getEntropySlashAccountMetas(accounts: EntropySlashAccounts) {
   return [
     { address: accounts.commitment, role: "writable" as const },
+    { address: accounts.request, role: "readonly" as const },
     { address: accounts.provider, role: "writable" as const },
     { address: accounts.slasher, role: "writable" as const },
     { address: accounts.config, role: "readonly" as const },

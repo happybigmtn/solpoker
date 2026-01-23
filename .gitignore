@@ -18,6 +18,8 @@
 .DS_Store
 .todo
 .env
+.env.local
+.env*.local
 .swp
 
 *.log

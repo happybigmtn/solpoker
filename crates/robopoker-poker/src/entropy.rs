@@ -2,6 +2,14 @@
 
 use pinocchio::pubkey::Pubkey;
 
+use crate::error::PokerError;
+
+#[inline]
+fn is_aligned<T>(data: *const u8) -> bool {
+    let align = core::mem::align_of::<T>();
+    (data as usize) & (align - 1) == 0
+}
+
 pub const CONFIG_SIZE: usize = core::mem::size_of::<EntropyConfig>();
 pub const COMMITMENT_SIZE: usize = core::mem::size_of::<EntropyCommitment>();
 pub const REQUEST_SIZE: usize = core::mem::size_of::<EntropyRequest>();
@@ -29,6 +37,14 @@ impl EntropyConfig {
     #[inline]
     pub fn is_initialized(&self) -> bool {
         self.discriminator == discriminator::CONFIG && self.initialized == 1
+    }
+
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<&Self, PokerError> {
+        if data.len() < CONFIG_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(PokerError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &*(data.as_ptr() as *const Self) })
     }
 
     #[inline]
@@ -69,6 +85,14 @@ impl EntropyCommitment {
     }
 
     #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<&Self, PokerError> {
+        if data.len() < COMMITMENT_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(PokerError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &*(data.as_ptr() as *const Self) })
+    }
+
+    #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         &*(data.as_ptr() as *const Self)
     }
@@ -103,6 +127,14 @@ impl EntropyRequest {
     #[inline]
     pub fn is_finalized(&self) -> bool {
         self.discriminator == discriminator::REQUEST && self.status == request_status::FINALIZED
+    }
+
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<&Self, PokerError> {
+        if data.len() < REQUEST_SIZE || !is_aligned::<Self>(data.as_ptr()) {
+            return Err(PokerError::InvalidAccountDataLength);
+        }
+        Ok(unsafe { &*(data.as_ptr() as *const Self) })
     }
 
     #[inline]

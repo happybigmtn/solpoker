@@ -3,9 +3,10 @@
 /**
  * Playing card component.
  *
- * AC-CI6.1: Cards render with correct suit and rank based on card index.
- * AC-CI6.2: Unrevealed cards display a card back.
- * AC-PQ.CI3: Card rendering is visually clean and suit colors are distinct.
+ * AC-UI2.1: Cards support face-up, face-down, revealed, folded, and winning states.
+ * AC-UI2.2: Cards render correct suit and rank based on card index.
+ * AC-UI2.3: Card back pattern avoids moire and remains legible at small sizes.
+ * AC-UI2.4: Suits are distinguishable without color using symbols and labels.
  *
  * Card index mapping (matches Rust crate robopoker-core):
  * - rank = index / 4 (0=2, 1=3, ..., 8=T, 9=J, 10=Q, 11=K, 12=A)
@@ -51,6 +52,14 @@ const SUIT_SYMBOLS: Record<SuitValue, string> = {
   [Suit.SPADES]: '♠',
 };
 
+/** Suit display names for accessibility (AC-UI2.4) */
+const SUIT_NAMES: Record<SuitValue, string> = {
+  [Suit.CLUBS]: 'Clubs',
+  [Suit.DIAMONDS]: 'Diamonds',
+  [Suit.HEARTS]: 'Hearts',
+  [Suit.SPADES]: 'Spades',
+};
+
 /** Rank display characters */
 const RANK_CHARS: Record<RankValue, string> = {
   [Rank.TWO]: '2',
@@ -66,6 +75,23 @@ const RANK_CHARS: Record<RankValue, string> = {
   [Rank.QUEEN]: 'Q',
   [Rank.KING]: 'K',
   [Rank.ACE]: 'A',
+};
+
+/** Rank display names for accessibility */
+const RANK_NAMES: Record<RankValue, string> = {
+  [Rank.TWO]: 'Two',
+  [Rank.THREE]: 'Three',
+  [Rank.FOUR]: 'Four',
+  [Rank.FIVE]: 'Five',
+  [Rank.SIX]: 'Six',
+  [Rank.SEVEN]: 'Seven',
+  [Rank.EIGHT]: 'Eight',
+  [Rank.NINE]: 'Nine',
+  [Rank.TEN]: 'Ten',
+  [Rank.JACK]: 'Jack',
+  [Rank.QUEEN]: 'Queen',
+  [Rank.KING]: 'King',
+  [Rank.ACE]: 'Ace',
 };
 
 /**
@@ -108,6 +134,8 @@ interface CardProps {
   size?: 'sm' | 'md' | 'lg';
   /** Whether the card is face down (shows card back) */
   faceDown?: boolean;
+  /** Visual state for animation and styling */
+  state?: 'face-up' | 'face-down' | 'revealed' | 'folded' | 'winning';
   /** Additional CSS classes */
   className?: string;
 }
@@ -123,10 +151,13 @@ export const Card = memo(function Card({
   index,
   size = 'md',
   faceDown = false,
+  state,
   className = '',
 }: CardProps) {
   // Determine if we should show the card back
   const showBack = faceDown || index === null || index === undefined || index < 0 || index > 51;
+  const baseState = state ?? (showBack ? 'face-down' : 'face-up');
+  const derivedState = showBack && baseState === 'revealed' ? 'face-down' : baseState;
 
   // Size classes
   const sizeClasses = {
@@ -135,21 +166,44 @@ export const Card = memo(function Card({
     lg: 'h-20 w-14 text-lg',
   };
 
-  if (showBack) {
+  if (showBack || derivedState === 'face-down' || derivedState === 'folded') {
+    const isFolded = derivedState === 'folded';
     return (
       <div
         className={`
           ${sizeClasses[size]}
           flex items-center justify-center
-          rounded-lg border border-zinc-300 dark:border-zinc-600
-          bg-gradient-to-br from-blue-800 to-blue-900
+          rounded-lg border border-zinc-300/60
           shadow-sm
+          card-back
+          ${isFolded ? 'opacity-60 rotate-6' : ''}
           ${className}
         `}
-        aria-label="Face-down card"
+        style={{
+          background: `
+            repeating-linear-gradient(
+              45deg,
+              var(--accent-ink) 0px,
+              var(--accent-ink) 6px,
+              transparent 6px,
+              transparent 12px
+            ),
+            var(--accent-ink)
+          `,
+          borderColor: 'rgba(255, 255, 255, 0.08)',
+        }}
+        aria-label={isFolded ? 'Folded card' : 'Face-down card'}
+        data-state={derivedState}
       >
         {/* Card back pattern */}
-        <div className="h-full w-full rounded-md m-0.5 bg-blue-700/50 border border-blue-600/30" />
+        <div
+          className="h-full w-full rounded-md m-0.5 border"
+          style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            borderColor: 'rgba(255, 255, 255, 0.08)',
+          }}
+          aria-hidden="true"
+        />
       </div>
     );
   }
@@ -159,20 +213,31 @@ export const Card = memo(function Card({
   const isRed = isRedSuit(suit);
   const suitSymbol = SUIT_SYMBOLS[suit];
   const rankChar = RANK_CHARS[rank];
+  const suitName = SUIT_NAMES[suit];
+  const rankName = RANK_NAMES[rank];
 
   return (
     <div
       className={`
         ${sizeClasses[size]}
         flex flex-col items-center justify-center
-        rounded-lg border border-zinc-300 dark:border-zinc-600
-        bg-white dark:bg-zinc-100
+        rounded-lg border
+        bg-[var(--accent-bone)]
         shadow-sm
         font-semibold
-        ${isRed ? 'text-red-600' : 'text-zinc-900'}
+        ${isRed ? 'text-[var(--accent-crimson)]' : 'text-[var(--accent-ink)]'}
+        ${derivedState === 'winning' ? 'ring-2 ring-[var(--accent-gold)] card-winning' : ''}
+        ${derivedState === 'revealed' ? 'scale-[1.02] card-flip' : ''}
         ${className}
       `}
-      aria-label={`${rankChar} of ${suitSymbol}`}
+      style={
+        derivedState === 'winning'
+          ? { boxShadow: '0 0 12px var(--accent-gold)' }
+          : undefined
+      }
+      aria-label={`${rankName} of ${suitName}`}
+      data-state={derivedState}
+      data-suit={suitName.toLowerCase()}
     >
       {/* Rank and suit display */}
       <span className="leading-none">{rankChar}</span>
@@ -205,6 +270,7 @@ export const CardSlot = memo(function CardSlot({
         bg-zinc-200/20 dark:bg-zinc-700/20
         ${className}
       `}
+      role="img"
       aria-label="Empty card slot"
     />
   );

@@ -4,7 +4,7 @@ use super::hole::Hole;
 use super::street::Street;
 
 /// Deck extends much of Hand functionality, with ability to remove cards from itself.
-/// For on-chain determinism (AC-1.1), the deck uses seeded shuffling via `shuffle_with_seed`.
+/// For on-chain determinism (AC-POK1.1), the deck uses seeded shuffling via `shuffle_with_seed`.
 /// The seed comes externally from the entropy program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Deck {
@@ -40,7 +40,7 @@ impl Deck {
         }
     }
 
-    /// Deterministically shuffle the deck using a 32-byte seed (AC-1.1).
+    /// Deterministically shuffle the deck using a 32-byte seed (AC-POK1.1).
     /// Uses a simple Fisher-Yates shuffle with seed-derived random values.
     /// The same seed always produces the same shuffle order.
     pub fn shuffle_with_seed(&mut self, seed: &[u8; 32]) {
@@ -162,7 +162,7 @@ impl Iterator for Deck {
 mod tests {
     use super::*;
 
-    /// Test that the same seed always produces the same shuffle (AC-1.1 determinism)
+    /// Test that the same seed always produces the same shuffle (AC-POK1.1 determinism)
     #[test]
     fn deterministic_shuffle() {
         let seed = [

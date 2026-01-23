@@ -1,0 +1,157 @@
+groups:
+  - name: robopoker-slo
+    rules:
+      - alert: AvailabilityBurnRateHigh
+        expr: |
+          (
+            (1 - sum(rate(robopoker_tx_total{status="success"}[5m])) / sum(rate(robopoker_tx_total[5m])))
+            / (1 - 0.995)
+          ) > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "High error burn rate - SLO at risk"
+          description: "Error rate burn rate is {{ $value | printf \"%.1f\" }}x budget. At this rate, the 30-day error budget will be exhausted in < 1 hour."
+          runbook_url: "https://docs.robopoker.io/runbooks/availability-degraded"
+
+      - alert: AvailabilityBurnRateMedium
+        expr: |
+          (
+            (1 - sum(rate(robopoker_tx_total{status="success"}[30m])) / sum(rate(robopoker_tx_total[30m])))
+            / (1 - 0.995)
+          ) > 6
+        for: 15m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "Elevated error burn rate"
+          description: "Error rate burn rate is {{ $value | printf \"%.1f\" }}x budget over 30m window."
+          runbook_url: "https://docs.robopoker.io/runbooks/availability-degraded"
+
+      - alert: CommitLatencyHigh
+        expr: |
+          histogram_quantile(0.99, sum(rate(robopoker_commit_latency_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: critical
+          slo: latency
+        annotations:
+          summary: "Commit latency P99 exceeds SLO"
+          description: "Commit P99 latency is {{ $value | printf \"%.2f\" }}s (SLO: 2s)"
+          runbook_url: "https://docs.robopoker.io/runbooks/high-latency"
+
+      - alert: RevealSuccessRateLow
+        expr: |
+          (
+            sum(rate(robopoker_tx_total{type="reveal",status="success"}[5m]))
+            / sum(rate(robopoker_tx_total{type="reveal"}[5m]))
+          ) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          slo: reveal_success
+        annotations:
+          summary: "Reveal success rate below SLO"
+          description: "Reveal success rate is {{ $value | printf \"%.3f\" }} (SLO: 99.9%)"
+          runbook_url: "https://docs.robopoker.io/runbooks/failed-reveal"
+
+  - name: robopoker-infrastructure
+    rules:
+      - alert: RPCErrorRateHigh
+        expr: |
+          sum(rate(robopoker_rpc_errors_total[5m])) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          component: rpc
+        annotations:
+          summary: "High RPC error rate"
+          description: "RPC error rate: {{ $value | printf \"%.2f\" }}/s"
+          runbook_url: "https://docs.robopoker.io/runbooks/rpc-outage"
+
+      - alert: QueueDepthHigh
+        expr: |
+          robopoker_request_queue_depth{queue_type="commit"} > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: provider
+        annotations:
+          summary: "Commit queue backing up"
+          description: "Commit queue depth: {{ $value }}"
+          runbook_url: "https://docs.robopoker.io/runbooks/provider-stuck"
+
+      - alert: QueueDepthCritical
+        expr: |
+          robopoker_request_queue_depth{queue_type="commit"} > 100
+        for: 2m
+        labels:
+          severity: critical
+          component: provider
+        annotations:
+          summary: "Commit queue critically backed up"
+          description: "Commit queue depth: {{ $value }}. Provider may be stuck."
+          runbook_url: "https://docs.robopoker.io/runbooks/provider-stuck"
+
+      - alert: HashChainLow
+        expr: |
+          robopoker_hash_chain_remaining < 1000
+        for: 1m
+        labels:
+          severity: warning
+          component: provider
+        annotations:
+          summary: "Hash chain running low"
+          description: "Only {{ $value }} entries remaining in hash chain"
+          runbook_url: "https://docs.robopoker.io/runbooks/hash-chain-exhausted"
+
+      - alert: HashChainCritical
+        expr: |
+          robopoker_hash_chain_remaining < 100
+        for: 1m
+        labels:
+          severity: critical
+          component: provider
+        annotations:
+          summary: "Hash chain nearly exhausted"
+          description: "Only {{ $value }} entries remaining. Immediate action required."
+          runbook_url: "https://docs.robopoker.io/runbooks/hash-chain-exhausted"
+
+      - alert: SlotDriftHigh
+        expr: |
+          abs(robopoker_slot_drift_seconds) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: rpc
+        annotations:
+          summary: "Slot drift detected"
+          description: "Slot drift is {{ $value }}s from chain time"
+          runbook_url: "https://docs.robopoker.io/runbooks/rpc-outage"
+
+      - alert: ProviderDown
+        expr: |
+          up{job="entropy-provider"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: provider
+        annotations:
+          summary: "Entropy provider unreachable"
+          description: "Cannot scrape entropy-provider metrics endpoint"
+          runbook_url: "https://docs.robopoker.io/runbooks/provider-down"
+
+      - alert: UIServiceDown
+        expr: |
+          up{job="robopoker-ui"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: ui
+        annotations:
+          summary: "UI service unreachable"
+          description: "Cannot scrape UI service metrics endpoint"
+          runbook_url: "https://docs.robopoker.io/runbooks/ui-degraded"

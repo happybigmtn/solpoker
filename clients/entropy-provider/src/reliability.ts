@@ -23,6 +23,8 @@ import type { CommitmentState, PendingCommitment, EntropyProviderConfig } from "
 import { initCommitmentState } from "./commit.js";
 import { fetchCommitmentAccount, waitAndReveal } from "./reveal.js";
 import { RequestWatcher, AutoHandler, createRequestProcessor } from "./subscription.js";
+import { exportProviderMetrics, type ProviderMetricsSnapshot } from "./metrics.js";
+import { resolveRpcUrls } from "./rpc-failover.js";
 
 /**
  * Log levels for structured logging
@@ -37,6 +39,8 @@ export interface LogEntry {
   level: LogLevel;
   operation: string;
   message: string;
+  request_id: string | null;
+  table_id: string | null;
   data?: Record<string, unknown>;
 }
 
@@ -57,6 +61,20 @@ const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
   error: 3,
 };
 
+function normalizeLogId(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "number") return value.toString();
+  if (typeof value === "string") return value;
+  return String(value);
+}
+
+function serializeLogEntry(entry: LogEntry): string {
+  return JSON.stringify(entry, (_key, value) =>
+    typeof value === "bigint" ? value.toString() : value
+  );
+}
+
 /**
  * Structured logger for the entropy provider (AC-EP5.4)
  *
@@ -76,19 +94,30 @@ export class Logger {
     return LOG_LEVEL_ORDER[level] >= LOG_LEVEL_ORDER[this.config.minLevel];
   }
 
+  private extractIds(data?: Record<string, unknown>): { request_id: string | null; table_id: string | null } {
+    const requestId = data?.request_id ?? data?.requestId;
+    const tableId = data?.table_id ?? data?.tableId;
+    return {
+      request_id: normalizeLogId(requestId),
+      table_id: normalizeLogId(tableId),
+    };
+  }
+
   private formatEntry(entry: LogEntry): string {
-    const dataStr = entry.data ? ` ${JSON.stringify(entry.data)}` : "";
-    return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.operation}] ${entry.message}${dataStr}`;
+    return serializeLogEntry(entry);
   }
 
   log(level: LogLevel, operation: string, message: string, data?: Record<string, unknown>): void {
     if (!this.shouldLog(level)) return;
 
+    const ids = this.extractIds(data);
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
       operation,
       message,
+      request_id: ids.request_id,
+      table_id: ids.table_id,
       data,
     };
 
@@ -367,6 +396,15 @@ export class ProviderDaemon {
   }
 
   /**
+   * Export current metrics snapshot (AC-OPS1.2)
+   */
+  getMetrics(): ProviderMetricsSnapshot {
+    const handlerStatus = this.handler?.getStatus();
+    const queueDepth = handlerStatus ? handlerStatus.processing + handlerStatus.queueLength : 0;
+    return exportProviderMetrics(queueDepth);
+  }
+
+  /**
    * Get the logger instance for external use
    */
   getLogger(): Logger {
@@ -397,9 +435,10 @@ export class ProviderDaemon {
 
       // Initialize commitment state from on-chain data
       this.commitmentState = await initCommitmentState(
-        this.config.rpcUrl,
+        resolveRpcUrls(this.config),
         this.config.entropyProgramId,
-        this.config.providerSigner.address
+        this.config.providerSigner.address,
+        this.config.rpcFailover
       );
     }
   }
@@ -424,7 +463,7 @@ export class ProviderDaemon {
       handler.handleRequest = async (event) => {
         this.logger.debug("request", "Handling entropy request", {
           address: event.address,
-          requestId: event.data.requestId.toString(),
+          request_id: event.data.requestId.toString(),
         });
 
         try {
@@ -521,7 +560,11 @@ export class ProviderDaemon {
     for (const commitment of pending) {
       try {
         // Fetch commitment account to check status and get target/deadline slots
-        const commitmentData = await fetchCommitmentAccount(this.config.rpcUrl, commitment.address);
+        const commitmentData = await fetchCommitmentAccount(
+          resolveRpcUrls(this.config),
+          commitment.address,
+          this.config.rpcFailover
+        );
 
         if (!commitmentData) {
           this.logger.warn("resume", "Commitment account not found", {
@@ -617,20 +660,26 @@ export class ProviderDaemon {
 /**
  * RPC health check - verify connection is working
  */
-export async function checkRpcHealth(rpcUrl: string): Promise<boolean> {
-  try {
-    const response = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "getHealth",
-      }),
-    });
-    const data = await response.json();
-    return data.result === "ok";
-  } catch {
-    return false;
+export async function checkRpcHealth(rpcUrl: string | string[]): Promise<boolean> {
+  const urls = Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl];
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getHealth",
+        }),
+      });
+      const data = await response.json();
+      if (data.result === "ok") {
+        return true;
+      }
+    } catch {
+      continue;
+    }
   }
+  return false;
 }

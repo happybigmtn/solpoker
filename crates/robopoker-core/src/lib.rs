@@ -5,7 +5,7 @@ extern crate alloc;
 pub mod cards;
 pub mod gameplay;
 
-/// Chips and pot values use u64 across on-chain paths (AC-1.3)
+/// Chips and pot values use u64 across on-chain paths (AC-POK1.3)
 pub type Chips = u64;
 pub type Utility = f32;
 pub type Probability = f32;

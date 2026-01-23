@@ -15,8 +15,6 @@
 import {
   address,
   createSolanaRpcSubscriptions,
-  createDefaultRpcTransport,
-  createSolanaRpcFromTransport,
   getProgramDerivedAddress,
   getAddressEncoder,
   type Address,
@@ -26,6 +24,12 @@ import type { HashChain } from "./hash-chain.js";
 import type { EntropyProviderConfig, CommitmentState, PendingCommitment } from "./commit.js";
 import { postCommitment } from "./commit.js";
 import { waitAndReveal, fetchCommitmentAccount } from "./reveal.js";
+import { setQueueDepth } from "./metrics.js";
+import {
+  createFailoverRpc,
+  resolveRpcUrls,
+  type RpcFailoverOptions,
+} from "./rpc-failover.js";
 
 /**
  * Request account data parsed from on-chain
@@ -92,6 +96,10 @@ export interface RequestWatcherConfig {
   wsUrl: string;
   /** HTTP RPC URL for queries */
   rpcUrl: string;
+  /** Additional RPC URLs for failover */
+  rpcUrls?: string[];
+  /** RPC failover configuration */
+  rpcFailover?: RpcFailoverOptions;
   /** Entropy program ID to watch */
   entropyProgramId: Address;
   /** Polling interval in ms when WebSocket is unavailable (default 2000) */
@@ -128,9 +136,8 @@ export function parseRequestAccount(data: Uint8Array): RequestAccountData | null
 /**
  * Create RPC client from URL
  */
-function createRpc(url: string) {
-  const transport = createDefaultRpcTransport({ url });
-  return createSolanaRpcFromTransport(transport);
+function createRpc(urls: string[], options?: RpcFailoverOptions) {
+  return createFailoverRpc(urls, options);
 }
 
 /**
@@ -158,9 +165,12 @@ export async function deriveRequestPda(
  */
 export async function fetchPendingRequests(
   rpcUrl: string,
-  entropyProgramId: Address
+  entropyProgramId: Address,
+  rpcUrls?: string[],
+  rpcFailover?: RpcFailoverOptions
 ): Promise<Map<Address, RequestAccountData>> {
-  const rpc = createRpc(rpcUrl);
+  const urls = resolveRpcUrls({ rpcUrl, rpcUrls });
+  const rpc = createRpc(urls, rpcFailover);
 
   // Query program accounts with dataSize filter (Request = 160 bytes)
   // and discriminator filter (first byte = 3 for Request)
@@ -256,7 +266,9 @@ export class RequestWatcher {
     try {
       const pending = await fetchPendingRequests(
         this.config.rpcUrl,
-        this.config.entropyProgramId
+        this.config.entropyProgramId,
+        this.config.rpcUrls,
+        this.config.rpcFailover
       );
 
       for (const [addr, data] of pending) {
@@ -360,6 +372,10 @@ export class AutoHandler {
     this.state = state;
   }
 
+  private updateQueueDepth(): void {
+    setQueueDepth(this.processing.size + this.mutex.queueLength());
+  }
+
   /**
    * Handle a detected request
    *
@@ -380,11 +396,13 @@ export class AutoHandler {
     // Start processing with mutex protection
     const processPromise = this.processRequestWithLock(event);
     this.processing.set(requestKey, processPromise);
+    this.updateQueueDepth();
 
     try {
       await processPromise;
     } finally {
       this.processing.delete(requestKey);
+      this.updateQueueDepth();
     }
   }
 
@@ -393,10 +411,12 @@ export class AutoHandler {
    */
   private async processRequestWithLock(event: RequestDetectedEvent): Promise<void> {
     await this.mutex.acquire();
+    this.updateQueueDepth();
     try {
       await this.processRequest(event);
     } finally {
       this.mutex.release();
+      this.updateQueueDepth();
     }
   }
 

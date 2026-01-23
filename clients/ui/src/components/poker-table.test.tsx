@@ -1,8 +1,8 @@
 /**
  * Tests for PokerTable component (Board and seat rendering).
  *
- * AC-CI6.3: Board cards update as streets are dealt (flop, turn, river).
- * AC-CI6.4: Player hole cards display when revealed at showdown.
+ * AC-UI3.3: Board cards update as streets are dealt (flop, turn, river) with staggered reveal.
+ * AC-UI2.4: Player hole cards display when revealed at showdown.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -50,28 +50,39 @@ vi.mock('@/hooks/use-table-subscription', () => ({
   useSeat: vi.fn(),
   usePot: vi.fn(),
   useCurrentActor: vi.fn(),
+  useTableStatus: vi.fn(),
   useStreet: vi.fn(),
-  useTableState: vi.fn(),
+  useDealerPosition: vi.fn(),
+  useRevealedSeed: vi.fn(),
+  useSeatStatuses: vi.fn(),
 }));
 
 import {
-  useTableState,
   useSeat,
   usePot,
   useCurrentActor,
+  useTableStatus,
+  useStreet,
+  useDealerPosition,
+  useRevealedSeed,
+  useSeatStatuses,
 } from '@/hooks/use-table-subscription';
 import { deriveBoardCards, deriveHoleCards } from '@/lib/card-derivation';
 import { PokerTable } from './poker-table';
 import type { TableStore } from '@/hooks/use-table-subscription';
 
-const mockUseTableState = useTableState as ReturnType<typeof vi.fn>;
 const mockUseSeat = useSeat as ReturnType<typeof vi.fn>;
 const mockUsePot = usePot as ReturnType<typeof vi.fn>;
 const mockUseCurrentActor = useCurrentActor as ReturnType<typeof vi.fn>;
+const mockUseTableStatus = useTableStatus as ReturnType<typeof vi.fn>;
+const mockUseStreet = useStreet as ReturnType<typeof vi.fn>;
+const mockUseDealerPosition = useDealerPosition as ReturnType<typeof vi.fn>;
+const mockUseRevealedSeed = useRevealedSeed as ReturnType<typeof vi.fn>;
+const mockUseSeatStatuses = useSeatStatuses as ReturnType<typeof vi.fn>;
 const mockDeriveBoardCards = deriveBoardCards as ReturnType<typeof vi.fn>;
 const mockDeriveHoleCards = deriveHoleCards as ReturnType<typeof vi.fn>;
 
-describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
+describe('PokerTable (AC-UI3.3, AC-UI2.4)', () => {
   const mockStore = {} as TableStore;
 
   const createEmptySeat = () => ({
@@ -95,18 +106,36 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
   });
 
   const emptySeats = Array.from({ length: 10 }, createEmptySeat);
+  const setTableContext = (params: {
+    currentStreet: number;
+    revealedSeed: string;
+    dealerPosition: number;
+    seats: ReturnType<typeof createEmptySeat>[];
+    status: number;
+  }) => {
+    mockUseStreet.mockReturnValue(params.currentStreet);
+    mockUseRevealedSeed.mockReturnValue(params.revealedSeed);
+    mockUseDealerPosition.mockReturnValue(params.dealerPosition);
+    mockUseSeatStatuses.mockReturnValue(params.seats.map((seat) => seat.status));
+    mockUseTableStatus.mockReturnValue(params.status);
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockUsePot.mockReturnValue(0n);
     mockUseCurrentActor.mockReturnValue(0);
+    mockUseTableStatus.mockReturnValue(1);
+    mockUseStreet.mockReturnValue(0);
+    mockUseDealerPosition.mockReturnValue(0);
+    mockUseRevealedSeed.mockReturnValue('0'.repeat(64));
+    mockUseSeatStatuses.mockReturnValue(emptySeats.map((seat) => seat.status));
     mockDeriveBoardCards.mockReturnValue(null);
     mockDeriveHoleCards.mockReturnValue(null);
   });
 
-  describe('AC-CI6.3: Board cards update as streets are dealt', () => {
+  describe('AC-UI3.3: Board cards update as streets are dealt', () => {
     it('shows 0 cards preflop (street 0)', () => {
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 0, // PREFLOP
         revealedSeed: '0'.repeat(64),
         dealerPosition: 0,
@@ -124,7 +153,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
 
     it('shows 3 cards on flop (street 1)', () => {
       mockDeriveBoardCards.mockReturnValue([0, 5, 10, 15, 20]); // Mock derived cards
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 1, // FLOP
         revealedSeed: 'a'.repeat(64), // Revealed seed
         dealerPosition: 0,
@@ -140,9 +169,27 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
       expect(emptySlots).toHaveLength(2);
     });
 
+    it('applies staggered reveal delays on flop', () => {
+      mockDeriveBoardCards.mockReturnValue([0, 5, 10, 15, 20]);
+      setTableContext({
+        currentStreet: 1, // FLOP
+        revealedSeed: 'a'.repeat(64),
+        dealerPosition: 0,
+        seats: emptySeats,
+        status: 1,
+      });
+      mockUseSeat.mockImplementation(() => createEmptySeat());
+
+      const { container } = render(<PokerTable store={mockStore} />);
+      const revealWrappers = Array.from(container.querySelectorAll('[data-reveal-delay]'));
+      const delays = revealWrappers.map((el) => el.getAttribute('data-reveal-delay'));
+
+      expect(delays).toEqual(['0', '80', '160']);
+    });
+
     it('shows 4 cards on turn (street 2)', () => {
       mockDeriveBoardCards.mockReturnValue([0, 5, 10, 15, 20]);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 2, // TURN
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -159,7 +206,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
 
     it('shows 5 cards on river (street 3)', () => {
       mockDeriveBoardCards.mockReturnValue([0, 5, 10, 15, 20]);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 3, // RIVER
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -176,7 +223,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
 
     it('shows card backs when seed not revealed', () => {
       mockDeriveBoardCards.mockReturnValue(null); // No revealed seed
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 1, // FLOP
         revealedSeed: '0'.repeat(64), // Zero seed = not revealed
         dealerPosition: 0,
@@ -192,8 +239,35 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
       expect(faceDownCards).toHaveLength(3);
     });
 
+    it('shows dealing overlay when status transitions to PLAYING', () => {
+      setTableContext({
+        currentStreet: 0,
+        revealedSeed: '0'.repeat(64),
+        dealerPosition: 0,
+        seats: emptySeats,
+        status: 0, // WAITING
+      });
+      mockUseSeat.mockImplementation(() => createEmptySeat());
+      mockUseTableStatus.mockReturnValue(0);
+
+      const { rerender } = render(<PokerTable store={mockStore} />);
+
+      setTableContext({
+        currentStreet: 0,
+        revealedSeed: '0'.repeat(64),
+        dealerPosition: 0,
+        seats: emptySeats,
+        status: 1, // PLAYING
+      });
+      mockUseTableStatus.mockReturnValue(1);
+
+      rerender(<PokerTable store={mockStore} />);
+
+      expect(screen.getByText('Dealing')).toBeInTheDocument();
+    });
+
     it('shows no board cards when not in a hand (WAITING)', () => {
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 0,
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -210,10 +284,10 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
     });
   });
 
-  describe('AC-CI6.4: Player hole cards display when revealed at showdown', () => {
+  describe('AC-UI2.4: Player hole cards display when revealed at showdown', () => {
     it('shows face-down hole cards during PLAYING (not showdown)', () => {
       const occupiedSeat = createOccupiedSeat('playerAddr', 1000n);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 3, // RIVER
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -236,7 +310,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
 
     it('shows revealed hole cards at SHOWDOWN', () => {
       const occupiedSeat = createOccupiedSeat('playerAddr', 1000n);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 3, // RIVER
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -264,7 +338,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
         ...createOccupiedSeat('playerAddr', 1000n),
         status: 3, // FOLDED
       };
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 3,
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -286,7 +360,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
     });
 
     it('shows empty seats without hole cards', () => {
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 3,
         revealedSeed: 'a'.repeat(64),
         dealerPosition: 0,
@@ -306,7 +380,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
   describe('pot display', () => {
     it('shows pot amount when pot > 0', () => {
       mockUsePot.mockReturnValue(5000n);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 0,
         revealedSeed: '',
         dealerPosition: 0,
@@ -323,7 +397,7 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
 
     it('hides pot display when pot is 0', () => {
       mockUsePot.mockReturnValue(0n);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 0,
         revealedSeed: '',
         dealerPosition: 0,
@@ -334,14 +408,16 @@ describe('PokerTable (AC-CI6.3, AC-CI6.4)', () => {
 
       render(<PokerTable store={mockStore} />);
 
-      expect(screen.queryByText(/Pot:/)).not.toBeInTheDocument();
+      const potLabel = screen.getByText(/Pot:/);
+      expect(potLabel).toHaveAttribute('aria-hidden', 'true');
+      expect(potLabel).toHaveClass('opacity-0');
     });
   });
 
   describe('current actor indicator', () => {
     it('highlights the current actor seat', () => {
       const occupiedSeat = createOccupiedSeat('player1', 1000n);
-      mockUseTableState.mockReturnValue({
+      setTableContext({
         currentStreet: 0,
         revealedSeed: '',
         dealerPosition: 0,

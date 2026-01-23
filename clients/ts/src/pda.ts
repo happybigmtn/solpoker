@@ -311,6 +311,17 @@ export function buildCreateAtaIdempotentData(): Uint8Array {
  * @returns Uint8Array of little-endian bytes
  */
 function bigintToLeBytes(value: bigint, byteLength: number): Uint8Array {
+  // Validate value fits in the target byte length
+  if (value < 0n) {
+    throw new Error(`bigintToLeBytes: negative values not supported, got ${value}`);
+  }
+  const maxValue = (1n << BigInt(byteLength * 8)) - 1n;
+  if (value > maxValue) {
+    throw new Error(
+      `bigintToLeBytes: value ${value} exceeds max ${maxValue} for ${byteLength} bytes`
+    );
+  }
+
   const bytes = new Uint8Array(byteLength);
   let remaining = value;
   for (let i = 0; i < byteLength; i++) {

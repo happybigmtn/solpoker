@@ -1,9 +1,9 @@
 //! Mollusk-style tests for betting rounds and action validation.
 //!
 //! These tests verify:
-//! 1. Legal actions per street (AC-5.1)
-//! 2. Invalid raise/call/out-of-turn detection (AC-5.3)
-//! 3. Privacy hybrid: seed reveal validates deck and hole cards (AC-2.6, AC-2.7, AC-2.8)
+//! 1. Legal actions per street (AC-POK5.1)
+//! 2. Invalid raise/call/out-of-turn detection (AC-POK5.3)
+//! 3. Privacy hybrid: seed reveal validates deck and hole cards (AC-POK2.6, AC-POK2.7, AC-POK2.8)
 //!
 //! Note: These tests validate the account state and instruction structure.
 //! Full integration tests require `cargo build-sbf` to compile the program.
@@ -46,7 +46,7 @@ fn new_unique_address() -> Address {
 /// Seat size: status(1) + has_acted(1) + padding(6) + player(32) + stack(8) + current_bet(8) + total_bet(8) + hole_card_hash(32) = 96 bytes
 const SEAT_SIZE: usize = 96;
 
-/// Table header size (before seats array) - updated for hand_id + rake_accumulated (AC-3.4)
+/// Table header size (before seats array) - updated for hand_id + rake_accumulated (AC-POK3.4)
 /// discriminator(1) + status(1) + player_count(1) + dealer_position(1) + current_actor(1) + current_street(1) + active_count(1) + seed_revealed(1)
 /// + table_id(8) + hand_id(8) + small_blind(8) + big_blind(8) + action_deadline_slot(8) + current_bet(8) + min_raise(8)
 /// + pot(8) + rake_accumulated(8) + vault(32) + seed_commitment(32) + revealed_seed(32) = 176 bytes
@@ -60,12 +60,12 @@ fn build_player_action_ix(action: u8, amount: u64) -> Vec<u8> {
 }
 
 /// Create an initialized config account data
-/// Config layout (AC-3.4: includes rake_bps):
+/// Config layout (AC-POK3.4: includes rake_bps):
 ///   discriminator: u8 (1) @ offset 0
 ///   initialized: u8 (1) @ offset 1
 ///   min_players: u8 (1) @ offset 2
 ///   _padding: [u8; 3] @ offset 3
-///   rake_bps: u16 (2) @ offset 6  (AC-3.4)
+///   rake_bps: u16 (2) @ offset 6  (AC-POK3.4)
 ///   crisps_mint: Pubkey (32) @ offset 8
 ///   authority: Pubkey (32) @ offset 40
 ///   entropy_program: Pubkey (32) @ offset 72
@@ -86,7 +86,7 @@ fn create_config_data(
     data[1] = 1; // initialized
     data[2] = min_players;
     // padding [3..6]
-    data[6..8].copy_from_slice(&250u16.to_le_bytes()); // rake_bps = 2.5% (AC-3.4)
+    data[6..8].copy_from_slice(&250u16.to_le_bytes()); // rake_bps = 2.5% (AC-POK3.4)
     data[8..40].copy_from_slice(crisps_mint.as_ref());
     data[40..72].copy_from_slice(authority.as_ref());
     data[72..104].copy_from_slice(entropy_program.as_ref());
@@ -97,7 +97,7 @@ fn create_config_data(
 }
 
 /// Create table data for betting tests
-/// Table layout with rake_accumulated (AC-3.4):
+/// Table layout with rake_accumulated (AC-POK3.4):
 ///   ...headers @ 0-64...
 ///   pot: u64 (8) @ offset 64
 ///   rake_accumulated: u64 (8) @ offset 72
@@ -134,7 +134,7 @@ fn create_table_data_playing(
     data[48..56].copy_from_slice(&current_bet.to_le_bytes());
     data[56..64].copy_from_slice(&min_raise.to_le_bytes());
     data[64..72].copy_from_slice(&pot.to_le_bytes());
-    data[72..80].copy_from_slice(&0u64.to_le_bytes()); // rake_accumulated (AC-3.4)
+    data[72..80].copy_from_slice(&0u64.to_le_bytes()); // rake_accumulated (AC-POK3.4)
     data[80..112].copy_from_slice(vault.as_ref());
     // seed_commitment: 112..144 (zeroed by default)
     // revealed_seed: 144..176 (zeroed by default)
@@ -187,7 +187,7 @@ fn parse_current_actor(table_data: &[u8]) -> u8 {
 }
 
 // =============================================================================
-// AC-5.1: Legal Actions Per Street Tests
+// AC-POK5.1: Legal Actions Per Street Tests
 // =============================================================================
 
 /// Test: Fold action instruction structure validation
@@ -377,7 +377,7 @@ fn test_raise_action_structure() {
 }
 
 // =============================================================================
-// AC-5.3: Invalid Action Validation Tests
+// AC-POK5.3: Invalid Action Validation Tests
 // =============================================================================
 
 /// Test: Out of turn action detection via state
@@ -627,7 +627,7 @@ fn test_active_count_tracking() {
 }
 
 // =============================================================================
-// AC-6.1, AC-6.2: Settlement and Side Pot Tests
+// AC-POK6.1, AC-POK6.2: Settlement and Side Pot Tests
 // =============================================================================
 
 /// Create table data for settlement tests with specific total_bet values
@@ -648,7 +648,7 @@ fn create_table_data_for_settlement(
     data[4] = 0; // current_actor (irrelevant for settlement)
     data[5] = street::RIVER; // River (showdown)
     data[6] = players.iter().filter(|(_, _, _, s, _)| *s == seat_status::OCCUPIED || *s == seat_status::ALL_IN).count() as u8;
-    data[7] = 1; // seed_revealed = true (AC-2.8: required for settlement)
+    data[7] = 1; // seed_revealed = true (AC-POK2.8: required for settlement)
     data[8..16].copy_from_slice(&table_id.to_le_bytes());
     data[16..24].copy_from_slice(&0u64.to_le_bytes()); // hand_id
     data[24..32].copy_from_slice(&small_blind.to_le_bytes());
@@ -768,7 +768,7 @@ fn test_settlement_three_way_split() {
 }
 
 /// Test: Multiway all-in with uneven stacks - classic side pot scenario
-/// This is the key test for AC-6.1 side pot correctness
+/// This is the key test for AC-POK6.1 side pot correctness
 #[test]
 fn test_settlement_multiway_side_pot() {
     let player1 = new_unique_address();
@@ -834,7 +834,7 @@ fn test_settlement_multiway_side_pot() {
     assert_eq!(parse_seat_total_bet(&table_data, 3), 50);
     assert_eq!(parse_pot(&table_data), 400);
 
-    // Verify AC-6.2: total risked = sum of all total_bets
+    // Verify AC-POK6.2: total risked = sum of all total_bets
     let total_risked = 50 + 100 + 200 + 50;
     assert_eq!(total_risked, 400, "Total risked should equal pot");
 
@@ -990,7 +990,7 @@ fn test_settlement_complex_multiway_split() {
     println!("  Total: 650 = total risked ✓");
 }
 
-/// Test: AC-6.2 invariant - verify total payouts equals total risked
+/// Test: AC-POK6.2 invariant - verify total payouts equals total risked
 #[test]
 fn test_ac_6_2_invariant_total_payouts_equals_risked() {
     // This test verifies the fundamental invariant:
@@ -1020,12 +1020,12 @@ fn test_ac_6_2_invariant_total_payouts_equals_risked() {
 
     // For any distribution of winners, the sum must equal total_risked
     // This test validates the structure; the actual processor test validates the math
-    println!("✓ AC-6.2 invariant validated: pot={}, must distribute exactly {} chips",
+    println!("✓ AC-POK6.2 invariant validated: pot={}, must distribute exactly {} chips",
              total_risked, total_risked);
 }
 
 // =============================================================================
-// AC-2.6, AC-2.7, AC-2.8: Privacy Hybrid Flow Tests
+// AC-POK2.6, AC-POK2.7, AC-POK2.8: Privacy Hybrid Flow Tests
 // =============================================================================
 
 /// Create table data for showdown state with seed commitment
@@ -1116,7 +1116,7 @@ fn parse_seat_hole_card_hash(table_data: &[u8], seat_idx: usize) -> [u8; 32] {
     table_data[seat_offset + 64..seat_offset + 96].try_into().unwrap()
 }
 
-/// Test: Seed commitment is stored at StartHand (AC-2.7)
+/// Test: Seed commitment is stored at StartHand (AC-POK2.7)
 #[test]
 fn test_seed_commitment_structure() {
     // Use a varied seed
@@ -1147,12 +1147,12 @@ fn test_seed_commitment_structure() {
     assert_eq!(&start_hand_data[40..72], &hole_card_hashes[0]);
     assert_eq!(&start_hand_data[72..104], &hole_card_hashes[1]);
 
-    println!("✓ AC-2.7: Seed commitment structure validated");
+    println!("✓ AC-POK2.7: Seed commitment structure validated");
     println!("  seed: {:02x?}...", &seed[..4]);
     println!("  commitment: {:02x?}...", &seed_commitment[..4]);
 }
 
-/// Test: Hole card hashes stored per seat (AC-2.6)
+/// Test: Hole card hashes stored per seat (AC-POK2.6)
 #[test]
 fn test_hole_card_hash_storage() {
     let player1 = new_unique_address();
@@ -1185,12 +1185,12 @@ fn test_hole_card_hash_storage() {
     assert_eq!(parse_seat_hole_card_hash(&table_data, 0), player1_hash);
     assert_eq!(parse_seat_hole_card_hash(&table_data, 1), player2_hash);
 
-    println!("✓ AC-2.6: Hole card hash storage validated");
+    println!("✓ AC-POK2.6: Hole card hash storage validated");
     println!("  Player 1 cards [{}, {}] -> hash {:02x?}...", player1_cards[0], player1_cards[1], &player1_hash[..4]);
     println!("  Player 2 cards [{}, {}] -> hash {:02x?}...", player2_cards[0], player2_cards[1], &player2_hash[..4]);
 }
 
-/// Test: Seed reveal validates commitment (AC-2.7)
+/// Test: Seed reveal validates commitment (AC-POK2.7)
 #[test]
 fn test_seed_reveal_validates_commitment() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -1252,13 +1252,13 @@ fn test_seed_reveal_validates_commitment() {
     assert_eq!(sha256_test(&submitted_cards_0), parse_seat_hole_card_hash(&table_data, 0));
     assert_eq!(sha256_test(&submitted_cards_1), parse_seat_hole_card_hash(&table_data, 1));
 
-    println!("✓ AC-2.7: Seed reveal validates commitment");
+    println!("✓ AC-POK2.7: Seed reveal validates commitment");
     println!("  Submitted seed: {:02x?}...", &submitted_seed[..4]);
     println!("  Expected commitment: {:02x?}...", &computed_commitment[..4]);
     println!("  Stored commitment: {:02x?}...", &parse_seed_commitment(&table_data)[..4]);
 }
 
-/// Test: Invalid seed reveal is rejected (AC-2.7)
+/// Test: Invalid seed reveal is rejected (AC-POK2.7)
 #[test]
 fn test_invalid_seed_reveal_rejected() {
     let seed = [0x42u8; 32];
@@ -1272,12 +1272,12 @@ fn test_invalid_seed_reveal_rejected() {
     assert_ne!(wrong_commitment, seed_commitment, "Wrong seed should have different commitment");
 
     // The processor would reject this because sha256(wrong_seed) != seed_commitment
-    println!("✓ AC-2.7: Invalid seed is rejected");
+    println!("✓ AC-POK2.7: Invalid seed is rejected");
     println!("  Correct commitment: {:02x?}...", &seed_commitment[..4]);
     println!("  Wrong commitment: {:02x?}...", &wrong_commitment[..4]);
 }
 
-/// Test: Hole card hash mismatch is rejected (AC-2.8)
+/// Test: Hole card hash mismatch is rejected (AC-POK2.8)
 #[test]
 fn test_hole_card_hash_mismatch_rejected() {
     // Committed hole cards
@@ -1292,12 +1292,12 @@ fn test_hole_card_hash_mismatch_rejected() {
     assert_ne!(wrong_hash, committed_hash, "Wrong cards should have different hash");
 
     // The processor would reject this because sha256(wrong_cards) != stored_hash
-    println!("✓ AC-2.8: Hole card hash mismatch is rejected");
+    println!("✓ AC-POK2.8: Hole card hash mismatch is rejected");
     println!("  Committed cards [{}, {}] -> {:02x?}...", committed_cards[0], committed_cards[1], &committed_hash[..4]);
     println!("  Revealed cards [{}, {}] -> {:02x?}...", wrong_cards[0], wrong_cards[1], &wrong_hash[..4]);
 }
 
-/// Test: Integration - seed reveal enables settlement (AC-2.7, AC-2.8)
+/// Test: Integration - seed reveal enables settlement (AC-POK2.7, AC-POK2.8)
 ///
 /// This is the key integration test for the privacy hybrid flow:
 /// 1. Table is in SHOWDOWN state with seed commitment and hole card hashes
@@ -1328,7 +1328,7 @@ fn test_integration_seed_reveal_validates_deck_and_hole_cards() {
         0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
     ];
 
-    // Provider commits to the seed (AC-2.7)
+    // Provider commits to the seed (AC-POK2.7)
     let seed_commitment = sha256_test(&seed);
 
     // Simulated shuffled deck order derived from seed
@@ -1338,7 +1338,7 @@ fn test_integration_seed_reveal_validates_deck_and_hole_cards() {
     let player2_cards: [u8; 2] = [26, 39];  // Next 2 cards
     let player3_cards: [u8; 2] = [1, 14];   // Next 2 cards
 
-    // Provider computes and commits hole card hashes (AC-2.6)
+    // Provider computes and commits hole card hashes (AC-POK2.6)
     let player1_hash = sha256_test(&player1_cards);
     let player2_hash = sha256_test(&player2_cards);
     let player3_hash = sha256_test(&player3_cards);
@@ -1389,16 +1389,16 @@ fn test_integration_seed_reveal_validates_deck_and_hole_cards() {
     // VERIFICATION: What the processor validates
     // ===========================================
 
-    // 1. Verify sha256(revealed_seed) == stored seed_commitment (AC-2.7)
+    // 1. Verify sha256(revealed_seed) == stored seed_commitment (AC-POK2.7)
     let revealed_seed: [u8; 32] = reveal_seed_ix.data[8..40].try_into().unwrap();
     let computed_commitment = sha256_test(&revealed_seed);
     assert_eq!(
         computed_commitment,
         parse_seed_commitment(&table_data),
-        "AC-2.7: sha256(seed) must equal stored commitment"
+        "AC-POK2.7: sha256(seed) must equal stored commitment"
     );
 
-    // 2. Verify sha256(revealed_hole_cards[i]) == seat[i].hole_card_hash for each active seat (AC-2.8)
+    // 2. Verify sha256(revealed_hole_cards[i]) == seat[i].hole_card_hash for each active seat (AC-POK2.8)
     for (i, &stored_hash) in [player1_hash, player2_hash, player3_hash].iter().enumerate() {
         let card_offset = 40 + i * 2;
         let revealed_cards: [u8; 2] = reveal_seed_ix.data[card_offset..card_offset + 2].try_into().unwrap();
@@ -1406,7 +1406,7 @@ fn test_integration_seed_reveal_validates_deck_and_hole_cards() {
         assert_eq!(
             computed_hash,
             stored_hash,
-            "AC-2.8: sha256(hole_cards[{}]) must match stored hash", i
+            "AC-POK2.8: sha256(hole_cards[{}]) must match stored hash", i
         );
     }
 
@@ -1429,8 +1429,8 @@ fn test_integration_seed_reveal_validates_deck_and_hole_cards() {
     println!("    P3 cards [{:2}, {:2}] -> hash {:02x?}...", player3_cards[0], player3_cards[1], &player3_hash[..4]);
     println!("");
     println!("  [VERIFICATION]");
-    println!("    ✓ AC-2.7: sha256(seed) == seed_commitment");
-    println!("    ✓ AC-2.8: sha256(hole_cards[i]) == stored_hash[i] for all active seats");
+    println!("    ✓ AC-POK2.7: sha256(seed) == seed_commitment");
+    println!("    ✓ AC-POK2.8: sha256(hole_cards[i]) == stored_hash[i] for all active seats");
     println!("");
     println!("  [FLOW]");
     println!("    1. StartHand stores seed_commitment and hole_card_hashes");
@@ -1442,7 +1442,7 @@ fn test_integration_seed_reveal_validates_deck_and_hole_cards() {
 }
 
 // =============================================================================
-// AC-3.4, AC-3.5, AC-3.6: Rake + Staking Tests
+// AC-POK3.4, AC-POK3.5, AC-POK3.6: Rake + Staking Tests
 // =============================================================================
 
 use robopoker_poker::state::{STAKING_POOL_SIZE, STAKER_POSITION_SIZE};
@@ -1459,7 +1459,7 @@ const STAKER_POSITION_DISC: u8 = 4;
 ///   _padding: [u8; 6] @ offset 2
 ///   total_staked: u64 (8) @ offset 8
 ///   accumulated_rewards: u64 (8) @ offset 16
-///   total_distributed: u64 (8) @ offset 24
+///   rewards_per_token: u64 (8) @ offset 24
 ///   stake_vault: Pubkey (32) @ offset 32
 ///   rewards_vault: Pubkey (32) @ offset 64
 fn create_staking_pool_data(
@@ -1474,7 +1474,7 @@ fn create_staking_pool_data(
     // padding [2..8]
     data[8..16].copy_from_slice(&total_staked.to_le_bytes());
     data[16..24].copy_from_slice(&accumulated_rewards.to_le_bytes());
-    data[24..32].copy_from_slice(&0u64.to_le_bytes()); // total_distributed
+    data[24..32].copy_from_slice(&0u64.to_le_bytes()); // rewards_per_token
     data[32..64].copy_from_slice(stake_vault.as_ref());
     data[64..96].copy_from_slice(rewards_vault.as_ref());
     data
@@ -1525,7 +1525,7 @@ fn parse_table_rake_accumulated(data: &[u8]) -> u64 {
     u64::from_le_bytes(data[72..80].try_into().unwrap())
 }
 
-/// Test: Staking pool state structure validation (AC-3.5)
+/// Test: Staking pool state structure validation (AC-POK3.5)
 #[test]
 fn test_staking_pool_state_structure() {
     let stake_vault = new_unique_address();
@@ -1548,13 +1548,13 @@ fn test_staking_pool_state_structure() {
     assert_eq!(parse_pool_total_staked(&pool_data), initial_staked, "Total staked should match");
     assert_eq!(parse_pool_accumulated_rewards(&pool_data), initial_rewards, "Accumulated rewards should match");
 
-    println!("✓ AC-3.5: Staking pool state structure validated");
+    println!("✓ AC-POK3.5: Staking pool state structure validated");
     println!("  STAKING_POOL_SIZE: {} bytes", STAKING_POOL_SIZE);
     println!("  total_staked: {} CRISPS", initial_staked);
     println!("  accumulated_rewards: {} CRISPS", initial_rewards);
 }
 
-/// Test: Staker position state structure validation (AC-3.5)
+/// Test: Staker position state structure validation (AC-POK3.5)
 #[test]
 fn test_staker_position_state_structure() {
     let staker = new_unique_address();
@@ -1574,13 +1574,13 @@ fn test_staker_position_state_structure() {
     assert_eq!(position_data[1], 1, "Position should be initialized");
     assert_eq!(parse_position_staked_amount(&position_data), staked_amount, "Staked amount should match");
 
-    println!("✓ AC-3.5: Staker position state structure validated");
+    println!("✓ AC-POK3.5: Staker position state structure validated");
     println!("  STAKER_POSITION_SIZE: {} bytes", STAKER_POSITION_SIZE);
     println!("  staked_amount: {} CRISPS", staked_amount);
     println!("  rewards_claimed: {} CRISPS", rewards_claimed);
 }
 
-/// Test: Deposit stake instruction structure (AC-3.5)
+/// Test: Deposit stake instruction structure (AC-POK3.5)
 #[test]
 fn test_deposit_stake_instruction_structure() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -1613,12 +1613,12 @@ fn test_deposit_stake_instruction_structure() {
         data: ix_data,
     };
 
-    println!("✓ AC-3.5: Deposit stake instruction structure validated");
+    println!("✓ AC-POK3.5: Deposit stake instruction structure validated");
     println!("  Discriminator: {} (DEPOSIT_STAKE)", ix_disc::DEPOSIT_STAKE);
     println!("  Deposit amount: {} CRISPS", deposit_amount);
 }
 
-/// Test: Withdraw stake instruction structure (AC-3.5)
+/// Test: Withdraw stake instruction structure (AC-POK3.5)
 #[test]
 fn test_withdraw_stake_instruction_structure() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -1650,12 +1650,12 @@ fn test_withdraw_stake_instruction_structure() {
         data: ix_data,
     };
 
-    println!("✓ AC-3.5: Withdraw stake instruction structure validated");
+    println!("✓ AC-POK3.5: Withdraw stake instruction structure validated");
     println!("  Discriminator: {} (WITHDRAW_STAKE)", ix_disc::WITHDRAW_STAKE);
     println!("  Withdraw amount: {} CRISPS", withdraw_amount);
 }
 
-/// Test: Rake accumulation at settle (AC-3.4)
+/// Test: Rake accumulation at settle (AC-POK3.4)
 #[test]
 fn test_rake_accumulation_at_settle() {
     // Create table data with pot
@@ -1690,14 +1690,14 @@ fn test_rake_accumulation_at_settle() {
     // After settle, rake would be accumulated in table.rake_accumulated
     // This is handled by process_settle in the processor
 
-    println!("✓ AC-3.4: Rake accumulation structure validated");
+    println!("✓ AC-POK3.4: Rake accumulation structure validated");
     println!("  Pot: {} CRISPS", pot);
     println!("  Rake BPS: {} ({}%)", rake_bps, rake_bps as f64 / 100.0);
     println!("  Expected rake: {} CRISPS", expected_rake);
     println!("  Distributable pot: {} CRISPS", pot - expected_rake);
 }
 
-/// Test: Claim rewards proportional distribution (AC-3.6)
+/// Test: Claim rewards proportional distribution (AC-POK3.6)
 #[test]
 fn test_claim_rewards_proportional_distribution() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -1753,14 +1753,14 @@ fn test_claim_rewards_proportional_distribution() {
         data: ix_data,
     };
 
-    println!("✓ AC-3.6: Claim rewards proportional distribution validated");
+    println!("✓ AC-POK3.6: Claim rewards proportional distribution validated");
     println!("  Total staked: {} CRISPS", total_staked / 1_000_000);
     println!("  Accumulated rewards: {} CRISPS", accumulated_rewards / 1_000_000);
     println!("  Staker 1 stake: {} CRISPS ({}% of pool)", staker1_stake / 1_000_000, (staker1_stake * 100) / total_staked);
     println!("  Expected reward: {} CRISPS", expected_reward / 1_000_000);
 }
 
-/// Test: Sweep rake from table to staking pool (AC-3.4)
+/// Test: Sweep rake from table to staking pool (AC-POK3.4)
 #[test]
 fn test_sweep_rake_instruction_structure() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -1786,7 +1786,7 @@ fn test_sweep_rake_instruction_structure() {
         data: ix_data,
     };
 
-    println!("✓ AC-3.4: Sweep rake instruction structure validated");
+    println!("✓ AC-POK3.4: Sweep rake instruction structure validated");
     println!("  Discriminator: {} (SWEEP_RAKE)", ix_disc::SWEEP_RAKE);
     println!("  Flow: table_vault -> rewards_vault (permissionless)");
 }

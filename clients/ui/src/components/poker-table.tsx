@@ -11,9 +11,19 @@
  * AC-CI6.1–AC-CI6.4: Card rendering with correct suits, ranks, and board display.
  */
 
-import { type TableStore, useSeat, usePot, useCurrentActor, useStreet, useTableState } from '@/hooks/use-table-subscription';
-import { MAX_SEATS, SeatStatus, TableStatus, Street, getBoardCardCount, type Seat as SeatType } from '@/types/table';
-import { memo, useMemo } from 'react';
+import {
+  type TableStore,
+  useSeat,
+  usePot,
+  useCurrentActor,
+  useTableStatus,
+  useStreet,
+  useDealerPosition,
+  useRevealedSeed,
+  useSeatStatuses,
+} from '@/hooks/use-table-subscription';
+import { MAX_SEATS, SeatStatus, TableStatus, Street, getBoardCardCount, type Seat as SeatType, type StreetValue } from '@/types/table';
+import { memo, useMemo, useEffect, useRef, useState } from 'react';
 import { Card, CardSlot } from './card';
 import { deriveBoardCards, deriveHoleCards } from '@/lib/card-derivation';
 
@@ -30,6 +40,20 @@ interface PokerTableProps {
  * containing board cards and pot.
  */
 export function PokerTable({ store, playerAddress }: PokerTableProps) {
+  const status = useTableStatus(store);
+  const [showDealing, setShowDealing] = useState(false);
+  const previousStatus = useRef(status);
+
+  useEffect(() => {
+    const prev = previousStatus.current;
+    previousStatus.current = status;
+    if (prev !== status && status === TableStatus.PLAYING) {
+      setShowDealing(true);
+      const timeoutId = window.setTimeout(() => setShowDealing(false), 1200);
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [status]);
+
   return (
     <div
       className="relative mx-auto w-full max-w-4xl aspect-[16/10] sm:aspect-[16/10]"
@@ -38,6 +62,14 @@ export function PokerTable({ store, playerAddress }: PokerTableProps) {
     >
       {/* Table felt background - AC-3.3: more compact on mobile */}
       <div className="absolute inset-0 rounded-[50%] bg-emerald-800 dark:bg-emerald-900 shadow-inner" />
+
+      {showDealing && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="dealing-overlay rounded-full bg-black/60 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-bone)]">
+            Dealing
+          </div>
+        </div>
+      )}
 
       {/* Center area: board + pot */}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 sm:gap-2">
@@ -64,19 +96,35 @@ interface BoardProps {
 }
 
 const Board = memo(function Board({ store }: BoardProps) {
-  const tableState = useTableState(store);
-  const { currentStreet, revealedSeed, dealerPosition, seats, status } = tableState;
+  const currentStreet = useStreet(store);
+  const tableStatus = useTableStatus(store);
+  const revealedSeed = useRevealedSeed(store);
+  const dealerPosition = useDealerPosition(store);
+  const seatStatuses = useSeatStatuses(store);
+
+  const seatStatusObjects = useMemo(
+    () => seatStatuses.map((status) => ({ status })),
+    [seatStatuses]
+  );
 
   // Derive board cards if seed is revealed
   const boardCards = useMemo(() => {
-    return deriveBoardCards(revealedSeed, dealerPosition, seats);
-  }, [revealedSeed, dealerPosition, seats]);
+    return deriveBoardCards(revealedSeed, dealerPosition, seatStatusObjects);
+  }, [revealedSeed, dealerPosition, seatStatusObjects]);
 
   // Number of cards that should be visible based on street
-  const visibleCount = getBoardCardCount(currentStreet);
+  const visibleCount = getBoardCardCount(currentStreet as StreetValue);
 
   // Only show board during a hand (playing or showdown)
-  const isInHand = status === TableStatus.PLAYING || status === TableStatus.SHOWDOWN;
+  const isInHand = tableStatus === TableStatus.PLAYING || tableStatus === TableStatus.SHOWDOWN;
+
+  const getRevealDelay = (index: number) => {
+    if (!isInHand) return 0;
+    if (currentStreet === Street.FLOP) return index * 80;
+    if (currentStreet === Street.TURN && index === 3) return 0;
+    if (currentStreet === Street.RIVER && index === 4) return 0;
+    return 0;
+  };
 
   return (
     <div className="flex gap-1">
@@ -84,6 +132,7 @@ const Board = memo(function Board({ store }: BoardProps) {
       {Array.from({ length: 5 }).map((_, i) => {
         const isDealt = isInHand && i < visibleCount;
         const cardIndex = boardCards?.[i] ?? null;
+        const delay = getRevealDelay(i);
 
         if (!isDealt) {
           // Empty slot for cards not yet dealt
@@ -92,12 +141,19 @@ const Board = memo(function Board({ store }: BoardProps) {
 
         // If seed is revealed, show actual card; otherwise show card back
         return (
-          <Card
+          <div
             key={i}
-            index={cardIndex}
-            faceDown={cardIndex === null}
-            size="md"
-          />
+            className="motion-safe:animate-in motion-safe:duration-150"
+            style={{ animationDelay: `${delay}ms` }}
+            data-reveal-delay={delay}
+          >
+            <Card
+              index={cardIndex}
+              faceDown={cardIndex === null}
+              size="md"
+              state="revealed"
+            />
+          </div>
         );
       })}
     </div>
@@ -112,12 +168,19 @@ const Board = memo(function Board({ store }: BoardProps) {
  */
 const PotDisplay = memo(function PotDisplay({ store }: { store: TableStore }) {
   const pot = usePot(store);
-
-  if (pot === 0n) return null;
+  const animatedPot = useAnimatedCounter(pot, 200);
+  const isVisible = pot > 0n;
 
   return (
-    <div className="rounded-full bg-zinc-900/80 px-3 py-1 text-sm font-medium text-white tabular-nums">
-      Pot: {formatChips(pot)}
+    <div className="min-h-8 flex items-center">
+      <div
+        className={`rounded-full bg-zinc-900/80 px-3 py-1 text-sm font-medium text-white tabular-nums transition-opacity ${
+          isVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+        aria-hidden={!isVisible}
+      >
+        Pot: {formatChips(animatedPot)}
+      </div>
     </div>
   );
 });
@@ -136,7 +199,15 @@ function SeatsLayout({
   playerAddress?: string;
 }) {
   const currentActor = useCurrentActor(store);
-  const tableState = useTableState(store);
+  const dealerPosition = useDealerPosition(store);
+  const revealedSeed = useRevealedSeed(store);
+  const tableStatus = useTableStatus(store);
+  const seatStatuses = useSeatStatuses(store);
+  const seatStatusObjects = useMemo(
+    () => seatStatuses.map((status) => ({ status })),
+    [seatStatuses]
+  );
+  const isShowdown = tableStatus === TableStatus.SHOWDOWN;
 
   return (
     <>
@@ -146,9 +217,12 @@ function SeatsLayout({
           store={store}
           index={index}
           isCurrentActor={currentActor === index}
-          isPlayer={false} // Will be determined by seat data
+          isDealer={dealerPosition === index}
           playerAddress={playerAddress}
-          tableState={tableState}
+          isShowdown={isShowdown}
+          revealedSeed={revealedSeed}
+          dealerPosition={dealerPosition}
+          seatStatusObjects={seatStatusObjects}
         />
       ))}
     </>
@@ -159,9 +233,12 @@ interface SeatComponentProps {
   store: TableStore;
   index: number;
   isCurrentActor: boolean;
-  isPlayer: boolean;
+  isDealer: boolean;
   playerAddress?: string;
-  tableState: ReturnType<typeof useTableState>;
+  isShowdown: boolean;
+  revealedSeed: string;
+  dealerPosition: number;
+  seatStatusObjects: { status: number }[];
 }
 
 /**
@@ -175,19 +252,22 @@ const SeatComponent = memo(function SeatComponent({
   store,
   index,
   isCurrentActor,
+  isDealer,
   playerAddress,
-  tableState,
+  isShowdown,
+  revealedSeed,
+  dealerPosition,
+  seatStatusObjects,
 }: SeatComponentProps) {
   const seat = useSeat(store, index);
   const isPlayer = Boolean(playerAddress && seat.player === playerAddress);
 
   // Derive hole cards if at showdown and seed is revealed
   const holeCards = useMemo(() => {
-    const { status, revealedSeed, dealerPosition, seats } = tableState;
     // Only show hole cards during showdown with revealed seed
-    if (status !== TableStatus.SHOWDOWN) return null;
-    return deriveHoleCards(revealedSeed, dealerPosition, seats, index);
-  }, [tableState, index]);
+    if (!isShowdown) return null;
+    return deriveHoleCards(revealedSeed, dealerPosition, seatStatusObjects, index);
+  }, [isShowdown, revealedSeed, dealerPosition, seatStatusObjects, index]);
 
   // Calculate position on ellipse (10 seats around the table)
   const angle = (index * 360) / MAX_SEATS - 90; // Start from top
@@ -206,9 +286,10 @@ const SeatComponent = memo(function SeatComponent({
         seat={seat}
         index={index}
         isCurrentActor={isCurrentActor}
+        isDealer={isDealer}
         isPlayer={isPlayer}
         holeCards={holeCards}
-        isShowdown={tableState.status === TableStatus.SHOWDOWN}
+        isShowdown={isShowdown}
       />
     </div>
   );
@@ -224,6 +305,7 @@ function SeatCard({
   seat,
   index,
   isCurrentActor,
+  isDealer,
   isPlayer,
   holeCards,
   isShowdown,
@@ -231,6 +313,7 @@ function SeatCard({
   seat: SeatType;
   index: number;
   isCurrentActor: boolean;
+  isDealer: boolean;
   isPlayer: boolean;
   holeCards: [number, number] | null;
   isShowdown: boolean;
@@ -260,6 +343,10 @@ function SeatCard({
       aria-label={`Seat ${index + 1}${
         isEmpty ? ' (empty)' : isSittingOut ? ' (sitting out)' : ''
       }`}
+      data-dealer={isDealer ? 'true' : 'false'}
+      data-seat-status={seat.status}
+      data-current-actor={isCurrentActor ? 'true' : 'false'}
+      data-player={isPlayer ? 'true' : 'false'}
     >
       {/* Turn indicator */}
       {isCurrentActor && (
@@ -269,7 +356,11 @@ function SeatCard({
       )}
 
       {/* Dealer button */}
-      {/* TODO: Show dealer button based on dealerPosition */}
+      {isDealer && (
+        <div className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-gold)] text-[10px] font-bold text-[var(--surface-void)]">
+          D
+        </div>
+      )}
 
       {isEmpty ? (
         <span className="text-xs text-zinc-500">Empty</span>
@@ -277,16 +368,21 @@ function SeatCard({
         <>
           {/* Hole cards (AC-CI6.4) */}
           {showHoleCards && (
-            <div className="flex gap-0.5 mb-1">
+            <div
+              className={`mb-1 flex gap-0.5 ${
+                isPlayer ? 'flex-col sm:flex-row' : 'flex-row'
+              }`}
+              data-hero-hand={isPlayer ? 'true' : 'false'}
+            >
               {showFaceUp && holeCards ? (
                 <>
-                  <Card index={holeCards[0]} size="sm" />
-                  <Card index={holeCards[1]} size="sm" />
+                  <Card index={holeCards[0]} size="sm" state="revealed" />
+                  <Card index={holeCards[1]} size="sm" state="revealed" />
                 </>
               ) : (
                 <>
-                  <Card faceDown size="sm" />
-                  <Card faceDown size="sm" />
+                  <Card faceDown size="sm" state={isFolded ? 'folded' : 'face-down'} />
+                  <Card faceDown size="sm" state={isFolded ? 'folded' : 'face-down'} />
                 </>
               )}
             </div>
@@ -351,13 +447,48 @@ function getSeatPosition(angleDegrees: number): { x: number; y: number } {
  *
  * AC-6.6: Uses Intl.NumberFormat for number formatting.
  */
-function formatChips(amount: bigint): string {
-  // For display, convert to number (safe for typical poker amounts)
-  const num = Number(amount);
+function formatChips(amount: bigint | number): string {
+  const num = typeof amount === 'bigint' ? Number(amount) : amount;
   return new Intl.NumberFormat('en-US', {
     style: 'decimal',
     maximumFractionDigits: 0,
   }).format(num);
+}
+
+function useAnimatedCounter(value: bigint, duration: number): number {
+  const target = Number(value);
+  const [display, setDisplay] = useState<number>(target);
+  const previous = useRef<number>(target);
+
+  useEffect(() => {
+    const from = previous.current;
+    const to = target;
+    previous.current = to;
+
+    if (from === to) {
+      setDisplay(to);
+      return;
+    }
+
+    let rafId = 0;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const next = Math.round(from + (to - from) * eased);
+      setDisplay(next);
+      if (t < 1) {
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [target, duration]);
+
+  return display;
 }
 
 /**

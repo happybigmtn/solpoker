@@ -125,8 +125,13 @@ program
       ? address(options.configPda)
       : await deriveEntropyConfigPda(entropyProgramId);
 
+    const rpcUrls = process.env.SOLANA_RPC_URLS
+      ? process.env.SOLANA_RPC_URLS.split(",").map((url) => url.trim()).filter(Boolean)
+      : undefined;
+
     const config: ProviderDaemonConfig = {
       rpcUrl: options.rpc,
+      rpcUrls,
       wsUrl,
       entropyProgramId,
       entropyConfigPda,
@@ -141,7 +146,8 @@ program
 
     // Check RPC health before starting
     console.log("Checking RPC connection...");
-    const healthy = await checkRpcHealth(config.rpcUrl);
+    const healthUrls = rpcUrls && rpcUrls.length > 0 ? [options.rpc, ...rpcUrls] : options.rpc;
+    const healthy = await checkRpcHealth(healthUrls);
     if (!healthy) {
       console.error("Error: RPC endpoint is not healthy");
       process.exit(1);

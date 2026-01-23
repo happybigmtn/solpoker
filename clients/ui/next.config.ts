@@ -8,6 +8,18 @@ const nextConfig: NextConfig = {
   // Transpile the local @robopoker/client package
   transpilePackages: ['@robopoker/client'],
 
+  // Optimize package imports to avoid loading entire barrel files
+  // React Best Practice: bundle-barrel-imports
+  // This transforms barrel imports to direct imports at build time
+  experimental: {
+    optimizePackageImports: [
+      '@solana/kit',
+      '@solana/react-hooks',
+      '@solana/client',
+      '@solana-program/compute-budget',
+    ],
+  },
+
   // Configure webpack to properly handle @solana packages
   webpack: (config, { isServer, dev }) => {
     if (!isServer && !dev) {

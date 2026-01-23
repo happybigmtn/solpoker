@@ -1,9 +1,9 @@
 //! Poker Program - On-chain multiplayer poker with CRISPS escrow.
 //!
 //! This program implements:
-//! - CRISPS (Token-2022) mint configuration (AC-3.1)
-//! - PDA-owned table vault token accounts (AC-3.2)
-//! - Join/leave flows with proper escrow transfers (AC-3.3)
+//! - CRISPS (Token-2022) mint configuration (AC-POK3.1)
+//! - PDA-owned table vault token accounts (AC-POK3.2)
+//! - Join/leave flows with proper escrow transfers (AC-POK3.3)
 
 #![no_std]
 

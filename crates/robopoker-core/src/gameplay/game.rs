@@ -31,7 +31,7 @@ impl Default for Game {
 }
 
 impl Game {
-    /// Create a new game with the given 32-byte seed for deterministic deck shuffling (AC-1.1).
+    /// Create a new game with the given 32-byte seed for deterministic deck shuffling (AC-POK1.1).
     /// The seed should come from the entropy program for on-chain use.
     pub fn with_seed(seed: &[u8; 32]) -> Self {
         let mut deck = Deck::new();

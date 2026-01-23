@@ -9,7 +9,7 @@
 # 3. Environment consistency checks
 # 4. Solana CLI environment match verification
 #
-# Usage: ./scripts/validate-config.sh [--env devnet|testnet|mainnet]
+# Usage: ./scripts/validate-config.sh [--env devnet|testnet|mainnet] [--allow-placeholders]
 #
 # Exit codes:
 #   0 - Validation passed
@@ -34,9 +34,23 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 # Parse arguments
 ENVIRONMENT="${1:-}"
-if [[ "$1" == "--env" ]]; then
+ALLOW_PLACEHOLDERS=false
+if [[ "${1:-}" == "--env" ]]; then
     ENVIRONMENT="${2:-}"
+    shift 2
 fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --allow-placeholders)
+            ALLOW_PLACEHOLDERS=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 if [[ -z "$ENVIRONMENT" ]]; then
     echo "Usage: $0 --env <devnet|testnet|mainnet>"
@@ -99,6 +113,10 @@ errors = []
 if config.get("environment") != "$ENVIRONMENT":
     errors.append(f"Environment mismatch: config says '{config.get('environment')}' but validating for '$ENVIRONMENT'")
 
+# Environment-specific checks
+env = "$ENVIRONMENT"
+allow_placeholders = "$ALLOW_PLACEHOLDERS".lower() == "true"
+
 # Check required fields from validation section
 required_fields = config.get("validation", {}).get("requiredFields", [])
 for field_path in required_fields:
@@ -107,20 +125,18 @@ for field_path in required_fields:
     try:
         for part in parts:
             value = value[part]
-        if value is None:
+        if value is None and not allow_placeholders:
             errors.append(f"Required field is null: {field_path}")
     except (KeyError, TypeError):
         errors.append(f"Required field missing: {field_path}")
 
-# Environment-specific checks
-env = "$ENVIRONMENT"
 if env == "mainnet":
     # Mainnet requires program IDs and mint
-    if not config.get("programs", {}).get("entropy", {}).get("programId"):
+    if not config.get("programs", {}).get("entropy", {}).get("programId") and not allow_placeholders:
         errors.append("Mainnet requires programs.entropy.programId")
-    if not config.get("programs", {}).get("poker", {}).get("programId"):
+    if not config.get("programs", {}).get("poker", {}).get("programId") and not allow_placeholders:
         errors.append("Mainnet requires programs.poker.programId")
-    if not config.get("tokens", {}).get("crispsMint"):
+    if not config.get("tokens", {}).get("crispsMint") and not allow_placeholders:
         errors.append("Mainnet requires tokens.crispsMint")
     # Mainnet should not allow test features
     if config.get("features", {}).get("allowTestMints"):
@@ -160,7 +176,8 @@ EOF
 }
 
 log_info "Validating config fields..."
-if validation_output=$(validate_config 2>&1); then
+validation_output=$(validate_config 2>&1) || true
+if echo "$validation_output" | grep -q "CONFIG_VALID"; then
     log_ok "All required fields present and valid"
 else
     echo "$validation_output" | while read -r line; do

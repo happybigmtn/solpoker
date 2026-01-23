@@ -2,10 +2,10 @@
 //!
 //! These tests verify the data structures and instruction formats that the
 //! program uses for security validation:
-//! - AC-7.1: All instructions validate account owners, signer status, and expected program IDs
-//! - AC-7.2: All PDA derivations are verified on-chain and mismatches fail
-//! - AC-7.3: Duplicate mutable account inputs are rejected
-//! - AC-7.4: All arithmetic uses checked math and fails on overflow/underflow
+//! - AC-POK7.1: All instructions validate account owners, signer status, and expected program IDs
+//! - AC-POK7.2: All PDA derivations are verified on-chain and mismatches fail
+//! - AC-POK7.3: Duplicate mutable account inputs are rejected
+//! - AC-POK7.4: All arithmetic uses checked math and fails on overflow/underflow
 //!
 //! Note: These tests validate the data structures. Full integration tests
 //! require `cargo build-sbf` to compile the program.
@@ -139,10 +139,10 @@ fn create_pending_request_data(
 }
 
 // =============================================================================
-// AC-7.1: Account Owner, Signer Status, and Program ID Validation
+// AC-POK7.1: Account Owner, Signer Status, and Program ID Validation
 // =============================================================================
 
-/// Test: Missing signer on Initialize instruction (AC-7.1)
+/// Test: Missing signer on Initialize instruction (AC-POK7.1)
 /// The program must reject this instruction because authority is not signing.
 #[test]
 fn test_ac_7_1_missing_signer_initialize_structure() {
@@ -167,10 +167,10 @@ fn test_ac_7_1_missing_signer_initialize_structure() {
     assert!(!ix.accounts[1].is_signer, "Authority should NOT be marked as signer");
     assert_eq!(ix.data[0], ix_disc::INITIALIZE, "Should be Initialize instruction");
 
-    println!("AC-7.1: Initialize without authority signer - program should reject with MissingSigner");
+    println!("AC-POK7.1: Initialize without authority signer - program should reject with MissingSigner");
 }
 
-/// Test: Missing signer on Commit instruction (AC-7.1)
+/// Test: Missing signer on Commit instruction (AC-POK7.1)
 /// The program must reject this instruction because provider is not signing.
 #[test]
 fn test_ac_7_1_missing_signer_commit_structure() {
@@ -203,10 +203,10 @@ fn test_ac_7_1_missing_signer_commit_structure() {
     // Verify config data is valid
     assert_eq!(config_data[0], acc_disc::CONFIG);
 
-    println!("AC-7.1: Commit without provider signer - program should reject with MissingSigner");
+    println!("AC-POK7.1: Commit without provider signer - program should reject with MissingSigner");
 }
 
-/// Test: Missing signer on Reveal instruction (AC-7.1)
+/// Test: Missing signer on Reveal instruction (AC-POK7.1)
 /// The program must reject this instruction because provider is not signing.
 #[test]
 fn test_ac_7_1_missing_signer_reveal_structure() {
@@ -246,10 +246,10 @@ fn test_ac_7_1_missing_signer_reveal_structure() {
     let config_data = create_config_data(&provider, &authority, 1_000_000, 100, 5000);
     assert_eq!(config_data[0], acc_disc::CONFIG);
 
-    println!("AC-7.1: Reveal without provider signer - program should reject with MissingSigner");
+    println!("AC-POK7.1: Reveal without provider signer - program should reject with MissingSigner");
 }
 
-/// Test: Provider mismatch in config vs account (AC-7.1)
+/// Test: Provider mismatch in config vs account (AC-POK7.1)
 /// The program must reject if provider account doesn't match config.provider.
 #[test]
 fn test_ac_7_1_provider_mismatch_detection() {
@@ -288,16 +288,16 @@ fn test_ac_7_1_provider_mismatch_detection() {
     assert!(ix.accounts[1].is_signer, "Provider should be signing");
     assert_eq!(ix.data[0], ix_disc::COMMIT);
 
-    println!("AC-7.1: Commit with wrong provider - program should reject with ProviderMismatch");
+    println!("AC-POK7.1: Commit with wrong provider - program should reject with ProviderMismatch");
     println!("       Config provider: {:?}", configured_provider);
     println!("       Provided: {:?}", wrong_provider);
 }
 
 // =============================================================================
-// AC-7.2: PDA Derivation Verification
+// AC-POK7.2: PDA Derivation Verification
 // =============================================================================
 
-/// Test: Wrong config PDA detection (AC-7.2)
+/// Test: Wrong config PDA detection (AC-POK7.2)
 /// The program must verify the config account is derived from correct PDA seeds.
 #[test]
 fn test_ac_7_2_wrong_config_pda_detection() {
@@ -320,12 +320,12 @@ fn test_ac_7_2_wrong_config_pda_detection() {
     // The wrong_config_key is a random address, not derived from ["config"]
     assert_eq!(ix.data[0], ix_disc::INITIALIZE);
 
-    println!("AC-7.2: Initialize with wrong config PDA - program should reject with InvalidPda");
+    println!("AC-POK7.2: Initialize with wrong config PDA - program should reject with InvalidPda");
     println!("       Expected: PDA derived from [\"config\"]");
     println!("       Provided: Random address");
 }
 
-/// Test: Wrong commitment PDA detection (AC-7.2)
+/// Test: Wrong commitment PDA detection (AC-POK7.2)
 /// The program must verify commitment account is derived from correct seeds.
 #[test]
 fn test_ac_7_2_wrong_commitment_pda_detection() {
@@ -357,12 +357,12 @@ fn test_ac_7_2_wrong_commitment_pda_detection() {
     // The wrong_commitment_key is not derived from ["commitment", provider, sequence]
     assert_eq!(ix.data[0], ix_disc::COMMIT);
 
-    println!("AC-7.2: Commit with wrong commitment PDA - program should reject with InvalidPda");
+    println!("AC-POK7.2: Commit with wrong commitment PDA - program should reject with InvalidPda");
     println!("       Expected: PDA derived from [\"commitment\", provider, sequence]");
     println!("       Provided: Random address");
 }
 
-/// Test: Wrong request PDA detection (AC-7.2)
+/// Test: Wrong request PDA detection (AC-POK7.2)
 /// The program must verify request account is derived from correct seeds.
 #[test]
 fn test_ac_7_2_wrong_request_pda_detection() {
@@ -400,16 +400,16 @@ fn test_ac_7_2_wrong_request_pda_detection() {
     // The wrong_request_key is not derived from ["request", requester, request_id]
     assert_eq!(ix.data[0], ix_disc::REQUEST);
 
-    println!("AC-7.2: RequestRandomness with wrong request PDA - program should reject with InvalidPda");
+    println!("AC-POK7.2: RequestRandomness with wrong request PDA - program should reject with InvalidPda");
     println!("       Expected: PDA derived from [\"request\", requester, request_id]");
     println!("       Provided: Random address");
 }
 
 // =============================================================================
-// AC-7.3: Duplicate Mutable Account Rejection
+// AC-POK7.3: Duplicate Mutable Account Rejection
 // =============================================================================
 
-/// Test: Duplicate mutable account detection (AC-7.3)
+/// Test: Duplicate mutable account detection (AC-POK7.3)
 /// When the same account appears twice as mutable, it should be rejected.
 #[test]
 fn test_ac_7_3_duplicate_mutable_account_detection() {
@@ -441,15 +441,15 @@ fn test_ac_7_3_duplicate_mutable_account_detection() {
 
     assert_eq!(mutable_commitment_count, 2, "Commitment should appear twice as mutable");
 
-    println!("AC-7.3: Duplicate mutable accounts - program should reject with DuplicateMutableAccount");
+    println!("AC-POK7.3: Duplicate mutable accounts - program should reject with DuplicateMutableAccount");
     println!("       commitment_key appears {} times as writable", mutable_commitment_count);
 }
 
 // =============================================================================
-// AC-7.4: Checked Arithmetic (Overflow/Underflow Detection)
+// AC-POK7.4: Checked Arithmetic (Overflow/Underflow Detection)
 // =============================================================================
 
-/// Test: Bond amount overflow scenario (AC-7.4)
+/// Test: Bond amount overflow scenario (AC-POK7.4)
 /// Arithmetic operations on bond amounts must use checked math.
 #[test]
 fn test_ac_7_4_bond_overflow_scenario() {
@@ -468,13 +468,13 @@ fn test_ac_7_4_bond_overflow_scenario() {
     let additional_bond = 100u64;
     assert!(bond_near_max.checked_add(additional_bond).is_none(), "Addition should overflow");
 
-    println!("AC-7.4: Bond calculation overflow - program should reject with ArithmeticOverflow");
+    println!("AC-POK7.4: Bond calculation overflow - program should reject with ArithmeticOverflow");
     println!("       Current bond: {}", bond_near_max);
     println!("       Additional: {}", additional_bond);
     println!("       Would overflow: true");
 }
 
-/// Test: Reveal window calculation overflow scenario (AC-7.4)
+/// Test: Reveal window calculation overflow scenario (AC-POK7.4)
 /// When computing deadline, slot + reveal_window should use checked math.
 #[test]
 fn test_ac_7_4_reveal_window_overflow_scenario() {
@@ -495,13 +495,13 @@ fn test_ac_7_4_reveal_window_overflow_scenario() {
     // Computing deadline: current_slot + reveal_window would overflow
     assert!(current_slot.checked_add(reveal_window).is_none(), "Deadline computation should overflow");
 
-    println!("AC-7.4: Reveal deadline overflow - program should reject with ArithmeticOverflow");
+    println!("AC-POK7.4: Reveal deadline overflow - program should reject with ArithmeticOverflow");
     println!("       Current slot: {}", current_slot);
     println!("       Reveal window: {}", reveal_window);
     println!("       Would overflow: true");
 }
 
-/// Test: Slash amount calculation overflow scenario (AC-7.4)
+/// Test: Slash amount calculation overflow scenario (AC-POK7.4)
 /// When computing slash penalty, bond * slash_bp / 10000 should use checked math.
 #[test]
 fn test_ac_7_4_slash_calculation_scenario() {
@@ -526,12 +526,12 @@ fn test_ac_7_4_slash_calculation_scenario() {
     let overflow_result = huge_bond.checked_mul(slash_bp);
     assert!(overflow_result.is_none(), "This multiplication should overflow");
 
-    println!("AC-7.4: Slash calculation - program should use checked math");
+    println!("AC-POK7.4: Slash calculation - program should use checked math");
     println!("       Safe bond: {} - result: {:?}", safe_bond, result);
     println!("       Huge bond: {} - would overflow: true", huge_bond);
 }
 
-/// Test: Sequence number overflow scenario (AC-7.4)
+/// Test: Sequence number overflow scenario (AC-POK7.4)
 /// When incrementing sequence, should use checked math.
 #[test]
 fn test_ac_7_4_sequence_overflow_scenario() {
@@ -553,7 +553,7 @@ fn test_ac_7_4_sequence_overflow_scenario() {
     let overflow_sequence = sequence_near_max.checked_add(2);
     assert!(overflow_sequence.is_none(), "Two increments would overflow");
 
-    println!("AC-7.4: Sequence increment - program should use checked math");
+    println!("AC-POK7.4: Sequence increment - program should use checked math");
     println!("       Current sequence: {}", sequence_near_max);
     println!("       +1 OK: true");
     println!("       +2 overflow: true");
@@ -568,21 +568,21 @@ fn test_ac_7_4_sequence_overflow_scenario() {
 fn test_security_validation_summary() {
     println!("=== Entropy Program Security Validation Summary ===");
     println!();
-    println!("AC-7.1: Account owner, signer, and program ID validation");
+    println!("AC-POK7.1: Account owner, signer, and program ID validation");
     println!("  [x] Missing signer on Initialize - MissingSigner error");
     println!("  [x] Missing signer on Commit - MissingSigner error");
     println!("  [x] Missing signer on Reveal - MissingSigner error");
     println!("  [x] Provider mismatch - ProviderMismatch error");
     println!();
-    println!("AC-7.2: PDA derivation verification");
+    println!("AC-POK7.2: PDA derivation verification");
     println!("  [x] Wrong config PDA - InvalidPda error");
     println!("  [x] Wrong commitment PDA - InvalidPda error");
     println!("  [x] Wrong request PDA - InvalidPda error");
     println!();
-    println!("AC-7.3: Duplicate mutable account rejection");
+    println!("AC-POK7.3: Duplicate mutable account rejection");
     println!("  [x] Same account passed twice as writable - DuplicateMutableAccount error");
     println!();
-    println!("AC-7.4: Checked arithmetic");
+    println!("AC-POK7.4: Checked arithmetic");
     println!("  [x] Bond amount overflow - ArithmeticOverflow error");
     println!("  [x] Reveal window overflow - ArithmeticOverflow error");
     println!("  [x] Slash calculation overflow - ArithmeticOverflow error");

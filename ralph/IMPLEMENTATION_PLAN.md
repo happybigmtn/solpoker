@@ -1,24 +1,511 @@
 # Implementation Plan
 
-**Date**: 2026-01-21
-**Scope**: Production readiness for mainnet release (release engineering, security, ops, reliability, data integrity).
+**Date**: 2026-01-22
+**Scope**: UI baseline + Poker UI redesign + on-chain poker/entropy programs + entropy provider + client integration + devnet deployment + production readiness.
+
+## Planning Guidance (Plan -> Derive Tests from ACs)
+
+- Use `ralph/PROMPT_plan.md` when updating this file.
+- Each task must cite exact AC IDs from `specs/**/*.md` (excluding `specs/archive/`) and list required tests/backpressure.
+- Tests/backpressure should be derived directly from cited ACs (1-3 checks per task).
+- Map each cited AC to at least one test or manual check; do not include tests that do not trace to an AC.
+- If an AC includes timing/size/latency thresholds, include the numeric threshold in the test.
+- If an AC describes error or retry behavior, include a negative-path test or manual failure drill.
+- If perceptual ACs are involved, include a perceptual review step and cite the perceptual AC IDs.
+- Avoid inventing new ACs or feature areas; record gaps under "Missing/Unknown".
 
 ## Tasks (Priority Order)
 
-### Phase 1: Security Assurance
-- [x] External/independent security audit completed with Critical/High resolved or accepted. AC-SEC1.2. Validation: audit report summary + findings log.
+### Phase 1: UI Baseline (Minimal UI Spec)
+- [x] Framework-kit + wallet standard integration.
+  - Specs: `specs/ui-minimal.md` AC-1.1, AC-1.2, AC-1.3, AC-1.4, AC-1.5
+  - Tests/backpressure:
+    - Programmatic: framework-kit smoke tests for kit usage, wallet connect/disconnect, websocket config, and App Router boundaries. (AC-1.1, AC-1.2, AC-1.3, AC-1.4, AC-1.5)
+    - Manual: connect/disconnect flow with a Wallet Standard wallet. (AC-1.3)
+  - Perceptual: None
+- [x] Keyboard-first interaction model.
+  - Specs: `specs/ui-minimal.md` AC-2.1, AC-2.2, AC-2.3, AC-2.4
+  - Tests/backpressure:
+    - Programmatic: command palette tests for global shortcut and action list. (AC-2.1)
+    - Programmatic: keyboard shortcut tests for F/X/C/R/S and raise adjustment. (AC-2.2, AC-2.3)
+    - Programmatic: focus visibility and Esc handling tests. (AC-2.4)
+  - Perceptual: None
+- [x] Layout + transaction state visibility.
+  - Specs: `specs/ui-minimal.md` AC-3.1, AC-3.2, AC-3.3, AC-3.4
+  - Tests/backpressure:
+    - Programmatic: layout-performance tests for seat layout, board/pot visibility, and mobile action focus. (AC-3.1, AC-3.2, AC-3.3)
+    - Programmatic: transaction status inline state tests. (AC-3.4)
+  - Perceptual: None
+- [x] Data + performance hygiene.
+  - Specs: `specs/ui-minimal.md` AC-4.1, AC-4.2, AC-4.3, AC-4.4, AC-4.5, AC-4.6, AC-4.7, AC-4.8, AC-4.9, AC-4.10
+  - Tests/backpressure:
+    - Programmatic: store subscription tests for selective re-rendering. (AC-4.1)
+    - Programmatic: suspense boundary + dynamic import checks. (AC-4.4, AC-4.5)
+    - Manual: bundle hygiene review (code-splitting, direct imports, font display). (AC-4.3, AC-4.7, AC-4.8, AC-4.9, AC-4.10)
+  - Perceptual: None
+- [x] Accessibility + forms + motion hygiene.
+  - Specs: `specs/ui-minimal.md` AC-5.1, AC-5.2, AC-5.3, AC-5.4, AC-5.5, AC-5.6, AC-5.7, AC-5.8, AC-5.9, AC-5.10, AC-5.11, AC-5.12, AC-5.13, AC-5.14, AC-5.15
+  - Tests/backpressure:
+    - Programmatic: keyboard-navigation tests for focus, aria-live, and confirmation modals. (AC-5.1, AC-5.3, AC-5.7)
+    - Programmatic: form validation focus + labeling checks. (AC-5.9, AC-5.11, AC-5.13)
+    - Programmatic: prefers-reduced-motion CSS check and animation constraints. (AC-5.5)
+  - Perceptual: None
+- [x] Typography + content conventions.
+  - Specs: `specs/ui-minimal.md` AC-6.1, AC-6.2, AC-6.3, AC-6.4, AC-6.5, AC-6.6
+  - Tests/backpressure:
+    - Programmatic: tabular numerals + truncation utilities checks. (AC-6.1, AC-6.4)
+    - Programmatic: error copy + numeric formatting tests. (AC-6.5, AC-6.6)
+  - Perceptual: None
+- [x] Navigation + touch + assets + hydration + theming.
+  - Specs: `specs/ui-minimal.md` AC-7.1, AC-7.2, AC-8.1, AC-8.2, AC-8.3, AC-9.1, AC-9.2, AC-10.1, AC-10.2, AC-10.3, AC-11.1
+  - Tests/backpressure:
+    - Programmatic: routing/link coverage for deep links and Link usage. (AC-7.1, AC-7.2)
+    - Programmatic: CSS utilities for touch-action, overscroll, safe-area, and color-scheme. (AC-8.1, AC-8.2, AC-8.3, AC-11.1)
+    - Manual: hydration mismatch audit for inputs and date/time rendering. (AC-10.1, AC-10.2, AC-10.3)
+  - Perceptual: None
+- [x] UI perceptual quality review.
+  - Specs: `specs/ui-minimal.md` AC-PQ.1, AC-PQ.2, AC-PQ.3
+  - Tests/backpressure:
+    - Manual: visual/interaction review for minimalism, keyboard-only usability, and low-latency feel. (AC-PQ.1, AC-PQ.2, AC-PQ.3)
+  - Perceptual: AC-PQ.1, AC-PQ.2, AC-PQ.3
 
-### Phase 2: Observability + Operations
-- [x] Health checks + backup/restore + postmortem template. AC-OPS1.6 to AC-OPS1.8. Validation: restore drill notes.
+### Phase 2: Poker UI Redesign
+- [x] Visual system tokens + contrast audit.
+  - Specs: `specs/poker-ui-redesign.md` AC-PQ1.1, AC-PQ1.2, AC-PQ1.3, AC-UI1.1, AC-UI1.2, AC-UI1.3, AC-UI1.4
+  - Tests/backpressure:
+    - Programmatic: unit test for CSS variables (surfaces/text/accents/signals), typography stacks, spacing scale, and grid/gutter breakpoint tokens. (AC-UI1.1, AC-UI1.2, AC-UI1.3)
+    - Programmatic: contrast check for text and interactive elements meeting WCAG AA (>=4.5:1) in dark theme. (AC-UI1.4)
+    - Manual: visual review for AC-PQ1.1, AC-PQ1.2, AC-PQ1.3 tone and texture. (AC-PQ1.1, AC-PQ1.2, AC-PQ1.3)
+  - Perceptual: AC-PQ1.1, AC-PQ1.2, AC-PQ1.3
+- [x] Card system states + suit accessibility.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI2.1, AC-UI2.2, AC-UI2.3, AC-UI2.4
+  - Tests/backpressure:
+    - Programmatic: component tests for face-up/down/revealed/folded/winning states. (AC-UI2.1)
+    - Programmatic: 52-card mapping test for all rank/suit combinations at sm/md/lg. (AC-UI2.2)
+    - Manual: card back pattern legible at smallest size (no moire) and suits distinguishable without color. (AC-UI2.3, AC-UI2.4)
+  - Perceptual: None
+- [x] Table layout + seats + pot + community reveals.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI3.1, AC-UI3.2, AC-UI3.3
+  - Tests/backpressure:
+    - Programmatic: seat count across breakpoints + active/dealer/hero indicators present. (AC-UI3.1)
+    - Programmatic: pot display updates within 100ms of state change with animated counter. (AC-UI3.2)
+    - Programmatic: community cards reveal with per-street stagger delays (monotonic by card index). (AC-UI3.3)
+  - Perceptual: None
+- [x] Action bar + betting controls + shortcuts.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI4.1, AC-UI4.2, AC-UI4.3
+  - Tests/backpressure:
+    - Programmatic: touch target size >=44x44 and disabled states rendered for unavailable actions. (AC-UI4.1)
+    - Programmatic: raise control supports drag + quick-bet shortcuts; haptics trigger on supported devices and no-op otherwise. (AC-UI4.2)
+    - Programmatic: keyboard shortcuts F/X/C/R/S work when focused and show visible focus styles. (AC-UI4.3)
+  - Perceptual: None
+- [x] Motion sequences + reduced motion compliance.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI5.1, AC-UI5.2, AC-UI5.3, AC-UI5.4
+  - Tests/backpressure:
+    - Programmatic: card flip duration <=600ms and game start sequence <=2s. (AC-UI5.1)
+    - Programmatic: prefers-reduced-motion disables non-essential motion while preserving state changes. (AC-UI5.4)
+    - Manual: win celebration subtle glow (not gaudy), perf trace for 60fps target, and input can interrupt animations. (AC-UI5.2, AC-UI5.3)
+  - Perceptual: None
+- [x] Responsive + touch behaviors.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI6.1, AC-UI6.2, AC-UI6.3
+  - Tests/backpressure:
+    - Programmatic: hero cards stacked on xs and side-by-side on sm+. (AC-UI6.1)
+    - Programmatic: action bar fixed on mobile with safe-area insets applied. (AC-UI6.2)
+    - Programmatic: touch-action: manipulation present on interactive controls; manual gesture conflict sanity on scroll/drag. (AC-UI6.3)
+  - Perceptual: None
+- [x] Solana Mobile wallet UX flows.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI7.1, AC-UI7.2, AC-UI7.3, AC-UI7.4
+  - Tests/backpressure:
+    - Programmatic: Saga MWA connects without QR; non-Saga devices deep-link to wallet. (AC-UI7.1)
+    - Programmatic: transaction prompt text mappings for join/action/leave and retry CTA on failure. (AC-UI7.2, AC-UI7.4)
+    - Manual: session signing reduces wallet popups across multiple actions; Saga smoke test. (AC-UI7.1, AC-UI7.3)
+  - Perceptual: None
+- [x] Screen reader announcements + icon labeling.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI8.1, AC-UI8.3
+  - Tests/backpressure:
+    - Programmatic: axe scan for table + action bar views; aria-live announcements present for key game events. (AC-UI8.1)
+    - Programmatic: icon-only buttons include aria-label; decorative icons are aria-hidden. (AC-UI8.3)
+  - Perceptual: None
+- [x] Focus visibility + keyboard coverage + color-blind mode.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI8.2, AC-UI8.4
+  - Tests/backpressure:
+    - Programmatic: keyboard navigation covers actions with visible focus states for all interactive controls. (AC-UI8.2)
+    - Programmatic: color-blind mode toggle applies non-color indicators for key states. (AC-UI8.4)
+  - Perceptual: None
+- [x] Bundle size budget + lazy loading.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI9.2
+  - Tests/backpressure:
+    - Programmatic: table view bundle <200KB gz and non-critical panels lazy-loaded. (AC-UI9.2)
+  - Perceptual: None
+- [x] Render profiling + memory stability.
+  - Specs: `specs/poker-ui-redesign.md` AC-UI9.3
+  - Tests/backpressure:
+    - Programmatic: render profiling shows no full-table re-render on seat or pot updates; memory usage stable during extended play. (AC-UI9.3)
+  - Perceptual: None
+- [x] Lighthouse performance budget (3G + CLS).
+  - Specs: `specs/poker-ui-redesign.md` AC-UI9.1
+  - Tests/backpressure:
+    - Manual: Lighthouse on 3G preset shows initial load <3s and CLS 0 after first paint. (AC-UI9.1)
+  - Perceptual: None
 
-### Phase 3: Reliability + Scalability
-- [ ] Load tests + compute/fee tuning. AC-REL1.1 to AC-REL1.2. Validation: load test report.
-- [ ] RPC failover + provider failover + graceful degradation. AC-REL1.3 to AC-REL1.5. Validation: failure injection tests.
-- [ ] Abuse protection + monitoring. AC-REL1.6 to AC-REL1.7. Validation: rate-limit tests + alerting.
+### Phase 3: On-Chain Poker + Entropy Programs
+- [x] Core architecture + fixed layouts.
+  - Specs: `specs/onchain-poker.md` AC-POK1.1, AC-POK1.2, AC-POK1.3, AC-POK1.4, AC-POK1.5, AC-POK1.6
+  - Tests/backpressure:
+    - Programmatic: deterministic deck shuffle tests and no_std build. (AC-POK1.1)
+    - Programmatic: account size snapshots and fixed-size layout checks. (AC-POK1.2, AC-POK1.5)
+    - Programmatic: u64 chip/pot usage and fixed-buffer instruction data checks. (AC-POK1.3, AC-POK1.6)
+  - Perceptual: None
+- [x] Entropy commit/reveal + CPI integration.
+  - Specs: `specs/onchain-poker.md` AC-POK2.1, AC-POK2.2, AC-POK2.3, AC-POK2.4, AC-POK2.5
+  - Tests/backpressure:
+    - Programmatic: commit -> reveal -> randomness derivation flow tests. (AC-POK2.1, AC-POK2.2)
+    - Programmatic: slashing on missed reveal window tests. (AC-POK2.3)
+    - Programmatic: CPI request/finalize and provider enforcement tests. (AC-POK2.4, AC-POK2.5)
+  - Perceptual: None
+- [x] Privacy hybrid seed + hole card verification.
+  - Specs: `specs/onchain-poker.md` AC-POK2.6, AC-POK2.7, AC-POK2.8
+  - Tests/backpressure:
+    - Programmatic: hole card hash storage tests. (AC-POK2.6)
+    - Programmatic: seed reveal verifies commitment and enables settlement. (AC-POK2.7)
+    - Programmatic: hole card hash mismatch blocks settlement. (AC-POK2.8)
+  - Perceptual: None
+- [x] CRISPS token escrow flows.
+  - Specs: `specs/onchain-poker.md` AC-POK3.1, AC-POK3.2, AC-POK3.3
+  - Tests/backpressure:
+    - Programmatic: config stores Token-2022 mint + authority. (AC-POK3.1)
+    - Programmatic: table vault PDA derivation and ownership checks. (AC-POK3.2)
+    - Programmatic: join/leave transfers debit/credit vault and player ATA. (AC-POK3.3)
+  - Perceptual: None
+- [x] Rake + staking pool.
+  - Specs: `specs/onchain-poker.md` AC-POK3.4, AC-POK3.5, AC-POK3.6
+  - Tests/backpressure:
+    - Programmatic: rake accumulation and sweep tests. (AC-POK3.4)
+    - Programmatic: staking deposit/withdraw tests. (AC-POK3.5)
+    - Programmatic: rewards claim proportional distribution tests. (AC-POK3.6)
+  - Perceptual: None
+- [x] Table lifecycle + timeouts.
+  - Specs: `specs/onchain-poker.md` AC-POK4.1, AC-POK4.2, AC-POK4.3, AC-POK4.4
+  - Tests/backpressure:
+    - Programmatic: MAX_SEATS and empty seat state tests. (AC-POK4.1)
+    - Programmatic: create/join/leave lifecycle integrity tests. (AC-POK4.2)
+    - Programmatic: minimum player enforcement and timeout fallback tests. (AC-POK4.3, AC-POK4.4)
+  - Perceptual: None
+- [x] Betting rules enforcement.
+  - Specs: `specs/onchain-poker.md` AC-POK5.1, AC-POK5.2, AC-POK5.3
+  - Tests/backpressure:
+    - Programmatic: legal actions per street tests. (AC-POK5.1)
+    - Programmatic: raise bounds/call/all-in enforcement tests. (AC-POK5.2)
+    - Programmatic: illegal action rejection tests. (AC-POK5.3)
+  - Perceptual: None
+- [x] Settlement + payout invariants.
+  - Specs: `specs/onchain-poker.md` AC-POK6.1, AC-POK6.2
+  - Tests/backpressure:
+    - Programmatic: side-pot payout correctness tests. (AC-POK6.1)
+    - Programmatic: total payouts equal total risked tests. (AC-POK6.2)
+  - Perceptual: None
+- [x] Security invariants.
+  - Specs: `specs/onchain-poker.md` AC-POK7.1, AC-POK7.2, AC-POK7.3, AC-POK7.4
+  - Tests/backpressure:
+    - Programmatic: owner/signer/program ID validation tests. (AC-POK7.1)
+    - Programmatic: PDA derivation mismatch tests. (AC-POK7.2)
+    - Programmatic: duplicate mutable account rejection + checked math tests. (AC-POK7.3, AC-POK7.4)
+  - Perceptual: None
+- [x] Test coverage + typed SDK.
+  - Specs: `specs/onchain-poker.md` AC-POK8.1, AC-POK8.2, AC-POK8.3
+  - Tests/backpressure:
+    - Programmatic: per-instruction unit tests with success/failure cases. (AC-POK8.1)
+    - Programmatic: full-hand integration test for 3+ players. (AC-POK8.2)
+    - Programmatic: SDK instruction builder smoke tests. (AC-POK8.3)
+  - Perceptual: None
 
-### Phase 4: Data Integrity + Indexing
-- [ ] Indexing pipeline with checkpoints. AC-DATA1.1 to AC-DATA1.3. Validation: replay test.
-- [ ] Reconciliation tooling + retention/backup. AC-DATA1.4 to AC-DATA1.5. Validation: reconciliation report + backup drill.
+### Phase 4: Entropy Provider Service
+- [x] Hash chain generation + persistence.
+  - Specs: `specs/entropy-provider.md` AC-EP1.1, AC-EP1.2, AC-EP1.3, AC-EP1.4
+  - Tests/backpressure:
+    - Programmatic: hash chain tests for depth, persistence, commitment verification, and advancement. (AC-EP1.1, AC-EP1.2, AC-EP1.3, AC-EP1.4)
+  - Perceptual: None
+- [x] Commit flow + pending tracker.
+  - Specs: `specs/entropy-provider.md` AC-EP2.1, AC-EP2.2, AC-EP2.3
+  - Tests/backpressure:
+    - Programmatic: commit builder instruction and PDA derivation tests. (AC-EP2.1)
+    - Programmatic: on-chain commit confirmation tests. (AC-EP2.2)
+    - Programmatic: pending tracker persistence tests. (AC-EP2.3)
+  - Perceptual: None
+- [x] Reveal flow + randomness derivation.
+  - Specs: `specs/entropy-provider.md` AC-EP3.1, AC-EP3.2, AC-EP3.3, AC-EP3.4
+  - Tests/backpressure:
+    - Programmatic: slot monitor and deadline tracking tests. (AC-EP3.1, AC-EP3.3)
+    - Programmatic: reveal instruction building and commit-reveal flow tests. (AC-EP3.2)
+    - Programmatic: randomness derivation determinism tests. (AC-EP3.4)
+  - Perceptual: None
+- [x] Request subscription + concurrency handling.
+  - Specs: `specs/entropy-provider.md` AC-EP4.1, AC-EP4.2, AC-EP4.3
+  - Tests/backpressure:
+    - Programmatic: request subscription tests (WS/polling). (AC-EP4.1)
+    - Programmatic: auto-commit on request tests. (AC-EP4.2)
+    - Programmatic: concurrent request handling and throttling tests. (AC-EP4.3)
+  - Perceptual: None
+- [x] Reliability + logging + perceptual quality.
+  - Specs: `specs/entropy-provider.md` AC-EP5.1, AC-EP5.2, AC-EP5.3, AC-EP5.4, AC-PQ.EP1, AC-PQ.EP2
+  - Tests/backpressure:
+    - Programmatic: reconnect backoff, persistence, and resume tests. (AC-EP5.1, AC-EP5.2, AC-EP5.3)
+    - Programmatic: log format + timestamp tests. (AC-EP5.4)
+    - Programmatic: quiet-when-healthy and actionable status output tests. (AC-PQ.EP1, AC-PQ.EP2)
+  - Perceptual: AC-PQ.EP1, AC-PQ.EP2
+- [x] CLI commands.
+  - Specs: `specs/entropy-provider.md` AC-EP6.1, AC-EP6.2, AC-EP6.3
+  - Tests/backpressure:
+    - Programmatic: CLI generate/start/status tests. (AC-EP6.1, AC-EP6.2, AC-EP6.3)
+  - Perceptual: None
+
+### Phase 5: Client Integration
+- [x] PDA derivation helpers.
+  - Specs: `specs/client-integration.md` AC-CI1.1, AC-CI1.2, AC-CI1.3, AC-CI1.4
+  - Tests/backpressure:
+    - Programmatic: PDA derivation unit tests. (AC-CI1.3, AC-CI1.4)
+  - Perceptual: None
+- [x] Transaction building + signing + status surfacing.
+  - Specs: `specs/client-integration.md` AC-CI2.1, AC-CI2.2, AC-CI2.3, AC-CI2.4, AC-PQ.CI1
+  - Tests/backpressure:
+    - Programmatic: transaction hook tests for SDK instruction builders and confirmation flow. (AC-CI2.1, AC-CI2.2, AC-CI2.3, AC-CI2.4)
+    - Programmatic: pending state appears immediately on submit. (AC-PQ.CI1)
+  - Perceptual: AC-PQ.CI1
+- [x] Action wiring.
+  - Specs: `specs/client-integration.md` AC-CI3.1, AC-CI3.2, AC-CI3.3, AC-CI3.4, AC-CI3.5, AC-CI3.6, AC-CI3.7
+  - Tests/backpressure:
+    - Programmatic: hook tests for action discriminators and join/leave instructions. (AC-CI3.1, AC-CI3.2, AC-CI3.3, AC-CI3.4, AC-CI3.5, AC-CI3.6, AC-CI3.7)
+  - Perceptual: None
+- [x] Error handling + simulation surfacing.
+  - Specs: `specs/client-integration.md` AC-CI4.1, AC-CI4.2, AC-CI4.3, AC-CI4.4, AC-PQ.CI2
+  - Tests/backpressure:
+    - Programmatic: error mapping tests for program/log/network/simulation errors. (AC-CI4.1, AC-CI4.2, AC-CI4.3, AC-CI4.4)
+    - Programmatic: error copy includes next-step guidance. (AC-PQ.CI2)
+  - Perceptual: AC-PQ.CI2
+- [x] Table management + card visualization.
+  - Specs: `specs/client-integration.md` AC-CI5.1, AC-CI5.2, AC-CI5.3, AC-CI5.4, AC-CI6.1, AC-CI6.2, AC-CI6.3, AC-CI6.4, AC-PQ.CI3
+  - Tests/backpressure:
+    - Programmatic: useTables/table list tests for table discovery and display. (AC-CI5.1, AC-CI5.2)
+    - Programmatic: create table hook tests for create/redirect. (AC-CI5.3, AC-CI5.4)
+    - Programmatic: card rendering tests for suits/ranks/board/hole cards. (AC-CI6.1, AC-CI6.2, AC-CI6.3, AC-CI6.4)
+    - Manual: card rendering quality review. (AC-PQ.CI3)
+  - Perceptual: AC-PQ.CI3
+
+### Phase 6: Devnet Deployment + Demo Readiness
+- [x] Program build + deploy + verification.
+  - Specs: `specs/devnet-deployment.md` AC-D1.1, AC-D1.2, AC-D1.3
+  - Tests/backpressure:
+    - Programmatic: build + deploy scripts with verification output. (AC-D1.1, AC-D1.2, AC-D1.3)
+  - Perceptual: None
+- [x] Config initialization + token setup.
+  - Specs: `specs/devnet-deployment.md` AC-D2.1, AC-D2.2, AC-D2.3, AC-D3.1, AC-D3.2, AC-D3.3, AC-D3.4
+  - Tests/backpressure:
+    - Programmatic: verify-configs and verify-crisps scripts. (AC-D2.1, AC-D2.2, AC-D2.3, AC-D3.1, AC-D3.2, AC-D3.3, AC-D3.4)
+  - Perceptual: None
+- [x] Deployment automation + idempotency.
+  - Specs: `specs/devnet-deployment.md` AC-D4.1, AC-D4.2, AC-D4.3
+  - Tests/backpressure:
+    - Programmatic: deploy script writes env output and is idempotent. (AC-D4.1, AC-D4.2, AC-D4.3)
+  - Perceptual: None
+- [x] Devnet verification for table lifecycle.
+  - Specs: `specs/devnet-deployment.md` AC-D5.1, AC-D5.2, AC-D5.3
+  - Tests/backpressure:
+    - Programmatic: e2e hand lifecycle script validates create/join/actions/settle. (AC-D5.1, AC-D5.2, AC-D5.3)
+  - Perceptual: None
+- [x] Demo readiness (provider + UI).
+  - Specs: `specs/devnet-deployment.md` AC-D6.1, AC-D6.2, AC-D6.3, AC-D6.4, AC-D6.5, AC-D6.6
+  - Tests/backpressure:
+    - Manual: provider commit -> reveal run on devnet. (AC-D6.1)
+    - Manual: UI join/actions/settle/leave smoke pass on devnet. (AC-D6.2, AC-D6.3, AC-D6.4, AC-D6.5, AC-D6.6)
+  - Perceptual: None
+
+### Phase 7: Production Release + Governance
+- [x] Reproducible build + pinned toolchain.
+  - Specs: `specs/production-release.md` AC-PR1.1
+  - Tests/backpressure:
+    - Programmatic: reproducible build check with pinned toolchain and documented build script. (AC-PR1.1)
+  - Perceptual: None
+- [x] Release artifacts + verification metadata.
+  - Specs: `specs/production-release.md` AC-PR1.2, AC-PR1.3
+  - Tests/backpressure:
+    - Programmatic: on-chain binary verification artifacts stored and verifiable. (AC-PR1.2)
+    - Programmatic: release artifacts include program IDs, IDL, SDK versions, tags, and checksums. (AC-PR1.3)
+  - Perceptual: None
+- [x] Release checklist + rollback gate.
+  - Specs: `specs/production-release.md` AC-PR1.4
+  - Tests/backpressure:
+    - Manual: release checklist requires verification + rollback steps before mainnet deploy. (AC-PR1.4)
+  - Perceptual: None
+- [x] Upgrade authority configuration + signer rotation.
+  - Specs: `specs/production-release.md` AC-PR1.5
+  - Tests/backpressure:
+    - Programmatic: multisig/timelock signer set matches documented configuration. (AC-PR1.5)
+    - Manual: signer rotation procedure review against documented steps. (AC-PR1.5)
+  - Perceptual: None
+- [x] Emergency pause/disable runbook.
+  - Specs: `specs/production-release.md` AC-PR1.6
+  - Tests/backpressure:
+    - Manual: emergency pause/disable runbook walkthrough with expected blast radius. (AC-PR1.6)
+  - Perceptual: None
+- [x] Environment config validation.
+  - Specs: `specs/production-release.md` AC-PR1.7
+  - Tests/backpressure:
+    - Programmatic: config validation for devnet/testnet/mainnet with explicit config files/env. (AC-PR1.7)
+  - Perceptual: None
+- [x] Migration plan + versioned account tests.
+  - Specs: `specs/production-release.md` AC-PR1.8
+  - Tests/backpressure:
+    - Programmatic: migration test for versioned account layouts before upgrade. (AC-PR1.8)
+  - Perceptual: None
+- [x] SDK compatibility + deprecation policy.
+  - Specs: `specs/production-release.md` AC-PR1.9
+  - Tests/backpressure:
+    - Manual: SDK semver and deprecation policy review (backward compatibility). (AC-PR1.9)
+  - Perceptual: None
+
+### Phase 8: Security Assurance
+- [x] Threat model coverage.
+  - Specs: `specs/security-assurance.md` AC-SEC1.1
+  - Tests/backpressure:
+    - Manual: threat model review covers program, entropy provider, UI, and key management. (AC-SEC1.1)
+  - Perceptual: None
+- [x] External/independent audit completed with Critical/High resolved or accepted.
+  - Specs: `specs/security-assurance.md` AC-SEC1.2
+  - Tests/backpressure:
+    - Manual: audit report review checklist with Critical/High resolution. (AC-SEC1.2)
+  - Perceptual: None
+- [x] Findings tracking log.
+  - Specs: `specs/security-assurance.md` AC-SEC1.3
+  - Tests/backpressure:
+    - Manual: findings log shows owners, remediation plans, and verification evidence. (AC-SEC1.3)
+  - Perceptual: None
+- [x] Property/fuzz tests for invariants.
+  - Specs: `specs/security-assurance.md` AC-SEC1.4
+  - Tests/backpressure:
+    - Programmatic: property/fuzz tests for chip conservation, pot/rake accounting, and action legality. (AC-SEC1.4)
+  - Perceptual: None
+- [x] CI static analysis + linting.
+  - Specs: `specs/security-assurance.md` AC-SEC1.5
+  - Tests/backpressure:
+    - Programmatic: CI static analysis + linting for Rust and TypeScript. (AC-SEC1.5)
+  - Perceptual: None
+- [x] Dependency audits + patch policy.
+  - Specs: `specs/security-assurance.md` AC-SEC1.6
+  - Tests/backpressure:
+    - Programmatic: dependency audit scans in CI with documented patch policy. (AC-SEC1.6)
+  - Perceptual: None
+- [x] Secure key storage + access logging.
+  - Specs: `specs/security-assurance.md` AC-SEC1.7
+  - Tests/backpressure:
+    - Manual: key storage in hardware/encrypted keystore with access logging verified. (AC-SEC1.7)
+  - Perceptual: None
+- [x] Key rotation + incident response drills.
+  - Specs: `specs/security-assurance.md` AC-SEC1.8
+  - Tests/backpressure:
+    - Manual: key rotation + incident response procedures documented and tested. (AC-SEC1.8)
+  - Perceptual: None
+- [x] Responsible disclosure policy + contact channel.
+  - Specs: `specs/security-assurance.md` AC-SEC1.9
+  - Tests/backpressure:
+    - Manual: responsible disclosure policy and contact channel published. (AC-SEC1.9)
+  - Perceptual: None
+
+### Phase 9: Observability + Operations
+- [x] Structured logging schema.
+  - Specs: `specs/observability-ops.md` AC-OPS1.1
+  - Tests/backpressure:
+    - Programmatic: log schema includes request IDs and table IDs in provider/scripts/UI services. (AC-OPS1.1)
+  - Perceptual: None
+- [x] Metrics export coverage.
+  - Specs: `specs/observability-ops.md` AC-OPS1.2
+  - Tests/backpressure:
+    - Programmatic: metrics export includes commit/reveal latency, tx success, RPC errors, queue depth. (AC-OPS1.2)
+  - Perceptual: None
+- [x] Service/RPC/error budget dashboards.
+  - Specs: `specs/observability-ops.md` AC-OPS1.3
+  - Tests/backpressure:
+    - Manual: dashboards exist for service health, RPC health, and error budgets. (AC-OPS1.3)
+  - Perceptual: None
+- [x] Alert routing + escalation paths.
+  - Specs: `specs/observability-ops.md` AC-OPS1.4
+  - Tests/backpressure:
+    - Manual: alert routing and escalation path test for availability/latency/error SLOs. (AC-OPS1.4)
+  - Perceptual: None
+- [x] Incident runbooks.
+  - Specs: `specs/observability-ops.md` AC-OPS1.5
+  - Tests/backpressure:
+    - Manual: runbook walkthrough for RPC outage, provider stuck, failed reveal, degraded UI. (AC-OPS1.5)
+  - Perceptual: None
+- [x] Health checks + backup/restore + postmortem template.
+  - Specs: `specs/observability-ops.md` AC-OPS1.6, AC-OPS1.7, AC-OPS1.8
+  - Tests/backpressure:
+    - Programmatic: liveness/readiness probes for provider and hosted services. (AC-OPS1.6)
+    - Manual: restore drill notes + postmortem template review with action items. (AC-OPS1.7, AC-OPS1.8)
+  - Perceptual: None
+
+### Phase 10: Reliability + Scalability
+- [x] Load test report + latency targets.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.1
+  - Tests/backpressure:
+    - Programmatic: load test report defines max concurrent tables/players with latency targets. (AC-REL1.1)
+  - Perceptual: None
+- [x] Compute budget + priority fee tuning.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.2
+  - Tests/backpressure:
+    - Manual: compute budgets and priority fee tuning review against load report. (AC-REL1.2)
+  - Perceptual: None
+- [x] RPC failover with backoff + circuit breaking.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.3
+  - Tests/backpressure:
+    - Programmatic: failure injection tests for exponential backoff and circuit breaking. (AC-REL1.3)
+  - Perceptual: None
+- [ ] Provider failover runbook.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.4
+  - Tests/backpressure:
+    - Manual: provider failover runbook walkthrough with cutover steps. (AC-REL1.4)
+  - Perceptual: None
+- [ ] Read-only degradation when RPC unavailable.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.5
+  - Tests/backpressure:
+    - Manual: UI degrades to read-only when RPC unavailable. (AC-REL1.5)
+  - Perceptual: None
+- [ ] Client-side rate limiting + server throttling.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.6
+  - Tests/backpressure:
+    - Programmatic: client-side rate limiting and server-side throttling tests. (AC-REL1.6)
+  - Perceptual: None
+- [ ] Abuse monitoring signals.
+  - Specs: `specs/reliability-scalability.md` AC-REL1.7
+  - Tests/backpressure:
+    - Manual: abuse monitoring detects repeated failed actions or suspicious activity. (AC-REL1.7)
+  - Perceptual: None
+
+### Phase 11: Data Integrity + Indexing
+- [ ] Indexer schema + ingestion sources.
+  - Specs: `specs/data-integrity.md` AC-DATA1.1
+  - Tests/backpressure:
+    - Programmatic: ingest test verifies table/hand events from RPC/Geyser with defined schema. (AC-DATA1.1)
+    - Manual: schema verification checklist for indexed events. (AC-DATA1.1)
+  - Perceptual: None
+- [ ] Idempotent ingest + reorg/duplicate handling.
+  - Specs: `specs/data-integrity.md` AC-DATA1.2
+  - Tests/backpressure:
+    - Programmatic: ingest replay test verifies idempotency and safe handling of reorgs/duplicates. (AC-DATA1.2)
+  - Perceptual: None
+- [ ] Checkpointing + resume from last slot.
+  - Specs: `specs/data-integrity.md` AC-DATA1.3
+  - Tests/backpressure:
+    - Programmatic: checkpoint resume test restores from last confirmed slot. (AC-DATA1.3)
+  - Perceptual: None
+- [ ] Reconciliation report vs on-chain state.
+  - Specs: `specs/data-integrity.md` AC-DATA1.4
+  - Tests/backpressure:
+    - Programmatic: reconciliation report compares indexed vs on-chain state and reports drift. (AC-DATA1.4)
+  - Perceptual: None
+- [ ] Retention policy + backup/restore drill.
+  - Specs: `specs/data-integrity.md` AC-DATA1.5
+  - Tests/backpressure:
+    - Manual: retention policy and backup/restore drill validation. (AC-DATA1.5)
+  - Perceptual: None
 
 ## Missing/Unknown
 
@@ -27,5 +514,273 @@ None.
 ## Checklist
 
 - Every referenced AC exists in specs: yes
-- No phantom AC-PQ introduced: yes
-- No control characters in output: yes
+- No new milestones introduced: yes
+- No phantom perceptual ACs introduced: yes
+- No control characters introduced: yes
+- Only IMPLEMENTATION_PLAN.md modified: no
+
+## AC Coverage Map
+
+### UI Baseline (`specs/ui-minimal.md`)
+- AC-PQ.1: UI perceptual quality review.
+- AC-PQ.2: UI perceptual quality review.
+- AC-PQ.3: UI perceptual quality review.
+- AC-1.1: Framework-kit + wallet standard integration.
+- AC-1.2: Framework-kit + wallet standard integration.
+- AC-1.3: Framework-kit + wallet standard integration.
+- AC-1.4: Framework-kit + wallet standard integration.
+- AC-1.5: Framework-kit + wallet standard integration.
+- AC-2.1: Keyboard-first interaction model.
+- AC-2.2: Keyboard-first interaction model.
+- AC-2.3: Keyboard-first interaction model.
+- AC-2.4: Keyboard-first interaction model.
+- AC-3.1: Layout + transaction state visibility.
+- AC-3.2: Layout + transaction state visibility.
+- AC-3.3: Layout + transaction state visibility.
+- AC-3.4: Layout + transaction state visibility.
+- AC-4.1: Data + performance hygiene.
+- AC-4.2: Data + performance hygiene.
+- AC-4.3: Data + performance hygiene.
+- AC-4.4: Data + performance hygiene.
+- AC-4.5: Data + performance hygiene.
+- AC-4.6: Data + performance hygiene.
+- AC-4.7: Data + performance hygiene.
+- AC-4.8: Data + performance hygiene.
+- AC-4.9: Data + performance hygiene.
+- AC-4.10: Data + performance hygiene.
+- AC-5.1: Accessibility + forms + motion hygiene.
+- AC-5.2: Accessibility + forms + motion hygiene.
+- AC-5.3: Accessibility + forms + motion hygiene.
+- AC-5.4: Accessibility + forms + motion hygiene.
+- AC-5.5: Accessibility + forms + motion hygiene.
+- AC-5.6: Accessibility + forms + motion hygiene.
+- AC-5.7: Accessibility + forms + motion hygiene.
+- AC-5.8: Accessibility + forms + motion hygiene.
+- AC-5.9: Accessibility + forms + motion hygiene.
+- AC-5.10: Accessibility + forms + motion hygiene.
+- AC-5.11: Accessibility + forms + motion hygiene.
+- AC-5.12: Accessibility + forms + motion hygiene.
+- AC-5.13: Accessibility + forms + motion hygiene.
+- AC-5.14: Accessibility + forms + motion hygiene.
+- AC-5.15: Accessibility + forms + motion hygiene.
+- AC-6.1: Typography + content conventions.
+- AC-6.2: Typography + content conventions.
+- AC-6.3: Typography + content conventions.
+- AC-6.4: Typography + content conventions.
+- AC-6.5: Typography + content conventions.
+- AC-6.6: Typography + content conventions.
+- AC-7.1: Navigation + touch + assets + hydration + theming.
+- AC-7.2: Navigation + touch + assets + hydration + theming.
+- AC-8.1: Navigation + touch + assets + hydration + theming.
+- AC-8.2: Navigation + touch + assets + hydration + theming.
+- AC-8.3: Navigation + touch + assets + hydration + theming.
+- AC-9.1: Navigation + touch + assets + hydration + theming.
+- AC-9.2: Navigation + touch + assets + hydration + theming.
+- AC-10.1: Navigation + touch + assets + hydration + theming.
+- AC-10.2: Navigation + touch + assets + hydration + theming.
+- AC-10.3: Navigation + touch + assets + hydration + theming.
+- AC-11.1: Navigation + touch + assets + hydration + theming.
+
+### Poker UI Redesign (`specs/poker-ui-redesign.md`)
+- AC-PQ1.1: Visual system tokens + contrast audit.
+- AC-PQ1.2: Visual system tokens + contrast audit.
+- AC-PQ1.3: Visual system tokens + contrast audit.
+- AC-UI1.1: Visual system tokens + contrast audit.
+- AC-UI1.2: Visual system tokens + contrast audit.
+- AC-UI1.3: Visual system tokens + contrast audit.
+- AC-UI1.4: Visual system tokens + contrast audit.
+- AC-UI2.1: Card system states + suit accessibility.
+- AC-UI2.2: Card system states + suit accessibility.
+- AC-UI2.3: Card system states + suit accessibility.
+- AC-UI2.4: Card system states + suit accessibility.
+- AC-UI3.1: Table layout + seats + pot + community reveals.
+- AC-UI3.2: Table layout + seats + pot + community reveals.
+- AC-UI3.3: Table layout + seats + pot + community reveals.
+- AC-UI4.1: Action bar + betting controls + shortcuts.
+- AC-UI4.2: Action bar + betting controls + shortcuts.
+- AC-UI4.3: Action bar + betting controls + shortcuts.
+- AC-UI5.1: Motion sequences + reduced motion compliance.
+- AC-UI5.2: Motion sequences + reduced motion compliance.
+- AC-UI5.3: Motion sequences + reduced motion compliance.
+- AC-UI5.4: Motion sequences + reduced motion compliance.
+- AC-UI6.1: Responsive + touch behaviors.
+- AC-UI6.2: Responsive + touch behaviors.
+- AC-UI6.3: Responsive + touch behaviors.
+- AC-UI7.1: Solana Mobile wallet UX flows.
+- AC-UI7.2: Solana Mobile wallet UX flows.
+- AC-UI7.3: Solana Mobile wallet UX flows.
+- AC-UI7.4: Solana Mobile wallet UX flows.
+- AC-UI8.1: Accessibility pass.
+- AC-UI8.2: Accessibility pass.
+- AC-UI8.3: Accessibility pass.
+- AC-UI8.4: Accessibility pass.
+- AC-UI9.1: Performance budgets + stability.
+- AC-UI9.2: Performance budgets + stability.
+- AC-UI9.3: Performance budgets + stability.
+
+### On-Chain Poker (`specs/onchain-poker.md`)
+- AC-POK1.1: Core architecture + fixed layouts.
+- AC-POK1.2: Core architecture + fixed layouts.
+- AC-POK1.3: Core architecture + fixed layouts.
+- AC-POK1.4: Core architecture + fixed layouts.
+- AC-POK1.5: Core architecture + fixed layouts.
+- AC-POK1.6: Core architecture + fixed layouts.
+- AC-POK2.1: Entropy commit/reveal + CPI integration.
+- AC-POK2.2: Entropy commit/reveal + CPI integration.
+- AC-POK2.3: Entropy commit/reveal + CPI integration.
+- AC-POK2.4: Entropy commit/reveal + CPI integration.
+- AC-POK2.5: Entropy commit/reveal + CPI integration.
+- AC-POK2.6: Privacy hybrid seed + hole card verification.
+- AC-POK2.7: Privacy hybrid seed + hole card verification.
+- AC-POK2.8: Privacy hybrid seed + hole card verification.
+- AC-POK3.1: CRISPS token escrow flows.
+- AC-POK3.2: CRISPS token escrow flows.
+- AC-POK3.3: CRISPS token escrow flows.
+- AC-POK3.4: Rake + staking pool.
+- AC-POK3.5: Rake + staking pool.
+- AC-POK3.6: Rake + staking pool.
+- AC-POK4.1: Table lifecycle + timeouts.
+- AC-POK4.2: Table lifecycle + timeouts.
+- AC-POK4.3: Table lifecycle + timeouts.
+- AC-POK4.4: Table lifecycle + timeouts.
+- AC-POK5.1: Betting rules enforcement.
+- AC-POK5.2: Betting rules enforcement.
+- AC-POK5.3: Betting rules enforcement.
+- AC-POK6.1: Settlement + payout invariants.
+- AC-POK6.2: Settlement + payout invariants.
+- AC-POK7.1: Security invariants.
+- AC-POK7.2: Security invariants.
+- AC-POK7.3: Security invariants.
+- AC-POK7.4: Security invariants.
+- AC-POK8.1: Test coverage + typed SDK.
+- AC-POK8.2: Test coverage + typed SDK.
+- AC-POK8.3: Test coverage + typed SDK.
+
+### Entropy Provider (`specs/entropy-provider.md`)
+- AC-EP1.1: Hash chain generation + persistence.
+- AC-EP1.2: Hash chain generation + persistence.
+- AC-EP1.3: Hash chain generation + persistence.
+- AC-EP1.4: Hash chain generation + persistence.
+- AC-EP2.1: Commit flow + pending tracker.
+- AC-EP2.2: Commit flow + pending tracker.
+- AC-EP2.3: Commit flow + pending tracker.
+- AC-EP3.1: Reveal flow + randomness derivation.
+- AC-EP3.2: Reveal flow + randomness derivation.
+- AC-EP3.3: Reveal flow + randomness derivation.
+- AC-EP3.4: Reveal flow + randomness derivation.
+- AC-EP4.1: Request subscription + concurrency handling.
+- AC-EP4.2: Request subscription + concurrency handling.
+- AC-EP4.3: Request subscription + concurrency handling.
+- AC-EP5.1: Reliability + logging + perceptual quality.
+- AC-EP5.2: Reliability + logging + perceptual quality.
+- AC-EP5.3: Reliability + logging + perceptual quality.
+- AC-EP5.4: Reliability + logging + perceptual quality.
+- AC-EP6.1: CLI commands.
+- AC-EP6.2: CLI commands.
+- AC-EP6.3: CLI commands.
+- AC-PQ.EP1: Reliability + logging + perceptual quality.
+- AC-PQ.EP2: Reliability + logging + perceptual quality.
+
+### Client Integration (`specs/client-integration.md`)
+- AC-CI1.1: PDA derivation helpers.
+- AC-CI1.2: PDA derivation helpers.
+- AC-CI1.3: PDA derivation helpers.
+- AC-CI1.4: PDA derivation helpers.
+- AC-CI2.1: Transaction building + signing + status surfacing.
+- AC-CI2.2: Transaction building + signing + status surfacing.
+- AC-CI2.3: Transaction building + signing + status surfacing.
+- AC-CI2.4: Transaction building + signing + status surfacing.
+- AC-CI3.1: Action wiring.
+- AC-CI3.2: Action wiring.
+- AC-CI3.3: Action wiring.
+- AC-CI3.4: Action wiring.
+- AC-CI3.5: Action wiring.
+- AC-CI3.6: Action wiring.
+- AC-CI3.7: Action wiring.
+- AC-CI4.1: Error handling + simulation surfacing.
+- AC-CI4.2: Error handling + simulation surfacing.
+- AC-CI4.3: Error handling + simulation surfacing.
+- AC-CI4.4: Error handling + simulation surfacing.
+- AC-CI5.1: Table management + card visualization.
+- AC-CI5.2: Table management + card visualization.
+- AC-CI5.3: Table management + card visualization.
+- AC-CI5.4: Table management + card visualization.
+- AC-CI6.1: Table management + card visualization.
+- AC-CI6.2: Table management + card visualization.
+- AC-CI6.3: Table management + card visualization.
+- AC-CI6.4: Table management + card visualization.
+- AC-PQ.CI1: Transaction building + signing + status surfacing.
+- AC-PQ.CI2: Error handling + simulation surfacing.
+- AC-PQ.CI3: Table management + card visualization.
+
+### Devnet Deployment (`specs/devnet-deployment.md`)
+- AC-D1.1: Program build + deploy + verification.
+- AC-D1.2: Program build + deploy + verification.
+- AC-D1.3: Program build + deploy + verification.
+- AC-D2.1: Config initialization + token setup.
+- AC-D2.2: Config initialization + token setup.
+- AC-D2.3: Config initialization + token setup.
+- AC-D3.1: Config initialization + token setup.
+- AC-D3.2: Config initialization + token setup.
+- AC-D3.3: Config initialization + token setup.
+- AC-D3.4: Config initialization + token setup.
+- AC-D4.1: Deployment automation + idempotency.
+- AC-D4.2: Deployment automation + idempotency.
+- AC-D4.3: Deployment automation + idempotency.
+- AC-D5.1: Devnet verification for table lifecycle.
+- AC-D5.2: Devnet verification for table lifecycle.
+- AC-D5.3: Devnet verification for table lifecycle.
+- AC-D6.1: Demo readiness (provider + UI).
+- AC-D6.2: Demo readiness (provider + UI).
+- AC-D6.3: Demo readiness (provider + UI).
+- AC-D6.4: Demo readiness (provider + UI).
+- AC-D6.5: Demo readiness (provider + UI).
+- AC-D6.6: Demo readiness (provider + UI).
+
+### Production Release + Governance (`specs/production-release.md`)
+- AC-PR1.1: Release engineering + verification artifacts.
+- AC-PR1.2: Release engineering + verification artifacts.
+- AC-PR1.3: Release engineering + verification artifacts.
+- AC-PR1.4: Release engineering + verification artifacts.
+- AC-PR1.5: Upgrade authority + emergency controls.
+- AC-PR1.6: Upgrade authority + emergency controls.
+- AC-PR1.7: Configuration + migrations + compatibility policy.
+- AC-PR1.8: Configuration + migrations + compatibility policy.
+- AC-PR1.9: Configuration + migrations + compatibility policy.
+
+### Security Assurance (`specs/security-assurance.md`)
+- AC-SEC1.1: Threat model + findings tracking.
+- AC-SEC1.2: External/independent audit completed with Critical/High resolved or accepted.
+- AC-SEC1.3: Threat model + findings tracking.
+- AC-SEC1.4: Security testing pipeline.
+- AC-SEC1.5: Security testing pipeline.
+- AC-SEC1.6: Security testing pipeline.
+- AC-SEC1.7: Key management + disclosure.
+- AC-SEC1.8: Key management + disclosure.
+- AC-SEC1.9: Key management + disclosure.
+
+### Observability + Operations (`specs/observability-ops.md`)
+- AC-OPS1.1: Logging + metrics + dashboards.
+- AC-OPS1.2: Logging + metrics + dashboards.
+- AC-OPS1.3: Logging + metrics + dashboards.
+- AC-OPS1.4: Alerting + runbooks.
+- AC-OPS1.5: Alerting + runbooks.
+- AC-OPS1.6: Health checks + backup/restore + postmortem template.
+- AC-OPS1.7: Health checks + backup/restore + postmortem template.
+- AC-OPS1.8: Health checks + backup/restore + postmortem template.
+
+### Reliability + Scalability (`specs/reliability-scalability.md`)
+- AC-REL1.1: Load tests + compute/fee tuning.
+- AC-REL1.2: Load tests + compute/fee tuning.
+- AC-REL1.3: RPC failover + provider failover + graceful degradation.
+- AC-REL1.4: RPC failover + provider failover + graceful degradation.
+- AC-REL1.5: RPC failover + provider failover + graceful degradation.
+- AC-REL1.6: Abuse protection + monitoring.
+- AC-REL1.7: Abuse protection + monitoring.
+
+### Data Integrity + Indexing (`specs/data-integrity.md`)
+- AC-DATA1.1: Indexing pipeline with checkpoints.
+- AC-DATA1.2: Indexing pipeline with checkpoints.
+- AC-DATA1.3: Indexing pipeline with checkpoints.
+- AC-DATA1.4: Reconciliation tooling + retention/backup.
+- AC-DATA1.5: Reconciliation tooling + retention/backup.

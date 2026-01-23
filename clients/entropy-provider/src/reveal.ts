@@ -11,8 +11,6 @@
  */
 
 import {
-  createDefaultRpcTransport,
-  createSolanaRpcFromTransport,
   createTransactionMessage,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -27,6 +25,12 @@ import type { HashChain } from "./hash-chain.js";
 import { getCurrentPreimage, advanceChain } from "./hash-chain.js";
 import type { EntropyProviderConfig, PendingCommitment, CommitmentState } from "./commit.js";
 import { COMMITMENT_SIZE } from "./commit.js";
+import { recordRevealLatency, recordRpcError, recordTxResult } from "./metrics.js";
+import {
+  createFailoverRpc,
+  resolveRpcUrls,
+  type RpcFailoverOptions,
+} from "./rpc-failover.js";
 
 /**
  * Instruction discriminators (matching Rust instruction.rs)
@@ -92,16 +96,26 @@ function buildRevealInstructionData(preimage: Uint8Array): Uint8Array {
 /**
  * Create an RPC client from a URL
  */
-function createRpc(url: string) {
-  const transport = createDefaultRpcTransport({ url });
-  return createSolanaRpcFromTransport(transport);
+function createRpc(urls: string[], options?: RpcFailoverOptions) {
+  return createFailoverRpc(urls, options);
+}
+
+function isBlockhashNotFound(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("blockhash not found");
 }
 
 /**
  * Get the current slot from the RPC
  */
-export async function getCurrentSlot(rpcUrl: string): Promise<bigint> {
-  const rpc = createRpc(rpcUrl);
+export async function getCurrentSlot(
+  rpcUrl: string | string[],
+  rpcFailover?: RpcFailoverOptions
+): Promise<bigint> {
+  const rpc = createRpc(
+    Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl],
+    rpcFailover
+  );
   const slot = await (rpc as any).getSlot({ commitment: "confirmed" }).send();
   return BigInt(slot);
 }
@@ -119,16 +133,17 @@ export async function getCurrentSlot(rpcUrl: string): Promise<bigint> {
  * @returns The current slot when target is reached
  */
 export async function waitForSlot(
-  rpcUrl: string,
+  rpcUrl: string | string[],
   targetSlot: bigint,
   pollIntervalMs: number = 400,
-  maxWaitMs: number = 60_000
+  maxWaitMs: number = 60_000,
+  rpcFailover?: RpcFailoverOptions
 ): Promise<bigint> {
   const startTime = Date.now();
   let currentInterval = pollIntervalMs;
 
   while (true) {
-    const currentSlot = await getCurrentSlot(rpcUrl);
+    const currentSlot = await getCurrentSlot(rpcUrl, rpcFailover);
 
     if (currentSlot >= targetSlot) {
       return currentSlot;
@@ -171,10 +186,14 @@ export function isWithinRevealWindow(
  * Fetch commitment account data from chain
  */
 export async function fetchCommitmentAccount(
-  rpcUrl: string,
-  commitmentAddress: Address
+  rpcUrl: string | string[],
+  commitmentAddress: Address,
+  rpcFailover?: RpcFailoverOptions
 ): Promise<CommitmentAccountData | null> {
-  const rpc = createRpc(rpcUrl);
+  const rpc = createRpc(
+    Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl],
+    rpcFailover
+  );
   const accountInfo = await (rpc as any).getAccountInfo(commitmentAddress, { encoding: "base64" }).send();
 
   if (!accountInfo.value) {
@@ -205,11 +224,15 @@ export async function fetchCommitmentAccount(
  * Send a transaction and wait for confirmation
  */
 async function sendAndConfirmTransaction(
-  rpcUrl: string,
+  rpcUrl: string | string[],
   signedTx: any,
-  commitment: "processed" | "confirmed" | "finalized" = "confirmed"
+  commitment: "processed" | "confirmed" | "finalized" = "confirmed",
+  rpcFailover?: RpcFailoverOptions
 ): Promise<{ signature: string; slot: bigint }> {
-  const rpc = createRpc(rpcUrl);
+  const rpc = createRpc(
+    Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl],
+    rpcFailover
+  );
 
   // Get the wire format
   const encodedTx = getBase64EncodedWireTransaction(signedTx);
@@ -290,13 +313,10 @@ export async function revealCommitment(
   state: CommitmentState,
   pendingCommitment: PendingCommitment
 ): Promise<RevealResult> {
-  const rpc = createRpc(config.rpcUrl);
+  const rpc = createRpc(resolveRpcUrls(config), config.rpcFailover);
 
   // Get current preimage from chain
   const preimage = getCurrentPreimage(chain);
-
-  // Get recent blockhash
-  const { value: latestBlockhash } = await (rpc as any).getLatestBlockhash().send();
 
   // Build the reveal instruction
   const revealInstruction = {
@@ -309,18 +329,52 @@ export async function revealCommitment(
     data: buildRevealInstructionData(preimage),
   };
 
-  // Build and sign transaction
-  const message = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(config.providerSigner, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstruction(revealInstruction, m)
-  );
+  let signature: string | undefined;
+  let revealSlot = 0n;
+  let lastError: unknown;
 
-  const signedTx = await signTransactionMessageWithSigners(message);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // Get recent blockhash
+    const { value: latestBlockhash } = await (rpc as any).getLatestBlockhash().send();
 
-  // Send and confirm
-  const { signature, slot: revealSlot } = await sendAndConfirmTransaction(config.rpcUrl, signedTx, "confirmed");
+    // Build and sign transaction
+    const message = pipe(
+      createTransactionMessage({ version: 0 }),
+      (m) => setTransactionMessageFeePayerSigner(config.providerSigner, m),
+      (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
+      (m) => appendTransactionMessageInstruction(revealInstruction, m)
+    );
+
+    const signedTx = await signTransactionMessageWithSigners(message);
+
+    try {
+      const startTime = Date.now();
+      const result = await sendAndConfirmTransaction(
+        resolveRpcUrls(config),
+        signedTx,
+        "confirmed",
+        config.rpcFailover
+      );
+      signature = result.signature;
+      revealSlot = result.slot;
+      recordRevealLatency(Date.now() - startTime);
+      recordTxResult(true);
+      break;
+    } catch (err) {
+      lastError = err;
+      recordRpcError();
+      if (isBlockhashNotFound(err) && attempt < 1) {
+        continue;
+      }
+      recordTxResult(false);
+      throw err;
+    }
+  }
+
+  if (!signature) {
+    recordTxResult(false);
+    throw lastError ?? new Error("Failed to reveal commitment");
+  }
 
   // Advance the hash chain (consume the preimage)
   advanceChain(chain);
@@ -364,7 +418,13 @@ export async function waitAndReveal(
   deadlineSlot: bigint
 ): Promise<RevealResult> {
   // Wait for target slot (AC-EP3.1)
-  const currentSlot = await waitForSlot(config.rpcUrl, targetSlot);
+  const currentSlot = await waitForSlot(
+    resolveRpcUrls(config),
+    targetSlot,
+    undefined,
+    undefined,
+    config.rpcFailover
+  );
 
   // Check if we're still within the safe reveal window (AC-EP3.3)
   if (!isWithinRevealWindow(currentSlot, deadlineSlot)) {
@@ -381,10 +441,11 @@ export async function waitAndReveal(
  * Verify that a commitment has been revealed on-chain
  */
 export async function verifyRevealOnChain(
-  rpcUrl: string,
-  commitmentAddress: Address
+  rpcUrl: string | string[],
+  commitmentAddress: Address,
+  rpcFailover?: RpcFailoverOptions
 ): Promise<boolean> {
-  const commitment = await fetchCommitmentAccount(rpcUrl, commitmentAddress);
+  const commitment = await fetchCommitmentAccount(rpcUrl, commitmentAddress, rpcFailover);
   if (!commitment) {
     return false;
   }

@@ -145,3 +145,47 @@ pub fn create_token_account<'a>(
     let account_infos = [token_account, mint, token_program];
     invoke_signed::<3>(&instruction, &account_infos, &[])
 }
+
+/// SPL Token CloseAccount instruction discriminator
+const TOKEN_CLOSE_ACCOUNT_DISCRIMINATOR: u8 = 9;
+
+/// Close a token account and transfer remaining lamports to destination.
+///
+/// # Arguments
+/// * `token_account` - Token account to close (writable)
+/// * `destination` - Account to receive lamports (writable)
+/// * `authority` - Authority over the token account (signer, can be PDA)
+/// * `token_program` - Token-2022 program
+/// * `signer_seeds` - Seeds for PDA signing (if authority is PDA)
+///
+/// # Safety
+/// The token account balance MUST be zero before calling this function.
+/// The caller is responsible for verifying this condition.
+pub fn close_account<'a>(
+    token_account: &'a AccountInfo,
+    destination: &'a AccountInfo,
+    authority: &'a AccountInfo,
+    token_program: &'a AccountInfo,
+    signer_seeds: &[Signer],
+) -> ProgramResult {
+    // Build instruction data: just the discriminator
+    let instruction_data = [TOKEN_CLOSE_ACCOUNT_DISCRIMINATOR];
+
+    // Build account metas
+    let account_metas = [
+        AccountMeta::writable(token_account.key()),
+        AccountMeta::writable(destination.key()),
+        AccountMeta::readonly_signer(authority.key()),
+    ];
+
+    // Build instruction
+    let instruction = Instruction {
+        program_id: token_program.key(),
+        accounts: &account_metas,
+        data: &instruction_data,
+    };
+
+    // Invoke with signers
+    let account_infos = [token_account, destination, authority, token_program];
+    invoke_signed::<4>(&instruction, &account_infos, signer_seeds)
+}

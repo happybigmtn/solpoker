@@ -1,5 +1,5 @@
 /**
- * Tests for entropy instruction builders (AC-8.3)
+ * Tests for entropy instruction builders (AC-POK8.3)
  *
  * Verifies that generated instruction data matches the expected byte layouts
  * defined in the Rust entropy program.

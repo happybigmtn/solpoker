@@ -41,6 +41,8 @@ import {
   isUserRejection,
 } from '@robopoker/client';
 import type { TransactionState } from '@/components/transaction-status';
+import { getPlayerActionLabel } from '@/lib/transaction-labels';
+import { logUiEvent } from '@/lib/logging';
 
 /**
  * Player action types matching PokerActions component.
@@ -59,6 +61,8 @@ export interface UsePlayerActionConfig {
   configAddress: Address;
   /** Clock sysvar address (optional, defaults to standard sysvar) */
   clockAddress?: Address;
+  /** Table ID (optional, for logging) */
+  tableId?: string | bigint;
 }
 
 /**
@@ -73,6 +77,8 @@ export interface PlayerActionResult {
   error?: string;
   /** Whether the error is retryable (network error) */
   isRetryable?: boolean;
+  /** Human-readable label for the action */
+  label?: string;
 }
 
 /**
@@ -89,6 +95,8 @@ export interface UsePlayerActionReturn {
   txSignature?: string;
   /** Current error message */
   txError?: string;
+  /** Current transaction label */
+  txLabel?: string;
   /** Whether the current error is retryable */
   isRetryable: boolean;
   /** Reset transaction state */
@@ -170,7 +178,7 @@ function extractLogs(error: unknown): string[] | undefined {
  * @returns Functions and state for executing player actions
  */
 export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionReturn {
-  const { tableAddress, pokerProgramId, configAddress, clockAddress = CLOCK_SYSVAR } = config;
+  const { tableAddress, pokerProgramId, configAddress, clockAddress = CLOCK_SYSVAR, tableId } = config;
   const { wallet } = useWalletConnection();
 
   // Use shared RPC clients (single connection for the app)
@@ -181,6 +189,7 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
   const [txSignature, setTxSignature] = useState<string>();
   const [txError, setTxError] = useState<string>();
   const [isRetryable, setIsRetryable] = useState(false);
+  const [txLabel, setTxLabel] = useState<string>();
   const lastActionRef = useRef<{ action: PlayerActionType; amount?: bigint } | null>(null);
 
   const resetTxState = useCallback(() => {
@@ -188,6 +197,7 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
     setTxSignature(undefined);
     setTxError(undefined);
     setIsRetryable(false);
+    setTxLabel(undefined);
     lastActionRef.current = null;
   }, []);
 
@@ -207,6 +217,7 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         setTxState('failed');
         setTxError(error);
         setIsRetryable(true);
+        setTxLabel(undefined);
         return { state: 'failed', error, isRetryable: true };
       }
 
@@ -216,10 +227,13 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         setTxState('failed');
         setTxError(error);
         setIsRetryable(false);
+        setTxLabel(undefined);
         return { state: 'failed', error, isRetryable: false };
       }
 
       lastActionRef.current = { action, amount };
+      const label = getPlayerActionLabel(action, amount);
+      setTxLabel(label);
 
       // AC-PQ.CI1: Set pending state immediately
       setTxState('pending');
@@ -231,6 +245,9 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
 
         // Create wallet transaction signer
         const { signer: walletSigner } = createWalletTransactionSigner(wallet);
+
+        // Start blockhash fetch early - no dependencies (React Best Practice: async-api-routes)
+        const blockhashPromise = rpc.getLatestBlockhash().send();
 
         // Build compute budget instructions for priority fees
         const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 200_000 });
@@ -266,8 +283,8 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         // Attach signer to the instruction for the player account
         const instruction = addSignersToInstruction([walletSigner], baseInstruction);
 
-        // Get latest blockhash for transaction lifetime
-        const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+        // Await the blockhash promise started earlier (React Best Practice: async-api-routes)
+        const { value: latestBlockhash } = await blockhashPromise;
 
         // Build transaction message with compute budget + action instruction
         const transactionMessage = pipe(
@@ -307,10 +324,16 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
           { commitment: 'confirmed' }
         );
 
+        logUiEvent('info', 'player_action', 'Player action confirmed', {
+          requestId: signature,
+          tableId,
+          data: { action, label },
+        });
+
         // Success
         setTxState('confirmed');
         setTxSignature(signature);
-        return { state: 'confirmed', signature };
+        return { state: 'confirmed', signature, label };
       } catch (err) {
         const logs = extractLogs(err);
         const userFriendlyError = formatTransactionError(
@@ -326,10 +349,10 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
         setTxError(userFriendlyError);
         setIsRetryable(shouldRetry);
 
-        return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry };
+        return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry, label };
       }
     },
-    [wallet, rpc, rpcSubscriptions, tableAddress, pokerProgramId, configAddress, clockAddress]
+    [wallet, rpc, rpcSubscriptions, tableAddress, pokerProgramId, configAddress, clockAddress, tableId]
   );
 
   const retry = useCallback(async (): Promise<PlayerActionResult> => {
@@ -350,6 +373,7 @@ export function usePlayerAction(config: UsePlayerActionConfig): UsePlayerActionR
     txState,
     txSignature,
     txError,
+    txLabel,
     isRetryable,
     resetTxState,
     isPending: txState === 'pending',

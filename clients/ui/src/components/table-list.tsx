@@ -9,6 +9,8 @@
 import { useTables, type TableSummary } from '@/hooks/use-tables';
 import { TABLE_STATUS, MAX_SEATS } from '@robopoker/client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback } from 'react';
 import type { Address } from '@solana/kit';
 
 interface TableListProps {
@@ -74,6 +76,7 @@ function getStatusBadge(status: number): { text: string; className: string } {
 
 /**
  * Single table row in the list.
+ * React Best Practice: bundle-preload - Preload table page on hover/focus
  */
 function TableRow({
   table,
@@ -82,12 +85,20 @@ function TableRow({
   table: TableSummary;
   useContentVisibility: boolean;
 }) {
+  const router = useRouter();
   const statusBadge = getStatusBadge(table.status);
   const blindsText = `${formatTokenAmount(table.smallBlind)}/${formatTokenAmount(table.bigBlind)}`;
   const seatsText = `${table.playerCount}/${MAX_SEATS}`;
   const canJoin = table.status === TABLE_STATUS.WAITING && table.playerCount < MAX_SEATS;
   const canNavigate = canJoin || table.status === TABLE_STATUS.PLAYING;
   const actionLabel = canJoin ? 'Join' : table.status === TABLE_STATUS.PLAYING ? 'Watch' : 'View';
+  const tableUrl = `/table/${table.tableId.toString()}`;
+
+  // Preload table page on hover/focus to reduce perceived latency
+  // React Best Practice: bundle-preload
+  const handlePreload = useCallback(() => {
+    router.prefetch(tableUrl);
+  }, [router, tableUrl]);
 
   return (
     <tr
@@ -117,7 +128,9 @@ function TableRow({
       <td className="px-4 py-3 text-right">
         {canNavigate ? (
           <Link
-            href={`/table/${table.tableId.toString()}`}
+            href={tableUrl}
+            onMouseEnter={handlePreload}
+            onFocus={handlePreload}
             className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               canJoin
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900'
@@ -145,7 +158,7 @@ function TableRow({
  * AC-CI5.2: Displays blinds, player count, and join option.
  */
 export function TableList({ pokerProgramId }: TableListProps) {
-  const { tables, isLoading, error, refresh } = useTables({ pokerProgramId });
+  const { tables, isLoading, error, refresh, isRefreshing } = useTables({ pokerProgramId });
   const useContentVisibility = tables.length > 50;
 
   if (isLoading) {
@@ -192,10 +205,15 @@ export function TableList({ pokerProgramId }: TableListProps) {
         </h3>
         <button
           onClick={refresh}
-          className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+          disabled={isRefreshing}
+          className={`text-sm transition-colors ${
+            isRefreshing
+              ? 'text-zinc-400 cursor-wait dark:text-zinc-500'
+              : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+          }`}
           title="Refresh table list"
         >
-          Refresh
+          {isRefreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
       <div className="overflow-x-auto">

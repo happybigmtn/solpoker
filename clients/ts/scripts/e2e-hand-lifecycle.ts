@@ -62,6 +62,7 @@ import {
   deriveEntropyConfigPda,
   deriveCommitmentPda,
   deriveRequestPda,
+  logStructured,
   ACTION_TYPE,
   TABLE_STATUS,
   SEAT_STATUS,
@@ -332,7 +333,7 @@ async function step1_createTable(
     data: createTableData,
   };
 
-  await buildAndSendTx(rpc, signer, instruction);
+  const signature = await buildAndSendTx(rpc, signer, instruction);
 
   // Verify table exists
   const tableInfo = await rpc
@@ -351,6 +352,14 @@ async function step1_createTable(
   }
 
   console.log("  [AC-D5.1] Table created and visible via RPC");
+  logStructured("info", "create_table", "Table created", {
+    requestId: signature,
+    tableId,
+    data: {
+      table_address: tableAddress,
+      vault_address: vaultAddress,
+    },
+  });
   return { tableAddress, vaultAddress };
 }
 
@@ -440,6 +449,7 @@ async function step3_startHand(
   rpc: Rpc<any>,
   signer: TransactionSigner,
   tableAddress: Address,
+  tableId: bigint,
   pokerConfigPda: Address,
   entropyConfigPda: Address,
   seed: Uint8Array,
@@ -541,6 +551,15 @@ async function step3_startHand(
   if (tableState.status !== TABLE_STATUS.PLAYING) {
     throw new Error(`Expected PLAYING status, got ${tableState.status}`);
   }
+
+  logStructured("info", "start_hand", "Hand started", {
+    requestId: requestId.toString(),
+    tableId,
+    data: {
+      commitment_pda: commitmentPda,
+      request_pda: requestPda,
+    },
+  });
 
   return { commitmentPda, requestPda };
 }
@@ -822,6 +841,7 @@ async function main() {
           rpc,
           signer,
           tableAddress,
+          tableId,
           pokerConfigPda,
           entropyConfigPda,
           new Uint8Array(seed),

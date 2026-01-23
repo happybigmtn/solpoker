@@ -67,11 +67,15 @@ export function isBlockhashExpired(error: unknown): boolean {
 
   const errorString = error instanceof Error ? error.message : String(error);
 
+  // BlockhashNotFound is a standalone error code that doesn't need "blockhash" keyword
+  if (errorString.includes('BlockhashNotFound')) {
+    return true;
+  }
+
+  // Otherwise require "blockhash" + expiry indicator
   return (
     errorString.includes('blockhash') &&
-    (errorString.includes('expired') ||
-     errorString.includes('not found') ||
-     errorString.includes('BlockhashNotFound'))
+    (errorString.includes('expired') || errorString.includes('not found'))
   );
 }
 

@@ -16,7 +16,7 @@
 import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type Address } from '@solana/kit';
-import { useTableSubscription, useCurrentActor, useCurrentBet, useMinRaise } from '@/hooks/use-table-subscription';
+import { useTableSubscription, useCurrentActor, useCurrentBet, useMinRaise, usePot } from '@/hooks/use-table-subscription';
 import { PokerTable } from '@/components/poker-table';
 import { PokerActions } from '@/components/poker-actions';
 import { CommandPalette } from '@/components/command-palette';
@@ -38,6 +38,10 @@ import {
 // AC-4.5: Dynamic import for heavy panel (action history)
 const ActionHistory = lazy(() =>
   import('@/components/action-history').then((m) => ({ default: m.ActionHistory }))
+);
+// AC-UI9.2: Lazy-load non-critical settings panel
+const SettingsPanel = lazy(() =>
+  import('@/components/settings-panel').then((m) => ({ default: m.SettingsPanel }))
 );
 
 interface TablePageContentProps {
@@ -137,6 +141,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   const currentActor = useCurrentActor(store);
   const currentBet = useCurrentBet(store);
   const minRaise = useMinRaise(store);
+  const pot = usePot(store);
 
   // Derive vault address from store once table data is loaded
   // This handles the case when URL contains a base58 address instead of numeric ID
@@ -183,6 +188,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     txState: playerTxState,
     txSignature: playerTxSignature,
     txError: playerTxError,
+    txLabel: playerTxLabel,
     retry: retryPlayerAction,
     isRetryable: isPlayerRetryable,
     resetTxState: resetPlayerTxState,
@@ -191,6 +197,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     tableAddress: derivedAddresses.tableAddress ?? ('' as Address),
     pokerProgramId: POKER_PROGRAM_ID ?? ('' as Address),
     configAddress: derivedAddresses.configAddress ?? ('' as Address),
+    tableId,
   });
 
   const {
@@ -199,6 +206,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     txState: tableTxState,
     txSignature: tableTxSignature,
     txError: tableTxError,
+    txLabel: tableTxLabel,
     retry: retryTableAction,
     isRetryable: isTableRetryable,
     resetTxState: resetTableTxState,
@@ -210,12 +218,14 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
     configAddress: derivedAddresses.configAddress ?? ('' as Address),
     playerTokenAccount: derivedAddresses.playerTokenAccount ?? ('' as Address),
     crispsMint: CRISPS_MINT ?? ('' as Address),
+    tableId,
   });
 
   const hasTableTx = tableTxState !== 'idle';
   const txState = hasTableTx ? tableTxState : playerTxState;
   const txSignature = hasTableTx ? tableTxSignature : playerTxSignature;
   const txError = hasTableTx ? tableTxError : playerTxError;
+  const txLabel = hasTableTx ? tableTxLabel : playerTxLabel;
   const isRetryable = hasTableTx ? isTableRetryable : isPlayerRetryable;
   const retryTx = hasTableTx ? retryTableAction : retryPlayerAction;
   const isPending = isPlayerActionPending || isTableActionPending;
@@ -398,7 +408,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-6 pb-28 lg:pb-0">
       {/* Wallet connect (positioned top-right via parent layout) */}
       <div className="fixed right-6 top-4 z-10">
         <WalletConnect />
@@ -425,6 +435,7 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
               state={txState}
               signature={txSignature}
               error={txError}
+              label={txLabel}
               isRetryable={isRetryable}
               onRetry={isRetryable ? () => void retryTx() : undefined}
               onDismiss={handleDismissStatus}
@@ -432,18 +443,21 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
           </div>
 
           {/* Action buttons */}
-          <div className="mx-auto w-full max-w-4xl lg:mx-0">
-            <PokerActions
-              isPlayerTurn={isPlayerTurn}
-              isSubmitting={isPending}
-              toCall={toCall}
-              minRaise={minRaiseAmount}
-              maxRaise={maxRaise}
-              raiseAmount={raiseAmount}
-              onRaiseAmountChange={setRaiseAmount}
-              onAction={handleAction}
-              canCheck={canCheck}
-            />
+          <div className="fixed bottom-0 inset-x-0 z-20 bg-[var(--surface-void)]/95 backdrop-blur lg:static lg:bg-transparent">
+            <div className="mx-auto w-full max-w-4xl px-4 pb-4 safe-area-inset-bottom lg:mx-0 lg:px-0 lg:pb-0">
+              <PokerActions
+                isPlayerTurn={isPlayerTurn}
+                isSubmitting={isPending}
+                toCall={toCall}
+                minRaise={minRaiseAmount}
+                maxRaise={maxRaise}
+                potSize={pot}
+                raiseAmount={raiseAmount}
+                onRaiseAmountChange={setRaiseAmount}
+                onAction={handleAction}
+                canCheck={canCheck}
+              />
+            </div>
           </div>
 
           {/* Panel toggle and table action buttons */}
@@ -569,20 +583,5 @@ export function TablePageContent({ tableId, activePanel }: TablePageContentProps
 function PanelSkeleton() {
   return (
     <div className="h-48 w-full animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-700" />
-  );
-}
-
-/**
- * Settings panel placeholder.
- * TODO: Implement actual settings
- */
-function SettingsPanel() {
-  return (
-    <div className="rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800">
-      <h3 className="font-medium">Settings</h3>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Table settings coming soon…
-      </p>
-    </div>
   );
 }

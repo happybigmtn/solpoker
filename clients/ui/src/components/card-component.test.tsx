@@ -1,23 +1,24 @@
 /**
  * Tests for Card React component rendering.
  *
- * AC-CI6.1: Cards render with correct suit and rank based on card index.
- * AC-CI6.2: Unrevealed cards display a card back.
- * AC-PQ.CI3: Card rendering is visually clean and suit colors are distinct.
+ * AC-UI2.1: Cards support face-up/face-down/revealed/folded/winning states.
+ * AC-UI2.2: Cards render with correct suit and rank based on card index.
+ * AC-UI2.3: Card back pattern avoids moire and remains legible at small sizes.
+ * AC-UI2.4: Suits are distinguishable without color using labels/symbols.
  */
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Card, CardSlot, getCardDisplay } from './card';
 
-describe('Card component (AC-CI6.1, AC-CI6.2, AC-PQ.CI3)', () => {
-  describe('AC-CI6.1: renders correct suit and rank', () => {
+describe('Card component (AC-UI2.1 to AC-UI2.4)', () => {
+  describe('AC-UI2.2: renders correct suit and rank', () => {
     it('renders Ace of Spades for index 51', () => {
       render(<Card index={51} />);
 
       expect(screen.getByText('A')).toBeInTheDocument();
       expect(screen.getByText('♠')).toBeInTheDocument();
-      expect(screen.getByLabelText('A of ♠')).toBeInTheDocument();
+      expect(screen.getByLabelText('Ace of Spades')).toBeInTheDocument();
     });
 
     it('renders 2 of Clubs for index 0', () => {
@@ -25,7 +26,7 @@ describe('Card component (AC-CI6.1, AC-CI6.2, AC-PQ.CI3)', () => {
 
       expect(screen.getByText('2')).toBeInTheDocument();
       expect(screen.getByText('♣')).toBeInTheDocument();
-      expect(screen.getByLabelText('2 of ♣')).toBeInTheDocument();
+      expect(screen.getByLabelText('Two of Clubs')).toBeInTheDocument();
     });
 
     it('renders Ten of Diamonds for index 33', () => {
@@ -43,7 +44,7 @@ describe('Card component (AC-CI6.1, AC-CI6.2, AC-PQ.CI3)', () => {
     });
   });
 
-  describe('AC-CI6.2: unrevealed cards display card back', () => {
+  describe('AC-UI2.1: card back states', () => {
     it('shows card back when faceDown is true', () => {
       render(<Card index={51} faceDown />);
 
@@ -76,36 +77,56 @@ describe('Card component (AC-CI6.1, AC-CI6.2, AC-PQ.CI3)', () => {
 
       expect(screen.getByLabelText('Face-down card')).toBeInTheDocument();
     });
+
+    it('shows folded card state with folded label', () => {
+      render(<Card index={12} state="folded" />);
+
+      const foldedCard = screen.getByLabelText('Folded card');
+      expect(foldedCard).toBeInTheDocument();
+      expect(foldedCard).toHaveAttribute('data-state', 'folded');
+    });
+
+    it('uses patterned back with repeating gradient', () => {
+      const { container } = render(<Card faceDown />);
+      const back = container.querySelector('.card-back');
+      expect(back).toBeTruthy();
+      expect(back?.getAttribute('style') ?? '').toContain('repeating-linear-gradient');
+    });
   });
 
-  describe('AC-PQ.CI3: suit colors are distinct', () => {
+  describe('AC-UI2.4: suit distinctions', () => {
     it('renders red color for Diamonds', () => {
       const { container } = render(<Card index={1} />); // 2♦
 
       // Card should have red text
       const card = container.firstChild as HTMLElement;
-      expect(card.className).toContain('text-red');
+      expect(card.className).toContain('accent-crimson');
     });
 
     it('renders red color for Hearts', () => {
       const { container } = render(<Card index={2} />); // 2♥
 
       const card = container.firstChild as HTMLElement;
-      expect(card.className).toContain('text-red');
+      expect(card.className).toContain('accent-crimson');
     });
 
     it('renders black color for Clubs', () => {
       const { container } = render(<Card index={0} />); // 2♣
 
       const card = container.firstChild as HTMLElement;
-      expect(card.className).toContain('text-zinc');
+      expect(card.className).toContain('accent-ink');
     });
 
     it('renders black color for Spades', () => {
       const { container } = render(<Card index={3} />); // 2♠
 
       const card = container.firstChild as HTMLElement;
-      expect(card.className).toContain('text-zinc');
+      expect(card.className).toContain('accent-ink');
+    });
+
+    it('adds descriptive aria-label with suit name', () => {
+      render(<Card index={3} />);
+      expect(screen.getByLabelText('Two of Spades')).toBeInTheDocument();
     });
   });
 
@@ -148,6 +169,20 @@ describe('Card component (AC-CI6.1, AC-CI6.2, AC-PQ.CI3)', () => {
       const slot = container.firstChild as HTMLElement;
       expect(slot.className).toContain('h-20');
       expect(slot.className).toContain('w-14');
+    });
+  });
+
+  describe('AC-UI2.1: winning state', () => {
+    it('marks card as winning with data-state', () => {
+      render(<Card index={8} state="winning" />);
+      const card = screen.getByLabelText('Four of Clubs');
+      expect(card).toHaveAttribute('data-state', 'winning');
+    });
+
+    it('applies flip animation class for revealed state', () => {
+      render(<Card index={8} state="revealed" />);
+      const card = screen.getByLabelText('Four of Clubs');
+      expect(card.className).toContain('card-flip');
     });
   });
 });

@@ -2,10 +2,10 @@
 //!
 //! These tests verify the data structures and instruction formats that the
 //! program uses for security validation:
-//! - AC-7.1: All instructions validate account owners, signer status, and expected program IDs
-//! - AC-7.2: All PDA derivations are verified on-chain and mismatches fail
-//! - AC-7.3: Duplicate mutable account inputs are rejected
-//! - AC-7.4: All arithmetic uses checked math and fails on overflow/underflow
+//! - AC-POK7.1: All instructions validate account owners, signer status, and expected program IDs
+//! - AC-POK7.2: All PDA derivations are verified on-chain and mismatches fail
+//! - AC-POK7.3: Duplicate mutable account inputs are rejected
+//! - AC-POK7.4: All arithmetic uses checked math and fails on overflow/underflow
 //!
 //! Note: These tests validate the data structures. Full integration tests
 //! require `cargo build-sbf` to compile the program.
@@ -176,10 +176,10 @@ fn build_join_table_ix(buy_in_amount: u64) -> Vec<u8> {
 }
 
 // =============================================================================
-// AC-7.1: Account Owner, Signer Status, and Program ID Validation
+// AC-POK7.1: Account Owner, Signer Status, and Program ID Validation
 // =============================================================================
 
-/// Test: Instruction structure for missing signer on Initialize (AC-7.1)
+/// Test: Instruction structure for missing signer on Initialize (AC-POK7.1)
 /// The program must reject this instruction because authority is not signing.
 #[test]
 fn test_ac_7_1_missing_signer_initialize_structure() {
@@ -208,10 +208,10 @@ fn test_ac_7_1_missing_signer_initialize_structure() {
 
     // When executed, the program's validate_authority() check should fail
     // with MissingSigner error because authority.is_signer() returns false
-    println!("AC-7.1: Initialize without authority signer - program should reject with MissingSigner");
+    println!("AC-POK7.1: Initialize without authority signer - program should reject with MissingSigner");
 }
 
-/// Test: Instruction structure for missing signer on PlayerAction (AC-7.1)
+/// Test: Instruction structure for missing signer on PlayerAction (AC-POK7.1)
 /// The program must reject this instruction because player is not signing.
 #[test]
 fn test_ac_7_1_missing_signer_player_action_structure() {
@@ -246,14 +246,14 @@ fn test_ac_7_1_missing_signer_player_action_structure() {
 
     // When executed, the program's signer check should fail
     // with MissingSigner error because player.is_signer() returns false
-    println!("AC-7.1: PlayerAction without player signer - program should reject with MissingSigner");
+    println!("AC-POK7.1: PlayerAction without player signer - program should reject with MissingSigner");
 
     // Verify table data is valid
     assert_eq!(table_data[0], acc_disc::TABLE);
     assert_eq!(table_data[1], table_status::PLAYING);
 }
 
-/// Test: Account with wrong owner for mint (not Token-2022) (AC-7.1)
+/// Test: Account with wrong owner for mint (not Token-2022) (AC-POK7.1)
 /// The program must validate that crisps_mint is owned by Token-2022.
 #[test]
 fn test_ac_7_1_wrong_mint_owner_detection() {
@@ -282,12 +282,12 @@ fn test_ac_7_1_wrong_mint_owner_detection() {
 
     // When executed with an account owned by SYSTEM_PROGRAM instead of TOKEN_2022_PROGRAM,
     // the program should reject with InvalidMint error
-    println!("AC-7.1: Initialize with wrong mint owner - program should reject with InvalidMint");
+    println!("AC-POK7.1: Initialize with wrong mint owner - program should reject with InvalidMint");
     println!("       Expected owner: TOKEN_2022_PROGRAM_ID");
     println!("       Actual owner: SYSTEM_PROGRAM_ID (simulated)");
 }
 
-/// Test: Wrong token program ID fails JoinTable (AC-7.1)
+/// Test: Wrong token program ID fails JoinTable (AC-POK7.1)
 /// The program must validate the token program is Token-2022.
 #[test]
 fn test_ac_7_1_wrong_token_program_detection() {
@@ -330,14 +330,14 @@ fn test_ac_7_1_wrong_token_program_detection() {
     assert_eq!(config_data[0], acc_disc::CONFIG);
 
     // When executed, the program should reject because token_program != TOKEN_2022_PROGRAM_ID
-    println!("AC-7.1: JoinTable with wrong token program - program should reject with InvalidAccountOwner");
+    println!("AC-POK7.1: JoinTable with wrong token program - program should reject with InvalidAccountOwner");
 }
 
 // =============================================================================
-// AC-7.2: PDA Derivation Verification
+// AC-POK7.2: PDA Derivation Verification
 // =============================================================================
 
-/// Test: Wrong config PDA detection (AC-7.2)
+/// Test: Wrong config PDA detection (AC-POK7.2)
 /// The program must verify the config account is derived from the correct PDA seeds.
 #[test]
 fn test_ac_7_2_wrong_config_pda_detection() {
@@ -364,12 +364,12 @@ fn test_ac_7_2_wrong_config_pda_detection() {
     // it will get a different address and reject with InvalidPda
     assert_eq!(ix.data[0], ix_disc::INITIALIZE);
 
-    println!("AC-7.2: Initialize with wrong config PDA - program should reject with InvalidPda");
+    println!("AC-POK7.2: Initialize with wrong config PDA - program should reject with InvalidPda");
     println!("       Expected: PDA derived from [\"config\"]");
     println!("       Provided: Random address");
 }
 
-/// Test: Wrong table PDA detection (AC-7.2)
+/// Test: Wrong table PDA detection (AC-POK7.2)
 /// The program must verify the table account is derived from correct seeds.
 #[test]
 fn test_ac_7_2_wrong_table_pda_detection() {
@@ -412,12 +412,12 @@ fn test_ac_7_2_wrong_table_pda_detection() {
     // Program should reject with InvalidPda
     assert_eq!(ix.data[0], ix_disc::CREATE_TABLE);
 
-    println!("AC-7.2: CreateTable with wrong table PDA - program should reject with InvalidPda");
+    println!("AC-POK7.2: CreateTable with wrong table PDA - program should reject with InvalidPda");
     println!("       Expected: PDA derived from [\"table\", table_id.to_le_bytes()]");
     println!("       Provided: Random address");
 }
 
-/// Test: Vault mismatch detection in JoinTable (AC-7.2)
+/// Test: Vault mismatch detection in JoinTable (AC-POK7.2)
 /// The program must verify the vault matches what's stored in the table.
 #[test]
 fn test_ac_7_2_vault_mismatch_detection() {
@@ -465,16 +465,16 @@ fn test_ac_7_2_vault_mismatch_detection() {
     assert_eq!(config_data[0], acc_disc::CONFIG);
 
     // Program should compare table.vault with provided vault and reject with InvalidPda
-    println!("AC-7.2: JoinTable with wrong vault - program should reject with InvalidPda");
+    println!("AC-POK7.2: JoinTable with wrong vault - program should reject with InvalidPda");
     println!("       Table vault: {:?}", correct_vault_key);
     println!("       Provided: {:?}", wrong_vault_key);
 }
 
 // =============================================================================
-// AC-7.3: Duplicate Mutable Account Rejection
+// AC-POK7.3: Duplicate Mutable Account Rejection
 // =============================================================================
 
-/// Test: Duplicate mutable account detection (AC-7.3)
+/// Test: Duplicate mutable account detection (AC-POK7.3)
 /// When the same account appears twice as mutable, it should be rejected.
 #[test]
 fn test_ac_7_3_duplicate_mutable_account_detection() {
@@ -507,15 +507,15 @@ fn test_ac_7_3_duplicate_mutable_account_detection() {
 
     // The Solana runtime typically catches this, but the program should also
     // have a check for DuplicateMutableAccount error
-    println!("AC-7.3: Duplicate mutable accounts - program should reject with DuplicateMutableAccount");
+    println!("AC-POK7.3: Duplicate mutable accounts - program should reject with DuplicateMutableAccount");
     println!("       vault_key appears {} times as writable", mutable_vault_count);
 }
 
 // =============================================================================
-// AC-7.4: Checked Arithmetic (Overflow/Underflow Detection)
+// AC-POK7.4: Checked Arithmetic (Overflow/Underflow Detection)
 // =============================================================================
 
-/// Test: Pot overflow detection (AC-7.4)
+/// Test: Pot overflow detection (AC-POK7.4)
 /// Arithmetic operations on pot must use checked math.
 #[test]
 fn test_ac_7_4_pot_overflow_scenario() {
@@ -544,13 +544,13 @@ fn test_ac_7_4_pot_overflow_scenario() {
     assert_eq!(ix_data[0], ix_disc::PLAYER_ACTION);
     assert_eq!(ix_data[1], action_type::RAISE);
 
-    println!("AC-7.4: Raise causing pot overflow - program should reject with ArithmeticOverflow");
+    println!("AC-POK7.4: Raise causing pot overflow - program should reject with ArithmeticOverflow");
     println!("       Current pot: {}", pot_near_max);
     println!("       Raise amount: {}", raise_amount);
     println!("       Would overflow: true");
 }
 
-/// Test: Player count overflow scenario (AC-7.4)
+/// Test: Player count overflow scenario (AC-POK7.4)
 /// Incrementing player_count when at max should fail.
 #[test]
 fn test_ac_7_4_player_count_at_max() {
@@ -568,12 +568,12 @@ fn test_ac_7_4_player_count_at_max() {
     let would_exceed = (player_count as usize) >= MAX_SEATS;
     assert!(would_exceed, "Adding a player should be rejected");
 
-    println!("AC-7.4: Join with player_count at max - program should reject with TableFull");
+    println!("AC-POK7.4: Join with player_count at max - program should reject with TableFull");
     println!("       Current players: {}", player_count);
     println!("       Max seats: {}", MAX_SEATS);
 }
 
-/// Test: Action deadline overflow scenario (AC-7.4)
+/// Test: Action deadline overflow scenario (AC-POK7.4)
 /// When computing next deadline, slot + timeout should use checked math.
 #[test]
 fn test_ac_7_4_deadline_overflow_scenario() {
@@ -595,13 +595,13 @@ fn test_ac_7_4_deadline_overflow_scenario() {
     // Computing deadline: current_slot + timeout would overflow
     assert!(current_slot.checked_add(timeout).is_none(), "Deadline computation should overflow");
 
-    println!("AC-7.4: Action with deadline overflow - program should reject with ArithmeticOverflow");
+    println!("AC-POK7.4: Action with deadline overflow - program should reject with ArithmeticOverflow");
     println!("       Current slot: {}", current_slot);
     println!("       Timeout: {}", timeout);
     println!("       Would overflow: true");
 }
 
-/// Test: Stack underflow scenario (AC-7.4)
+/// Test: Stack underflow scenario (AC-POK7.4)
 /// When betting more than stack, should use saturating/checked math.
 #[test]
 fn test_ac_7_4_stack_underflow_scenario() {
@@ -631,7 +631,7 @@ fn test_ac_7_4_stack_underflow_scenario() {
     let call_amount = current_bet.saturating_sub(0); // Player's current_bet is 0
     assert!(call_amount > player_stack, "Call amount exceeds stack - should go all-in");
 
-    println!("AC-7.4: Call exceeds stack - program should handle as all-in, not underflow");
+    println!("AC-POK7.4: Call exceeds stack - program should handle as all-in, not underflow");
     println!("       Player stack: {}", player_stack);
     println!("       Amount to call: {}", call_amount);
 }
@@ -645,21 +645,21 @@ fn test_ac_7_4_stack_underflow_scenario() {
 fn test_security_validation_summary() {
     println!("=== Security Validation Test Summary ===");
     println!();
-    println!("AC-7.1: Account owner, signer, and program ID validation");
+    println!("AC-POK7.1: Account owner, signer, and program ID validation");
     println!("  [x] Missing signer on Initialize - MissingSigner error");
     println!("  [x] Missing signer on PlayerAction - MissingSigner error");
     println!("  [x] Wrong mint owner (not Token-2022) - InvalidMint error");
     println!("  [x] Wrong token program - InvalidAccountOwner error");
     println!();
-    println!("AC-7.2: PDA derivation verification");
+    println!("AC-POK7.2: PDA derivation verification");
     println!("  [x] Wrong config PDA - InvalidPda error");
     println!("  [x] Wrong table PDA - InvalidPda error");
     println!("  [x] Vault mismatch - InvalidPda error");
     println!();
-    println!("AC-7.3: Duplicate mutable account rejection");
+    println!("AC-POK7.3: Duplicate mutable account rejection");
     println!("  [x] Same account passed twice as writable - DuplicateMutableAccount error");
     println!();
-    println!("AC-7.4: Checked arithmetic");
+    println!("AC-POK7.4: Checked arithmetic");
     println!("  [x] Pot overflow scenario - ArithmeticOverflow error");
     println!("  [x] Player count at max - TableFull error");
     println!("  [x] Deadline overflow scenario - ArithmeticOverflow error");

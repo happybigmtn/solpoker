@@ -35,11 +35,87 @@ import type {
 // Re-export ACTION_TYPE for convenience
 export { ACTION_TYPE };
 
+// =============================================================================
+// Validation helpers - fail fast on client side before sending to chain
+// =============================================================================
+
+const MAX_SEATS = 10;
+const MAX_U8 = 255;
+const MAX_U64 = 0xffffffffffffffffn;
+
+function validateU8(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_U8) {
+    throw new Error(`${name} must be an integer 0-255, got ${value}`);
+  }
+}
+
+function validateU64(value: bigint, name: string): void {
+  if (value < 0n || value > MAX_U64) {
+    throw new Error(`${name} must be 0 to 2^64-1, got ${value}`);
+  }
+}
+
+function validateMinPlayers(value: number): void {
+  if (!Number.isInteger(value) || value < 2 || value > MAX_SEATS) {
+    throw new Error(`minPlayers must be 2-${MAX_SEATS}, got ${value}`);
+  }
+}
+
+function validateActionType(value: number): void {
+  const validTypes: readonly number[] = [
+    ACTION_TYPE.FOLD,
+    ACTION_TYPE.CHECK,
+    ACTION_TYPE.CALL,
+    ACTION_TYPE.RAISE,
+    ACTION_TYPE.ALL_IN,
+  ];
+  if (!validTypes.includes(value)) {
+    throw new Error(`actionType must be 0-4 (FOLD/CHECK/CALL/RAISE/ALL_IN), got ${value}`);
+  }
+}
+
+function validateBlinds(smallBlind: bigint, bigBlind: bigint): void {
+  validateU64(smallBlind, "smallBlind");
+  validateU64(bigBlind, "bigBlind");
+  if (smallBlind > bigBlind) {
+    throw new Error(`smallBlind (${smallBlind}) cannot exceed bigBlind (${bigBlind})`);
+  }
+  if (bigBlind === 0n) {
+    throw new Error("bigBlind cannot be zero");
+  }
+}
+
+function validateBuyIn(amount: bigint, min?: bigint, max?: bigint): void {
+  validateU64(amount, "buyInAmount");
+  if (amount === 0n) {
+    throw new Error("buyInAmount cannot be zero");
+  }
+  if (min !== undefined && amount < min) {
+    throw new Error(`buyInAmount ${amount} is below minimum ${min}`);
+  }
+  if (max !== undefined && amount > max) {
+    throw new Error(`buyInAmount ${amount} exceeds maximum ${max}`);
+  }
+}
+
+// =============================================================================
+// Instruction builders with validation
+// =============================================================================
+
 /**
  * Build instruction data for Initialize
  * Layout: discriminator(1) + min_players(1) + padding(6) + min_buy_in(8) + max_buy_in(8) + action_timeout_slots(8) = 32 bytes
  */
 export function buildInitializeData(args: InitializeArgs): Uint8Array {
+  // Validate arguments
+  validateMinPlayers(args.minPlayers);
+  validateU64(args.minBuyIn, "minBuyIn");
+  validateU64(args.maxBuyIn, "maxBuyIn");
+  validateU64(args.actionTimeoutSlots, "actionTimeoutSlots");
+  if (args.minBuyIn > args.maxBuyIn) {
+    throw new Error(`minBuyIn (${args.minBuyIn}) cannot exceed maxBuyIn (${args.maxBuyIn})`);
+  }
+
   const data = new Uint8Array(32);
   const view = new DataView(data.buffer);
 
@@ -71,6 +147,10 @@ export function getInitializeAccountMetas(accounts: InitializeAccounts) {
  * Layout: discriminator(1) + padding(7) + table_id(8) + small_blind(8) + big_blind(8) = 32 bytes
  */
 export function buildCreateTableData(args: CreateTableArgs): Uint8Array {
+  // Validate arguments
+  validateU64(args.tableId, "tableId");
+  validateBlinds(args.smallBlind, args.bigBlind);
+
   const data = new Uint8Array(32);
   const view = new DataView(data.buffer);
 
@@ -103,6 +183,9 @@ export function getCreateTableAccountMetas(accounts: CreateTableAccounts) {
  * Layout: discriminator(1) + padding(7) + buy_in_amount(8) = 16 bytes
  */
 export function buildJoinTableData(args: JoinTableArgs): Uint8Array {
+  // Validate arguments
+  validateBuyIn(args.buyInAmount);
+
   const data = new Uint8Array(16);
   const view = new DataView(data.buffer);
 
@@ -219,6 +302,10 @@ export function getTimeoutActionAccountMetas(accounts: TimeoutActionAccounts) {
  * Layout: discriminator(1) + action_type(1) + padding(6) + amount(8) = 16 bytes
  */
 export function buildPlayerActionData(args: PlayerActionArgs): Uint8Array {
+  // Validate arguments
+  validateActionType(args.actionType);
+  validateU64(args.amount, "amount");
+
   const data = new Uint8Array(16);
   const view = new DataView(data.buffer);
 

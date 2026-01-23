@@ -38,7 +38,7 @@ pub enum EntropyError {
     NotInitialized = 14,
     /// Invalid slothash
     InvalidSlothash = 15,
-    /// Duplicate mutable accounts (AC-7.3)
+    /// Duplicate mutable accounts (AC-POK7.3)
     DuplicateMutableAccount = 16,
     /// Account is not writable
     AccountNotWritable = 17,

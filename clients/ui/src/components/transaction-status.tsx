@@ -19,6 +19,8 @@ export interface TransactionStatusProps {
   signature?: string;
   /** Error message (for failed state) */
   error?: string;
+  /** Human-readable label for the pending action */
+  label?: string;
   /** Whether the error is retryable */
   isRetryable?: boolean;
   /** Callback to retry the last action */
@@ -37,6 +39,7 @@ export const TransactionStatus = memo(function TransactionStatus({
   state,
   signature,
   error,
+  label,
   isRetryable,
   onRetry,
   onDismiss,
@@ -57,7 +60,7 @@ export const TransactionStatus = memo(function TransactionStatus({
       {state === 'pending' && (
         <>
           <Spinner />
-          <span>Submitting transaction…</span>
+          <span>{label ? `Submitting: ${label}` : 'Submitting transaction…'}</span>
         </>
       )}
 

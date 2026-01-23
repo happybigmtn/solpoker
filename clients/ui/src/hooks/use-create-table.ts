@@ -42,6 +42,7 @@ import {
   isUserRejection,
 } from '@robopoker/client';
 import type { TransactionState } from '@/components/transaction-status';
+import { logUiEvent } from '@/lib/logging';
 
 /**
  * Arguments for creating a table.
@@ -254,6 +255,14 @@ export function useCreateTable(config: UseCreateTableConfig): UseCreateTableRetu
           signedTransaction as Parameters<typeof sendAndConfirmTransaction>[0],
           { commitment: 'confirmed' }
         );
+
+        logUiEvent('info', 'create_table', 'Table created', {
+          requestId: signature,
+          tableId,
+          data: {
+            table_address: derivedTableAddress,
+          },
+        });
 
         // Success
         setTxState('confirmed');

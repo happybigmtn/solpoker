@@ -38,27 +38,27 @@ pub enum PokerError {
     InvalidAccountOwner = 14,
     /// Table is playing, cannot leave
     TableIsPlaying = 15,
-    /// Not enough players to start hand (AC-4.3)
+    /// Not enough players to start hand (AC-POK4.3)
     NotEnoughPlayers = 16,
     /// Table not in waiting state
     TableNotWaiting = 17,
-    /// Action deadline not yet reached (AC-4.4)
+    /// Action deadline not yet reached (AC-POK4.4)
     DeadlineNotReached = 18,
-    /// No action pending (AC-4.4)
+    /// No action pending (AC-POK4.4)
     NoActionPending = 19,
-    /// Not player's turn to act (AC-5.3)
+    /// Not player's turn to act (AC-POK5.3)
     NotYourTurn = 20,
-    /// Invalid action type for current state (AC-5.3)
+    /// Invalid action type for current state (AC-POK5.3)
     InvalidActionType = 21,
-    /// Cannot fold when no bet to call (AC-5.3)
+    /// Cannot fold when no bet to call (AC-POK5.3)
     CannotFoldWhenCheck = 22,
-    /// Cannot check when there's a bet to call (AC-5.3)
+    /// Cannot check when there's a bet to call (AC-POK5.3)
     CannotCheckWhenBet = 23,
-    /// Raise amount too small (AC-5.2)
+    /// Raise amount too small (AC-POK5.2)
     RaiseTooSmall = 24,
-    /// Raise amount exceeds stack (AC-5.2)
+    /// Raise amount exceeds stack (AC-POK5.2)
     RaiseExceedsStack = 25,
-    /// Call amount exceeds stack (should use all-in) (AC-5.2)
+    /// Call amount exceeds stack (should use all-in) (AC-POK5.2)
     CallExceedsStack = 26,
     /// Player already folded
     PlayerAlreadyFolded = 27,
@@ -66,30 +66,30 @@ pub enum PokerError {
     PlayerAlreadyAllIn = 28,
     /// Hand not in progress
     HandNotInProgress = 29,
-    /// Duplicate mutable accounts (AC-7.3)
+    /// Duplicate mutable accounts (AC-POK7.3)
     DuplicateMutableAccount = 30,
-    /// Invalid seed commitment hash (AC-2.7)
+    /// Invalid seed commitment hash (AC-POK2.7)
     InvalidSeedCommitment = 31,
-    /// Hole card hash mismatch (AC-2.8)
+    /// Hole card hash mismatch (AC-POK2.8)
     HoleCardHashMismatch = 32,
     /// Seed already revealed for this hand
     SeedAlreadyRevealed = 33,
-    /// Seed not yet revealed (AC-2.8: required for settlement)
+    /// Seed not yet revealed (AC-POK2.8: required for settlement)
     SeedNotRevealed = 34,
     /// Table not in showdown state
     TableNotShowdown = 35,
     // =========================================================================
-    // Staking errors (AC-3.4, AC-3.5, AC-3.6)
+    // Staking errors (AC-POK3.4, AC-POK3.5, AC-POK3.6)
     // =========================================================================
-    /// Staking pool not initialized (AC-3.5)
+    /// Staking pool not initialized (AC-POK3.5)
     StakingPoolNotInitialized = 36,
-    /// Staker position not found (AC-3.5)
+    /// Staker position not found (AC-POK3.5)
     StakerPositionNotFound = 37,
-    /// Insufficient staked amount for withdrawal (AC-3.5)
+    /// Insufficient staked amount for withdrawal (AC-POK3.5)
     InsufficientStakedAmount = 38,
-    /// No rewards available to claim (AC-3.6)
+    /// No rewards available to claim (AC-POK3.6)
     NoRewardsAvailable = 39,
-    /// Stake amount must be greater than zero (AC-3.5)
+    /// Stake amount must be greater than zero (AC-POK3.5)
     ZeroStakeAmount = 40,
     /// Staking pool already initialized
     StakingPoolAlreadyInitialized = 41,
@@ -101,6 +101,14 @@ pub enum PokerError {
     PotInvariantViolation = 44,
     /// Account is not writable
     AccountNotWritable = 45,
+    /// Table is not empty (has players, pot, or rake)
+    TableNotEmpty = 46,
+    /// Vault token account has non-zero balance
+    VaultNotEmpty = 47,
+    /// Staking pool is not empty (has staked tokens or rewards)
+    StakingPoolNotEmpty = 48,
+    /// Staker position is not empty (has staked tokens or unclaimed rewards)
+    StakerPositionNotEmpty = 49,
 }
 
 impl From<PokerError> for ProgramError {

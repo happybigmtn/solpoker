@@ -9,7 +9,7 @@ export default function Home() {
   const crispsMint = (process.env.NEXT_PUBLIC_CRISPS_MINT || '') as Address;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       {/* Skip link for accessibility (AC-5.4) */}
       <a
         href="#main"

@@ -20,6 +20,13 @@ pub mod discriminator {
     pub const UPDATE_CONFIG: u8 = 6;
 }
 
+#[inline]
+fn read_unaligned<T: Copy>(data: &[u8]) -> T {
+    debug_assert!(data.len() >= core::mem::size_of::<T>());
+    // SAFETY: read_unaligned permits any alignment; caller validates length.
+    unsafe { core::ptr::read_unaligned(data.as_ptr() as *const T) }
+}
+
 /// Initialize instruction data
 /// Accounts:
 ///   0. [writable] Config PDA
@@ -44,8 +51,14 @@ impl Initialize {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
@@ -76,8 +89,14 @@ impl Commit {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
@@ -103,8 +122,14 @@ impl Reveal {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
@@ -134,8 +159,14 @@ impl Request {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
@@ -158,8 +189,14 @@ impl Finalize {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
@@ -169,10 +206,11 @@ impl Finalize {
 /// Slash instruction data
 /// Accounts:
 ///   0. [writable] Commitment
-///   1. [writable] Provider (receives remaining bond after slash)
-///   2. [writable] Slasher (receives slash reward)
-///   3. [] Config
-///   4. [] Clock sysvar
+///   1. [] Request (for deadline verification)
+///   2. [writable] Provider (receives remaining bond after slash)
+///   3. [writable] Slasher (receives slash reward)
+///   4. [] Config
+///   5. [] Clock sysvar
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Slash {
@@ -184,8 +222,14 @@ impl Slash {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }
@@ -216,8 +260,14 @@ impl UpdateConfig {
 
     /// Parse from instruction data
     ///
-    /// # Safety
     /// Caller must ensure data.len() >= SIZE
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        read_unaligned::<Self>(data)
+    }
+
+    /// # Safety
+    /// Caller must ensure data.len() >= SIZE and data is properly aligned
     #[inline]
     pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
         unsafe { &*(data.as_ptr() as *const Self) }

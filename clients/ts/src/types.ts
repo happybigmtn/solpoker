@@ -345,6 +345,7 @@ export interface EntropyFinalizeAccounts {
  */
 export interface EntropySlashAccounts {
   commitment: Address;
+  request: Address;
   provider: Address;
   slasher: Address;
   config: Address;

@@ -1,10 +1,9 @@
 /**
  * Tests for PokerActions component.
  *
- * AC-2.2: Primary poker actions have single-key shortcuts (F/X/C/R/S).
- * AC-2.3: Raise amount adjustable with +/-/arrows, confirmed with Enter.
- * AC-2.4: Focus visible; Esc closes raise mode.
- * AC-5.12: Buttons stay enabled until request starts; show spinner during.
+ * AC-UI4.1: Touch targets meet minimum size with clear disabled states.
+ * AC-UI4.2: Raise controls support drag and quick bet shortcuts.
+ * AC-UI4.3: Keyboard shortcuts work when focused.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -40,7 +39,7 @@ vi.mock('@/hooks/use-keyboard-shortcuts', () => ({
 
 import { PokerActions } from './poker-actions';
 
-describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
+describe('PokerActions (AC-UI4.1 to AC-UI4.3)', () => {
   const mockOnAction = vi.fn();
   const mockOnRaiseAmountChange = vi.fn();
 
@@ -49,6 +48,7 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
     toCall: 100,
     minRaise: 200,
     maxRaise: 1000,
+    potSize: 1000,
     raiseAmount: 200,
     onRaiseAmountChange: mockOnRaiseAmountChange,
     onAction: mockOnAction,
@@ -204,6 +204,29 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
 
       expect(screen.getByRole('button', { name: /Increase raise amount/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Decrease raise amount/i })).toBeInTheDocument();
+    });
+
+    it('shows raise amount slider in raise mode', () => {
+      render(<PokerActions {...defaultProps} />);
+
+      const raiseBtn = screen.getByRole('button', { name: /Raise/i });
+      fireEvent.click(raiseBtn);
+
+      const slider = screen.getByRole('slider', { name: /Raise amount slider/i });
+      expect(slider).toBeInTheDocument();
+      expect(slider.className).toContain('touch-action-manipulation');
+    });
+
+    it('quick bet buttons update raise amount', () => {
+      render(<PokerActions {...defaultProps} potSize={1200} maxRaise={2000} />);
+
+      const raiseBtn = screen.getByRole('button', { name: /Raise/i });
+      fireEvent.click(raiseBtn);
+
+      const potButton = screen.getByRole('button', { name: 'POT' });
+      fireEvent.click(potButton);
+
+      expect(mockOnRaiseAmountChange).toHaveBeenLastCalledWith(1200);
     });
 
     it('increase button calls onRaiseAmountChange', () => {
@@ -508,11 +531,66 @@ describe('PokerActions (AC-2.2, AC-2.3, AC-2.4)', () => {
       expect(foldBtn.className).toContain('focus-visible:outline');
     });
 
+    it('action controls are keyboard focusable (AC-UI8.2)', () => {
+      render(<PokerActions {...defaultProps} raiseAmount={400} />);
+
+      const actionButtons = [
+        screen.getByRole('button', { name: /Fold/i }),
+        screen.getByRole('button', { name: /Call/i }),
+        screen.getByRole('button', { name: /Raise/i }),
+        screen.getByRole('button', { name: /All In/i }),
+      ];
+
+      for (const button of actionButtons) {
+        expect(button.className).toContain('focus-visible:outline');
+        button.focus();
+        expect(document.activeElement).toBe(button);
+      }
+
+      fireEvent.click(screen.getByRole('button', { name: /Raise/i }));
+
+      const decrease = screen.getByRole('button', { name: /Decrease raise amount/i });
+      const increase = screen.getByRole('button', { name: /Increase raise amount/i });
+      const amountInput = screen.getByRole('spinbutton', { name: /Raise amount/i });
+      const slider = screen.getByRole('slider', { name: /Raise amount slider/i });
+      const potButton = screen.getByRole('button', { name: 'POT' });
+      const quickBetContainer = potButton.closest('div');
+      const quickBetButtons = quickBetContainer
+        ? Array.from(quickBetContainer.querySelectorAll('button'))
+        : [];
+
+      expect(quickBetButtons.length).toBeGreaterThan(0);
+
+      const raiseControls = [decrease, increase, amountInput, slider, ...quickBetButtons];
+
+      for (const control of raiseControls) {
+        control.focus();
+        expect(document.activeElement).toBe(control);
+      }
+    });
+
+    it('check action remains keyboard focusable when available (AC-UI8.2)', () => {
+      render(<PokerActions {...defaultProps} canCheck={true} toCall={0} />);
+
+      const checkBtn = screen.getByRole('button', { name: /Check/i });
+      expect(checkBtn.className).toContain('focus-visible:outline');
+      checkBtn.focus();
+      expect(document.activeElement).toBe(checkBtn);
+    });
+
     it('uses touch-action-manipulation for mobile (AC-8.1)', () => {
       render(<PokerActions {...defaultProps} />);
 
       const foldBtn = screen.getByRole('button', { name: /Fold/i });
       expect(foldBtn.className).toContain('touch-action-manipulation');
+    });
+
+    it('meets minimum touch target sizing (AC-UI4.1)', () => {
+      render(<PokerActions {...defaultProps} />);
+
+      const foldBtn = screen.getByRole('button', { name: /Fold/i });
+      expect(foldBtn.className).toContain('min-h-[44px]');
+      expect(foldBtn.className).toContain('min-w-[44px]');
     });
 
     it('raise input has correct inputMode for mobile keyboard', () => {

@@ -30,7 +30,7 @@ export function TablePageClient() {
   // Handle base /table route (no ID provided)
   if (!id) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">RoboPoker Tables</h1>
           <p className="text-zinc-600 dark:text-zinc-400 mb-4">
@@ -48,7 +48,7 @@ export function TablePageClient() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       {/* Skip link for accessibility (AC-5.4) */}
       <a
         href="#main"

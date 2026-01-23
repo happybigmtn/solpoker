@@ -95,6 +95,22 @@ describe("Logger (AC-EP5.4)", () => {
     });
   });
 
+  it("should include request_id and table_id fields in log entries", () => {
+    const entries: LogEntry[] = [];
+    const logger = new Logger({
+      minLevel: "info",
+      output: (entry) => entries.push(entry),
+    });
+
+    logger.info("request", "Handled request", {
+      request_id: "req-1",
+      table_id: "table-9",
+    });
+
+    expect(entries[0].request_id).toBe("req-1");
+    expect(entries[0].table_id).toBe("table-9");
+  });
+
   it("should respect all log level methods", () => {
     const entries: LogEntry[] = [];
     const logger = new Logger({
@@ -346,21 +362,32 @@ describe("Reconnect Logic (AC-EP5.1)", () => {
 });
 
 describe("Log Format Verification (AC-EP5.4)", () => {
-  it("should format logs with [timestamp] [LEVEL] [operation] message format", () => {
-    let formattedOutput = "";
-    const logger = new Logger({
-      minLevel: "info",
-      output: (entry) => {
-        const dataStr = entry.data ? ` ${JSON.stringify(entry.data)}` : "";
-        formattedOutput = `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.operation}] ${entry.message}${dataStr}`;
-      },
-    });
+  it("should format logs as JSON with required fields", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      const logger = new Logger({
+        minLevel: "info",
+      });
 
-    logger.info("commit", "Posted commitment", { sequence: 5 });
+      logger.info("commit", "Posted commitment", {
+        sequence: 5,
+        request_id: "req-1",
+        table_id: "table-1",
+      });
 
-    expect(formattedOutput).toMatch(
-      /^\[\d{4}-\d{2}-\d{2}T.*\] \[INFO\] \[commit\] Posted commitment \{"sequence":5\}$/
-    );
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const output = String(logSpy.mock.calls[0][0]);
+      const parsed = JSON.parse(output) as LogEntry;
+
+      expect(parsed.level).toBe("info");
+      expect(parsed.operation).toBe("commit");
+      expect(parsed.message).toBe("Posted commitment");
+      expect(parsed.request_id).toBe("req-1");
+      expect(parsed.table_id).toBe("table-1");
+      expect(parsed.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it("should log commit operations correctly", () => {

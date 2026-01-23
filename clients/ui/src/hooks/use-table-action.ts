@@ -46,6 +46,8 @@ import {
   isUserRejection,
 } from '@robopoker/client';
 import type { TransactionState } from '@/components/transaction-status';
+import { getTableActionLabel } from '@/lib/transaction-labels';
+import { logUiEvent } from '@/lib/logging';
 
 /**
  * Configuration for the useTableAction hook.
@@ -63,6 +65,8 @@ export interface UseTableActionConfig {
   playerTokenAccount: Address;
   /** CRISPS mint address */
   crispsMint: Address;
+  /** Table ID (optional, for logging) */
+  tableId?: string | bigint;
 }
 
 /**
@@ -77,6 +81,8 @@ export interface TableActionResult {
   error?: string;
   /** Whether the error is retryable (network error) */
   isRetryable?: boolean;
+  /** Human-readable label for the action */
+  label?: string;
 }
 
 /**
@@ -95,6 +101,8 @@ export interface UseTableActionReturn {
   txSignature?: string;
   /** Current error message */
   txError?: string;
+  /** Current transaction label */
+  txLabel?: string;
   /** Whether the current error is retryable */
   isRetryable: boolean;
   /** Reset transaction state */
@@ -159,6 +167,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
     configAddress,
     playerTokenAccount,
     crispsMint,
+    tableId,
   } = config;
   const { wallet } = useWalletConnection();
 
@@ -170,6 +179,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
   const [txSignature, setTxSignature] = useState<string>();
   const [txError, setTxError] = useState<string>();
   const [isRetryable, setIsRetryable] = useState(false);
+  const [txLabel, setTxLabel] = useState<string>();
   const lastActionRef = useRef<
     | { type: 'join'; buyInAmount: bigint }
     | { type: 'leave' }
@@ -181,6 +191,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
     setTxSignature(undefined);
     setTxError(undefined);
     setIsRetryable(false);
+    setTxLabel(undefined);
     lastActionRef.current = null;
   }, []);
 
@@ -210,6 +221,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         setTxState('failed');
         setTxError(error);
         setIsRetryable(true);
+        setTxLabel(undefined);
         return { state: 'failed', error, isRetryable: true };
       }
 
@@ -219,10 +231,13 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         setTxState('failed');
         setTxError(error);
         setIsRetryable(false);
+        setTxLabel(undefined);
         return { state: 'failed', error, isRetryable: false };
       }
 
       lastActionRef.current = { type: 'join', buyInAmount };
+      const label = getTableActionLabel('join', buyInAmount);
+      setTxLabel(label);
 
       // Set pending state immediately
       setTxState('pending');
@@ -239,15 +254,19 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 300_000 });
         const priorityFeeIx = getSetComputeUnitPriceInstruction({ microLamports: 1000n });
 
-        // Check if ATA already exists to avoid unnecessary instruction
-        let ataExists = false;
-        try {
-          const ataInfo = await rpc.getAccountInfo(playerTokenAccount, { encoding: 'base64' }).send();
-          ataExists = ataInfo.value !== null && ataInfo.value.data.length > 0;
-          console.log('[joinTable] ATA exists:', ataExists, 'address:', playerTokenAccount);
-        } catch (e) {
-          console.log('[joinTable] ATA check failed, will try to create:', e);
-        }
+        // Start independent RPC calls in parallel (React Best Practice: async-parallel)
+        // ATA check and blockhash fetch have no dependencies - run concurrently
+        const ataCheckPromise = rpc.getAccountInfo(playerTokenAccount, { encoding: 'base64' }).send()
+          .then(ataInfo => ({
+            exists: ataInfo.value !== null && ataInfo.value.data.length > 0,
+          }))
+          .catch(() => ({ exists: false }));
+
+        const blockhashPromise = rpc.getLatestBlockhash().send();
+
+        // Await ATA check result
+        const ataResult = await ataCheckPromise;
+        const ataExists = ataResult.exists;
 
         // Build instructions array - start with compute budget
         const instructions: Instruction[] = [computeBudgetIx, priorityFeeIx];
@@ -274,7 +293,6 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
           // Attach signer to the create ATA instruction
           const createAtaInstruction = addSignersToInstruction([walletSigner], createAtaBaseInstruction);
           instructions.push(createAtaInstruction);
-          console.log('[joinTable] Adding ATA creation instruction');
         }
 
         // AC-CI3.6: Build join table instruction data
@@ -303,10 +321,9 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         // Attach signer to the instruction for the player account
         const joinInstruction = addSignersToInstruction([walletSigner], baseInstruction);
         instructions.push(joinInstruction);
-        console.log('[joinTable] Adding join table instruction, total instructions:', instructions.length);
 
-        // Get latest blockhash for transaction lifetime
-        const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+        // Await the blockhash promise started earlier (parallel with ATA check)
+        const { value: latestBlockhash } = await blockhashPromise;
 
         // AC-CI2.2: Build transaction using SDK instruction builders
         const transactionMessage = pipe(
@@ -346,10 +363,16 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
           { commitment: 'confirmed' }
         );
 
+        logUiEvent('info', 'join_table', 'Table joined', {
+          requestId: signature,
+          tableId,
+          data: { label },
+        });
+
         // Success
         setTxState('confirmed');
         setTxSignature(signature);
-        return { state: 'confirmed', signature };
+        return { state: 'confirmed', signature, label };
       } catch (err) {
         // Log the raw error for debugging
         console.error('[joinTable] Raw error:', err);
@@ -379,10 +402,21 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         setTxError(userFriendlyError);
         setIsRetryable(shouldRetry);
 
-        return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry };
+        return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry, label };
       }
     },
-    [wallet, rpc, rpcSubscriptions, tableAddress, vaultAddress, pokerProgramId, configAddress, playerTokenAccount, crispsMint]
+    [
+      wallet,
+      rpc,
+      rpcSubscriptions,
+      tableAddress,
+      vaultAddress,
+      pokerProgramId,
+      configAddress,
+      playerTokenAccount,
+      crispsMint,
+      tableId,
+    ]
   );
 
   /**
@@ -395,6 +429,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
       setTxState('failed');
       setTxError(error);
       setIsRetryable(false);
+      setTxLabel(undefined);
       return { state: 'failed', error, isRetryable: false };
     }
 
@@ -404,10 +439,13 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
       setTxState('failed');
       setTxError(error);
       setIsRetryable(false);
+      setTxLabel(undefined);
       return { state: 'failed', error, isRetryable: false };
     }
 
     lastActionRef.current = { type: 'leave' };
+    const label = getTableActionLabel('leave');
+    setTxLabel(label);
 
     // Set pending state immediately
     setTxState('pending');
@@ -419,6 +457,9 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
 
       // Create wallet transaction signer
       const { signer: walletSigner } = createWalletTransactionSigner(wallet);
+
+      // Start blockhash fetch early - no dependencies (React Best Practice: async-api-routes)
+      const blockhashPromise = rpc.getLatestBlockhash().send();
 
       // Build compute budget instructions for priority fees
       const computeBudgetIx = getSetComputeUnitLimitInstruction({ units: 200_000 });
@@ -450,8 +491,8 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
       // Attach signer to the instruction for the player account
       const instruction = addSignersToInstruction([walletSigner], baseInstruction);
 
-      // Get latest blockhash for transaction lifetime
-      const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+      // Await the blockhash promise started earlier (React Best Practice: async-api-routes)
+      const { value: latestBlockhash } = await blockhashPromise;
 
       // AC-CI2.2: Build transaction using SDK instruction builders
       const transactionMessage = pipe(
@@ -491,10 +532,16 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
         { commitment: 'confirmed' }
       );
 
+      logUiEvent('info', 'leave_table', 'Table left', {
+        requestId: signature,
+        tableId,
+        data: { label },
+      });
+
       // Success
       setTxState('confirmed');
       setTxSignature(signature);
-      return { state: 'confirmed', signature };
+      return { state: 'confirmed', signature, label };
     } catch (err) {
       const logs = extractLogs(err);
       const userFriendlyError = formatTransactionError(
@@ -510,9 +557,19 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
       setTxError(userFriendlyError);
       setIsRetryable(shouldRetry);
 
-      return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry };
+      return { state: 'failed', error: userFriendlyError, isRetryable: shouldRetry, label };
     }
-  }, [wallet, rpc, rpcSubscriptions, tableAddress, vaultAddress, pokerProgramId, configAddress, playerTokenAccount]);
+  }, [
+    wallet,
+    rpc,
+    rpcSubscriptions,
+    tableAddress,
+    vaultAddress,
+    pokerProgramId,
+    configAddress,
+    playerTokenAccount,
+    tableId,
+  ]);
 
   const retry = useCallback(async (): Promise<TableActionResult> => {
     if (!lastActionRef.current) {
@@ -537,6 +594,7 @@ export function useTableAction(config: UseTableActionConfig): UseTableActionRetu
     txState,
     txSignature,
     txError,
+    txLabel,
     resetTxState,
     isRetryable,
     isPending: txState === 'pending',

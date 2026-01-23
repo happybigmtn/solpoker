@@ -25,6 +25,20 @@ vi.mock('next/link', () => ({
   }) => <a href={href}>{children}</a>,
 }));
 
+// Mock next/navigation for App Router
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 // Mock @robopoker/client
 vi.mock('@robopoker/client', () => ({
   TABLE_STATUS: {

@@ -216,6 +216,70 @@ describe('Framework-kit + Wallet Standard + App Router (AC-1.1 to AC-1.5)', () =
       expect(screen.getByText('Phantom')).toBeInTheDocument();
       expect(screen.getByText('Solflare')).toBeInTheDocument();
     });
+
+    it('WalletConnect shows Saga-specific guidance when Saga is detected', async () => {
+      const originalUserAgent = navigator.userAgent;
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'SagaPhone',
+        configurable: true,
+      });
+
+      const mockUseWalletConnection = useWalletConnection as ReturnType<typeof vi.fn>;
+      mockUseWalletConnection.mockReturnValue({
+        wallet: null,
+        status: 'disconnected',
+        connectors: [
+          { id: 'phantom', name: 'Phantom', icon: 'https://phantom.app/icon.png' },
+        ],
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      });
+
+      const { WalletConnect } = await import('@/components/wallet-connect');
+      const { fireEvent } = await import('@testing-library/react');
+
+      render(createElement(WalletConnect));
+      fireEvent.click(screen.getByRole('button', { name: /connect wallet/i }));
+
+      expect(screen.getByText(/Saga detected/i)).toBeInTheDocument();
+
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      });
+    });
+
+    it('WalletConnect shows mobile deep-link guidance on mobile', async () => {
+      const originalUserAgent = navigator.userAgent;
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'iPhone',
+        configurable: true,
+      });
+
+      const mockUseWalletConnection = useWalletConnection as ReturnType<typeof vi.fn>;
+      mockUseWalletConnection.mockReturnValue({
+        wallet: null,
+        status: 'disconnected',
+        connectors: [
+          { id: 'phantom', name: 'Phantom', icon: 'https://phantom.app/icon.png' },
+        ],
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      });
+
+      const { WalletConnect } = await import('@/components/wallet-connect');
+      const { fireEvent } = await import('@testing-library/react');
+
+      render(createElement(WalletConnect));
+      fireEvent.click(screen.getByRole('button', { name: /connect wallet/i }));
+
+      expect(screen.getByText(/redirected to your wallet app/i)).toBeInTheDocument();
+
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      });
+    });
   });
 
   describe('AC-1.4: Websocket endpoint configured for subscriptions', () => {

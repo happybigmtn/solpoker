@@ -64,7 +64,7 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     }
 
     // Parse instruction data
-    let ix = unsafe { instruction::Initialize::from_bytes_unchecked(data) };
+    let ix = instruction::Initialize::from_bytes(data);
 
     // Create config account if it doesn't exist or is empty
     if config_info.data_len() == 0 {
@@ -94,7 +94,7 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         // Check if already initialized
         let config_data = config_info.try_borrow_data()?;
         if config_data.len() >= CONFIG_SIZE {
-            let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+            let config = Config::from_bytes(&config_data)?;
             if config.is_initialized() {
                 return Err(EntropyError::AlreadyInitialized.into());
             }
@@ -108,7 +108,7 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
 
-    let config = unsafe { Config::from_bytes_unchecked_mut(&mut config_data) };
+    let config = Config::from_bytes_mut(&mut config_data)?;
     config.discriminator = acc_disc::CONFIG;
     config.initialized = 1;
     config._padding = [0; 6];
@@ -121,7 +121,7 @@ fn process_initialize(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     Ok(())
 }
 
-/// Provider posts a new commitment (AC-2.1)
+/// Provider posts a new commitment (AC-POK2.1)
 fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if data.len() < instruction::Commit::SIZE {
         return Err(EntropyError::InvalidInstruction.into());
@@ -141,7 +141,7 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::AccountNotWritable.into());
     }
 
-    // Duplicate mutable account check (AC-7.3)
+    // Duplicate mutable account check (AC-POK7.3)
     if commitment_info.key() == provider_info.key() {
         return Err(EntropyError::DuplicateMutableAccount.into());
     }
@@ -157,7 +157,7 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     }
 
     // Parse instruction data (no borrow needed)
-    let ix = unsafe { instruction::Commit::from_bytes_unchecked(data) };
+    let ix = instruction::Commit::from_bytes(data);
 
     // Verify commitment PDA and get bump BEFORE any borrows
     let sequence_bytes = ix.sequence.to_le_bytes();
@@ -202,7 +202,7 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         // Prevent re-initialization of commitment account
         let commitment_check = commitment_info.try_borrow_data()?;
         if commitment_check.len() >= COMMITMENT_SIZE {
-            let existing = unsafe { Commitment::from_bytes_unchecked(&commitment_check) };
+            let existing = Commitment::from_bytes(&commitment_check)?;
             if existing.discriminator == acc_disc::COMMITMENT {
                 return Err(EntropyError::AlreadyInitialized.into());
             }
@@ -215,12 +215,12 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+    let config = Config::from_bytes(&config_data)?;
     if !config.is_initialized() {
         return Err(EntropyError::NotInitialized.into());
     }
 
-    // AC-2.5: Verify provider matches config
+    // AC-POK2.5: Verify provider matches config
     if provider_info.key() != &config.provider {
         return Err(EntropyError::ProviderMismatch.into());
     }
@@ -241,7 +241,7 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
 
-    let commitment = unsafe { Commitment::from_bytes_unchecked_mut(&mut commitment_data) };
+    let commitment = Commitment::from_bytes_mut(&mut commitment_data)?;
     commitment.discriminator = acc_disc::COMMITMENT;
     commitment.status = commitment_status::PENDING;
     commitment._padding = [0; 6];
@@ -266,7 +266,7 @@ fn process_commit(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     Ok(())
 }
 
-/// Provider reveals preimage (AC-2.1, AC-2.2)
+/// Provider reveals preimage (AC-POK2.1, AC-POK2.2)
 fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if data.len() < instruction::Reveal::SIZE {
         return Err(EntropyError::InvalidInstruction.into());
@@ -303,7 +303,7 @@ fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+    let config = Config::from_bytes(&config_data)?;
     if !config.is_initialized() {
         return Err(EntropyError::NotInitialized.into());
     }
@@ -316,7 +316,7 @@ fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     drop(config_data);
 
     // Parse instruction data
-    let ix = unsafe { instruction::Reveal::from_bytes_unchecked(data) };
+    let ix = instruction::Reveal::from_bytes(data);
 
     // Load commitment
     let mut commitment_data = commitment_info.try_borrow_mut_data()?;
@@ -324,7 +324,7 @@ fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
 
-    let commitment = unsafe { Commitment::from_bytes_unchecked_mut(&mut commitment_data) };
+    let commitment = Commitment::from_bytes_mut(&mut commitment_data)?;
 
     // Verify commitment PDA
     let sequence_bytes = commitment.sequence.to_le_bytes();
@@ -348,7 +348,7 @@ fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidCommitment.into());
     }
 
-    // AC-2.1: Verify preimage hashes to commitment
+    // AC-POK2.1: Verify preimage hashes to commitment
     let computed_hash = sha256(&ix.preimage);
     if computed_hash != commitment.hash {
         return Err(EntropyError::InvalidPreimage.into());
@@ -361,7 +361,7 @@ fn process_reveal(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     Ok(())
 }
 
-/// Request randomness from a commitment (AC-2.4: CPI interface)
+/// Request randomness from a commitment (AC-POK2.4: CPI interface)
 fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if data.len() < instruction::Request::SIZE {
         return Err(EntropyError::InvalidInstruction.into());
@@ -373,7 +373,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
-    // Duplicate mutable account checks (AC-7.3)
+    // Duplicate mutable account checks (AC-POK7.3)
     if request_info.key() == requester_info.key()
         || request_info.key() == commitment_info.key()
         || request_info.key() == payer_info.key()
@@ -426,7 +426,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+    let config = Config::from_bytes(&config_data)?;
     if !config.is_initialized() {
         return Err(EntropyError::NotInitialized.into());
     }
@@ -436,7 +436,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if commitment_data.len() < COMMITMENT_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let commitment = unsafe { Commitment::from_bytes_unchecked(&commitment_data) };
+    let commitment = Commitment::from_bytes(&commitment_data)?;
     if !commitment.is_pending() {
         return Err(EntropyError::InvalidCommitment.into());
     }
@@ -456,7 +456,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     drop(commitment_data);
 
     // Parse instruction data
-    let ix = unsafe { instruction::Request::from_bytes_unchecked(data) };
+    let ix = instruction::Request::from_bytes(data);
 
     // Verify request PDA
     let request_id_bytes = ix.request_id.to_le_bytes();
@@ -500,7 +500,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         // Prevent re-initialization of request account
         let request_check = request_info.try_borrow_data()?;
         if request_check.len() >= REQUEST_SIZE {
-            let existing = unsafe { state::Request::from_bytes_unchecked(&request_check) };
+            let existing = state::Request::from_bytes(&request_check)?;
             if existing.discriminator == acc_disc::REQUEST {
                 return Err(EntropyError::AlreadyInitialized.into());
             }
@@ -528,7 +528,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
 
-    let request = unsafe { state::Request::from_bytes_unchecked_mut(&mut request_data) };
+    let request = state::Request::from_bytes_mut(&mut request_data)?;
     request.discriminator = acc_disc::REQUEST;
     request.status = request_status::PENDING;
     request._padding = [0; 6];
@@ -543,7 +543,7 @@ fn process_request(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     Ok(())
 }
 
-/// Finalize a request with derived randomness (AC-2.2)
+/// Finalize a request with derived randomness (AC-POK2.2)
 fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     let [request_info, commitment_info, config_info] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -569,7 +569,7 @@ fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+    let config = Config::from_bytes(&config_data)?;
     if !config.is_initialized() {
         return Err(EntropyError::NotInitialized.into());
     }
@@ -580,7 +580,7 @@ fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     if commitment_data.len() < COMMITMENT_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let commitment = unsafe { Commitment::from_bytes_unchecked(&commitment_data) };
+    let commitment = Commitment::from_bytes(&commitment_data)?;
 
     // Verify commitment PDA
     let sequence_bytes = commitment.sequence.to_le_bytes();
@@ -604,7 +604,7 @@ fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     if request_data.len() < REQUEST_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let request = unsafe { state::Request::from_bytes_unchecked_mut(&mut request_data) };
+    let request = state::Request::from_bytes_mut(&mut request_data)?;
 
     // Verify request PDA
     let request_id_bytes = request.request_id.to_le_bytes();
@@ -628,7 +628,7 @@ fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
         return Err(EntropyError::InvalidCommitment.into());
     }
 
-    // AC-2.2: Derive randomness from preimage XOR slothash
+    // AC-POK2.2: Derive randomness from preimage XOR slothash
     let randomness = derive_randomness(&commitment.preimage, &request.slothash);
 
     // Update request
@@ -638,22 +638,28 @@ fn process_finalize(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     Ok(())
 }
 
-/// Slash provider for missed reveal (AC-2.3)
+/// Slash provider for missed reveal (AC-POK2.3)
 fn process_slash(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
-    let [commitment_info, provider_info, slasher_info, config_info, _clock_info] = accounts else {
+    let [commitment_info, request_info, provider_info, slasher_info, config_info, _clock_info] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
-    // Duplicate mutable account checks (AC-7.3)
-    if commitment_info.key() == provider_info.key()
+    // Duplicate mutable account checks (AC-POK7.3)
+    if commitment_info.key() == request_info.key()
+        || commitment_info.key() == provider_info.key()
         || commitment_info.key() == slasher_info.key()
+        || request_info.key() == provider_info.key()
+        || request_info.key() == slasher_info.key()
         || provider_info.key() == slasher_info.key()
     {
         return Err(EntropyError::DuplicateMutableAccount.into());
     }
 
     // Accounts must be owned by this program where applicable
-    if !config_info.is_owned_by(&crate::ID) || !commitment_info.is_owned_by(&crate::ID) {
+    if !config_info.is_owned_by(&crate::ID)
+        || !commitment_info.is_owned_by(&crate::ID)
+        || !request_info.is_owned_by(&crate::ID)
+    {
         return Err(EntropyError::InvalidAccountOwner.into());
     }
 
@@ -669,12 +675,11 @@ fn process_slash(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let config = unsafe { Config::from_bytes_unchecked(&config_data) };
+    let config = Config::from_bytes(&config_data)?;
     if !config.is_initialized() {
         return Err(EntropyError::NotInitialized.into());
     }
     let config_provider = config.provider;
-    let reveal_window_slots = config.reveal_window_slots;
     let slash_basis_points = config.slash_basis_points;
 
     // Get current slot
@@ -682,12 +687,43 @@ fn process_slash(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
 
     drop(config_data);
 
+    // Load request
+    let request_data = request_info.try_borrow_data()?;
+    if request_data.len() < REQUEST_SIZE {
+        return Err(EntropyError::InvalidAccountDataLength.into());
+    }
+    let request = state::Request::from_bytes(&request_data)?;
+    let request_id = request.request_id;
+    let request_requester = request.requester;
+    let request_commitment = request.commitment;
+    let request_deadline = request.deadline_slot;
+    let request_pending = request.is_pending();
+
+    // Verify request PDA
+    let request_id_bytes = request_id.to_le_bytes();
+    let request_seeds: [&[u8]; 3] = [
+        b"request",
+        request_requester.as_ref(),
+        request_id_bytes.as_slice(),
+    ];
+    let (expected_request, _) = pubkey::find_program_address(&request_seeds, &crate::ID);
+    if request_info.key() != &expected_request {
+        return Err(EntropyError::InvalidPda.into());
+    }
+
+    if !request_pending {
+        return Err(EntropyError::RequestAlreadyFinalized.into());
+    }
+
+    let deadline = request_deadline;
+    drop(request_data);
+
     // Load commitment
     let mut commitment_data = commitment_info.try_borrow_mut_data()?;
     if commitment_data.len() < COMMITMENT_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let commitment = unsafe { Commitment::from_bytes_unchecked_mut(&mut commitment_data) };
+    let commitment = Commitment::from_bytes_mut(&mut commitment_data)?;
 
     // Verify commitment PDA
     let sequence_bytes = commitment.sequence.to_le_bytes();
@@ -699,6 +735,11 @@ fn process_slash(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
     let (expected_commitment, _) = pubkey::find_program_address(&commitment_seeds, &crate::ID);
     if commitment_info.key() != &expected_commitment {
         return Err(EntropyError::InvalidPda.into());
+    }
+
+    // Verify request references this commitment
+    if &request_commitment != commitment_info.key() {
+        return Err(EntropyError::InvalidCommitment.into());
     }
 
     // Commitment must be pending (not yet revealed or already slashed)
@@ -716,14 +757,7 @@ fn process_slash(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
         return Err(EntropyError::ProviderMismatch.into());
     }
 
-    // AC-2.3: Check if reveal window has expired
-    // We use commit_slot + a reasonable reveal window for this check
-    // In production, this would be based on the request's deadline
-    let deadline = commitment
-        .commit_slot
-        .checked_add(reveal_window_slots)
-        .ok_or(EntropyError::ArithmeticOverflow)?;
-
+    // AC-POK2.3: Check if reveal window has expired (based on request deadline)
     if clock.slot <= deadline {
         return Err(EntropyError::RevealWindowNotExpired.into());
     }
@@ -751,7 +785,7 @@ fn process_slash(accounts: &[AccountInfo], _data: &[u8]) -> ProgramResult {
 
     // Mark as slashed
     let mut commitment_data = commitment_info.try_borrow_mut_data()?;
-    let commitment = unsafe { Commitment::from_bytes_unchecked_mut(&mut commitment_data) };
+    let commitment = Commitment::from_bytes_mut(&mut commitment_data)?;
     commitment.status = commitment_status::SLASHED;
 
     Ok(())
@@ -785,14 +819,14 @@ fn process_update_config(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult
     }
 
     // Parse instruction data
-    let ix = unsafe { instruction::UpdateConfig::from_bytes_unchecked(data) };
+    let ix = instruction::UpdateConfig::from_bytes(data);
 
     // Load and verify config
     let mut config_data = config_info.try_borrow_mut_data()?;
     if config_data.len() < CONFIG_SIZE {
         return Err(EntropyError::InvalidAccountDataLength.into());
     }
-    let config = unsafe { Config::from_bytes_unchecked_mut(&mut config_data) };
+    let config = Config::from_bytes_mut(&mut config_data)?;
 
     if !config.is_initialized() {
         return Err(EntropyError::NotInitialized.into());

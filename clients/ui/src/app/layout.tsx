@@ -32,7 +32,7 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 safe-area-insets`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased safe-area-insets`}
       >
         <ClientProviders>{children}</ClientProviders>
       </body>

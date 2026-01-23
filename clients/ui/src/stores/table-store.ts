@@ -41,6 +41,11 @@ export function createTableStore() {
   const actorListeners = new Set<Listener>();
   const statusListeners = new Set<Listener>();
   const streetListeners = new Set<Listener>();
+  const dealerListeners = new Set<Listener>();
+  const seedListeners = new Set<Listener>();
+  const seatStatusListeners = new Set<Listener>();
+
+  let seatStatuses = state.seats.map((seat) => seat.status);
 
   /**
    * Notify only the relevant listeners based on what changed.
@@ -70,11 +75,30 @@ export function createTableStore() {
       streetListeners.forEach((l) => l());
     }
 
+    // Notify dealer listeners if dealer position changed
+    if (prev.dealerPosition !== next.dealerPosition) {
+      dealerListeners.forEach((l) => l());
+    }
+
+    // Notify seed listeners if revealed seed changed
+    if (prev.revealedSeed !== next.revealedSeed) {
+      seedListeners.forEach((l) => l());
+    }
+
     // Notify seat listeners only for seats that changed
+    let seatStatusChanged = false;
     for (let i = 0; i < MAX_SEATS; i++) {
+      if (prev.seats[i].status !== next.seats[i].status) {
+        seatStatusChanged = true;
+      }
       if (!seatEquals(prev.seats[i], next.seats[i])) {
         seatListeners[i].forEach((l) => l());
       }
+    }
+
+    if (seatStatusChanged) {
+      seatStatuses = next.seats.map((seat) => seat.status);
+      seatStatusListeners.forEach((l) => l());
     }
   }
 
@@ -99,6 +123,16 @@ export function createTableStore() {
       return state.currentActor;
     },
 
+    /** Get dealer position (snapshot) */
+    getDealerPosition(): number {
+      return state.dealerPosition;
+    },
+
+    /** Get revealed seed (snapshot) */
+    getRevealedSeed(): string {
+      return state.revealedSeed;
+    },
+
     /** Get table status (snapshot) */
     getStatus(): number {
       return state.status;
@@ -107,6 +141,11 @@ export function createTableStore() {
     /** Get current street (snapshot) */
     getStreet(): number {
       return state.currentStreet;
+    },
+
+    /** Get seat statuses (snapshot) */
+    getSeatStatuses(): number[] {
+      return seatStatuses;
     },
 
     /**
@@ -155,6 +194,24 @@ export function createTableStore() {
       return () => streetListeners.delete(listener);
     },
 
+    /** Subscribe to dealer position changes only */
+    subscribeDealerPosition(listener: Listener): () => void {
+      dealerListeners.add(listener);
+      return () => dealerListeners.delete(listener);
+    },
+
+    /** Subscribe to revealed seed changes only */
+    subscribeRevealedSeed(listener: Listener): () => void {
+      seedListeners.add(listener);
+      return () => seedListeners.delete(listener);
+    },
+
+    /** Subscribe to seat status changes only */
+    subscribeSeatStatuses(listener: Listener): () => void {
+      seatStatusListeners.add(listener);
+      return () => seatStatusListeners.delete(listener);
+    },
+
     /** For testing: get listener counts */
     _getListenerCounts() {
       return {
@@ -164,6 +221,9 @@ export function createTableStore() {
         actor: actorListeners.size,
         status: statusListeners.size,
         street: streetListeners.size,
+        dealer: dealerListeners.size,
+        seed: seedListeners.size,
+        seatStatus: seatStatusListeners.size,
       };
     },
   };

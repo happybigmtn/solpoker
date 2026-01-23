@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useWalletConnection } from '@solana/react-hooks';
 
 /**
@@ -14,6 +14,13 @@ export function WalletConnect() {
   const { connectors, connect, disconnect, wallet, status } = useWalletConnection();
   const [copied, setCopied] = useState(false);
 
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isSaga = useMemo(() => {
+    if (typeof window !== 'undefined' && 'SeedVault' in window) return true;
+    return /Saga/i.test(userAgent);
+  }, [userAgent]);
+  const isMobile = useMemo(() => /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent), [userAgent]);
+
   const connected = status === 'connected';
   const connecting = status === 'connecting';
   const address = wallet?.account?.address?.toString() ?? '';
@@ -21,12 +28,21 @@ export function WalletConnect() {
     ? `${address.slice(0, 4)}…${address.slice(-4)}`
     : '';
 
+  const getConnectorDeepLink = useCallback((connector: (typeof connectors)[number]) => {
+    const maybe = connector as { url?: string; deepLink?: string; deeplink?: string; appUrl?: string };
+    return maybe.deepLink ?? maybe.deeplink ?? maybe.url ?? maybe.appUrl;
+  }, []);
+
   const handleSelect = useCallback(
     async (connector: (typeof connectors)[number]) => {
+      const deepLink = getConnectorDeepLink(connector);
+      if (isMobile && deepLink) {
+        window.location.assign(deepLink);
+      }
       await connect(connector.id);
       setIsModalOpen(false);
     },
-    [connect],
+    [connect, getConnectorDeepLink, isMobile],
   );
 
   const handleOpenModal = useCallback(() => {
@@ -103,10 +119,19 @@ export function WalletConnect() {
             >
               Select Wallet
             </h2>
+            <div className="mb-3 text-xs text-zinc-500 dark:text-zinc-400" data-wallet-flow>
+              {isSaga
+                ? 'Saga detected — authorize in your wallet app (no QR required).'
+                : isMobile
+                  ? 'You will be redirected to your wallet app to approve.'
+                  : 'Choose a wallet to connect.'}
+            </div>
             <div className="flex flex-col gap-2">
               {connectors.length === 0 ? (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  No wallets detected. Install a Solana wallet extension.
+                  {isMobile
+                    ? 'No wallets detected. Install a Solana wallet app to continue.'
+                    : 'No wallets detected. Install a Solana wallet extension.'}
                 </p>
               ) : (
                 connectors.map((connector) => (

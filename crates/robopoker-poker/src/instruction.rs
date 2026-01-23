@@ -12,26 +12,63 @@ pub mod discriminator {
     pub const JOIN_TABLE: u8 = 2;
     /// Leave a table (cash out)
     pub const LEAVE_TABLE: u8 = 3;
-    /// Start a new hand with seed commitment (AC-4.3, AC-2.6, AC-2.7)
+    /// Start a new hand with seed commitment (AC-POK4.3, AC-POK2.6, AC-POK2.7)
     pub const START_HAND: u8 = 4;
-    /// Process timeout auto-action (AC-4.4)
+    /// Process timeout auto-action (AC-POK4.4)
     pub const TIMEOUT_ACTION: u8 = 5;
-    /// Player action during betting round (AC-5.1, AC-5.2, AC-5.3)
+    /// Player action during betting round (AC-POK5.1, AC-POK5.2, AC-POK5.3)
     pub const PLAYER_ACTION: u8 = 6;
-    /// Settle hand and distribute pot (AC-6.1, AC-6.2)
+    /// Settle hand and distribute pot (AC-POK6.1, AC-POK6.2)
     pub const SETTLE: u8 = 7;
-    /// Reveal seed at showdown (AC-2.7, AC-2.8)
+    /// Reveal seed at showdown (AC-POK2.7, AC-POK2.8)
     pub const REVEAL_SEED: u8 = 8;
-    /// Initialize staking pool (AC-3.5)
+    /// Initialize staking pool (AC-POK3.5)
     pub const INIT_STAKING_POOL: u8 = 9;
-    /// Deposit CRISPS into staking pool (AC-3.5)
+    /// Deposit CRISPS into staking pool (AC-POK3.5)
     pub const DEPOSIT_STAKE: u8 = 10;
-    /// Withdraw CRISPS from staking pool (AC-3.5)
+    /// Withdraw CRISPS from staking pool (AC-POK3.5)
     pub const WITHDRAW_STAKE: u8 = 11;
-    /// Claim accumulated rake rewards (AC-3.6)
+    /// Claim accumulated rake rewards (AC-POK3.6)
     pub const CLAIM_REWARDS: u8 = 12;
-    /// Sweep accumulated rake from table to staking pool (AC-3.4)
+    /// Sweep accumulated rake from table to staking pool (AC-POK3.4)
     pub const SWEEP_RAKE: u8 = 13;
+    /// Close an empty table and reclaim rent
+    pub const CLOSE_TABLE: u8 = 14;
+    /// Close staking pool and reclaim rent
+    pub const CLOSE_STAKING_POOL: u8 = 15;
+    /// Close staker position and reclaim rent
+    pub const CLOSE_STAKER_POSITION: u8 = 16;
+}
+
+/// Implements from_bytes and from_bytes_unchecked for instruction data structs.
+macro_rules! impl_instruction_bytes {
+    ($type:ty) => {
+        impl $type {
+            pub const SIZE: usize = core::mem::size_of::<Self>();
+
+            /// Parse from instruction data
+            ///
+            /// Caller must ensure data.len() >= SIZE
+            #[inline]
+            pub fn from_bytes(data: &[u8]) -> Self {
+                read_unaligned::<Self>(data)
+            }
+
+            /// # Safety
+            /// Caller must ensure data.len() >= SIZE and data is properly aligned
+            #[inline]
+            pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
+                unsafe { &*(data.as_ptr() as *const Self) }
+            }
+        }
+    };
+}
+
+#[inline]
+fn read_unaligned<T: Copy>(data: &[u8]) -> T {
+    debug_assert!(data.len() >= core::mem::size_of::<T>());
+    // SAFETY: read_unaligned permits any alignment; caller validates length.
+    unsafe { core::ptr::read_unaligned(data.as_ptr() as *const T) }
 }
 
 /// Initialize instruction data
@@ -45,29 +82,18 @@ pub mod discriminator {
 #[derive(Debug, Clone, Copy)]
 pub struct Initialize {
     pub discriminator: u8,
-    /// Minimum players to start a hand (AC-4.3)
+    /// Minimum players to start a hand (AC-POK4.3)
     pub min_players: u8,
     pub _padding: [u8; 6],
     /// Minimum buy-in amount
     pub min_buy_in: u64,
     /// Maximum buy-in amount
     pub max_buy_in: u64,
-    /// Slots allowed per action before timeout (AC-4.4)
+    /// Slots allowed per action before timeout (AC-POK4.4)
     pub action_timeout_slots: u64,
 }
 
-impl Initialize {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
-
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
+impl_instruction_bytes!(Initialize);
 
 /// Create table instruction data
 /// Accounts:
@@ -91,20 +117,9 @@ pub struct CreateTable {
     pub big_blind: u64,
 }
 
-impl CreateTable {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(CreateTable);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Join table instruction data (AC-3.3: debit player, credit vault)
+/// Join table instruction data (AC-POK3.3: debit player, credit vault)
 /// Accounts:
 ///   0. [writable] Table
 ///   1. [writable] Vault token account
@@ -121,20 +136,9 @@ pub struct JoinTable {
     pub buy_in_amount: u64,
 }
 
-impl JoinTable {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(JoinTable);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Leave table instruction data (AC-3.3: credit player, debit vault)
+/// Leave table instruction data (AC-POK3.3: credit player, debit vault)
 /// Accounts:
 ///   0. [writable] Table
 ///   1. [writable] Vault token account
@@ -148,20 +152,9 @@ pub struct LeaveTable {
     pub discriminator: u8,
 }
 
-impl LeaveTable {
-    pub const SIZE: usize = 1;
+impl_instruction_bytes!(LeaveTable);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Start hand instruction data (AC-4.3, AC-2.6, AC-2.7)
+/// Start hand instruction data (AC-POK4.3, AC-POK2.6, AC-POK2.7)
 ///
 /// Includes seed commitment and hole card hashes for privacy hybrid flow.
 /// The provider commits sha256(seed), and hole_card_hashes[i] = sha256(card1||card2)
@@ -184,27 +177,16 @@ pub struct StartHand {
     pub discriminator: u8,
     /// Padding for alignment
     pub _padding: [u8; 7],
-    /// SHA256 hash of the deck seed (AC-2.7: provider commits before deal)
+    /// SHA256 hash of the deck seed (AC-POK2.7: provider commits before deal)
     pub seed_commitment: [u8; 32],
-    /// SHA256(card1_u8 || card2_u8) for each seat (AC-2.6: hole card privacy)
+    /// SHA256(card1_u8 || card2_u8) for each seat (AC-POK2.6: hole card privacy)
     /// Zero for empty seats or seats not in the hand
     pub hole_card_hashes: [[u8; 32]; 10],
 }
 
-impl StartHand {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(StartHand);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Timeout action instruction data (AC-4.4: deterministic fallback action)
+/// Timeout action instruction data (AC-POK4.4: deterministic fallback action)
 /// Accounts:
 ///   0. [writable] Table
 ///   1. [] Config
@@ -218,20 +200,9 @@ pub struct TimeoutAction {
     pub discriminator: u8,
 }
 
-impl TimeoutAction {
-    pub const SIZE: usize = 1;
+impl_instruction_bytes!(TimeoutAction);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Player action types for betting rounds (AC-5.1, AC-5.2)
+/// Player action types for betting rounds (AC-POK5.1, AC-POK5.2)
 pub mod action_type {
     /// Fold - give up the hand
     pub const FOLD: u8 = 0;
@@ -245,7 +216,7 @@ pub mod action_type {
     pub const ALL_IN: u8 = 4;
 }
 
-/// Player action instruction data (AC-5.1, AC-5.2, AC-5.3)
+/// Player action instruction data (AC-POK5.1, AC-POK5.2, AC-POK5.3)
 /// Accounts:
 ///   0. [writable] Table
 ///   1. [signer] Player
@@ -264,20 +235,9 @@ pub struct PlayerAction {
     pub amount: u64,
 }
 
-impl PlayerAction {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(PlayerAction);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Settle instruction data (AC-6.1, AC-6.2: showdown and payout)
+/// Settle instruction data (AC-POK6.1, AC-POK6.2: showdown and payout)
 /// Accounts:
 ///   0. [writable] Table
 ///   1. [] Config
@@ -294,20 +254,9 @@ pub struct Settle {
     pub discriminator: u8,
 }
 
-impl Settle {
-    pub const SIZE: usize = 1;
+impl_instruction_bytes!(Settle);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Reveal seed instruction data (AC-2.7, AC-2.8: seed reveal and deck verification)
+/// Reveal seed instruction data (AC-POK2.7, AC-POK2.8: seed reveal and deck verification)
 ///
 /// Provider reveals the 32-byte seed that was committed at hand start.
 /// The program verifies:
@@ -333,26 +282,15 @@ pub struct RevealSeed {
     pub _padding: [u8; 7],
     /// The preimage seed (reveals seed_commitment)
     pub seed: [u8; 32],
-    /// Revealed hole cards for each seat (AC-2.8: must match derived deck order)
+    /// Revealed hole cards for each seat (AC-POK2.8: must match derived deck order)
     /// Each entry is [card1_u8, card2_u8] where cards are 0-51 indices
     /// Zero for empty/folded seats
     pub revealed_hole_cards: [[u8; 2]; 10],
 }
 
-impl RevealSeed {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(RevealSeed);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Initialize staking pool instruction data (AC-3.5)
+/// Initialize staking pool instruction data (AC-POK3.5)
 ///
 /// Creates the global staking pool with associated vaults.
 ///
@@ -371,20 +309,9 @@ pub struct InitStakingPool {
     pub discriminator: u8,
 }
 
-impl InitStakingPool {
-    pub const SIZE: usize = 1;
+impl_instruction_bytes!(InitStakingPool);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Deposit stake instruction data (AC-3.5)
+/// Deposit stake instruction data (AC-POK3.5)
 ///
 /// Stakers deposit CRISPS into the staking pool to earn rewards.
 ///
@@ -407,20 +334,9 @@ pub struct DepositStake {
     pub amount: u64,
 }
 
-impl DepositStake {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(DepositStake);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Withdraw stake instruction data (AC-3.5)
+/// Withdraw stake instruction data (AC-POK3.5)
 ///
 /// Stakers withdraw their deposited CRISPS from the staking pool.
 ///
@@ -442,20 +358,9 @@ pub struct WithdrawStake {
     pub amount: u64,
 }
 
-impl WithdrawStake {
-    pub const SIZE: usize = core::mem::size_of::<Self>();
+impl_instruction_bytes!(WithdrawStake);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Claim rewards instruction data (AC-3.6)
+/// Claim rewards instruction data (AC-POK3.6)
 ///
 /// Stakers claim their proportional share of accumulated rake rewards.
 ///
@@ -473,20 +378,9 @@ pub struct ClaimRewards {
     pub discriminator: u8,
 }
 
-impl ClaimRewards {
-    pub const SIZE: usize = 1;
+impl_instruction_bytes!(ClaimRewards);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
-}
-
-/// Sweep rake instruction data (AC-3.4)
+/// Sweep rake instruction data (AC-POK3.4)
 ///
 /// Transfers accumulated rake from a table vault to the staking pool rewards vault.
 /// Anyone can call this permissionlessly to sweep rake.
@@ -504,15 +398,76 @@ pub struct SweepRake {
     pub discriminator: u8,
 }
 
-impl SweepRake {
-    pub const SIZE: usize = 1;
+impl_instruction_bytes!(SweepRake);
 
-    /// Parse from instruction data
-    ///
-    /// # Safety
-    /// Caller must ensure data.len() >= SIZE
-    #[inline]
-    pub unsafe fn from_bytes_unchecked(data: &[u8]) -> &Self {
-        unsafe { &*(data.as_ptr() as *const Self) }
-    }
+/// Close table instruction data (rent reclamation)
+///
+/// Closes an empty table and its vault, returning the lamports to the beneficiary.
+/// This instruction reclaims rent from both the Table account and the Vault token account.
+///
+/// Conditions (all must be met):
+/// - Table must have player_count == 0 (no players seated)
+/// - Table must have pot == 0 (no pot)
+/// - Table must have rake_accumulated == 0 (sweep rake first)
+/// - Vault token account must have balance == 0 (all tokens withdrawn)
+///
+/// Accounts:
+///   0. [writable] Table PDA (will be closed)
+///   1. [writable] Vault token account PDA (will be closed)
+///   2. [writable] Beneficiary (receives lamports from both accounts)
+///   3. [signer] Authority (config authority or original payer)
+///   4. [] Config
+///   5. [] Token-2022 program
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct CloseTable {
+    pub discriminator: u8,
 }
+
+impl_instruction_bytes!(CloseTable);
+
+/// Close staking pool instruction data (rent reclamation)
+///
+/// Closes the staking pool and its vaults when empty.
+///
+/// Conditions (all must be met):
+/// - total_staked == 0 (no stakers)
+/// - accumulated_rewards == 0 (all rewards claimed)
+/// - Both vault token accounts must have balance == 0
+///
+/// Accounts:
+///   0. [writable] Staking pool PDA (will be closed)
+///   1. [writable] Stake vault token account (will be closed)
+///   2. [writable] Rewards vault token account (will be closed)
+///   3. [writable] Beneficiary (receives lamports)
+///   4. [signer] Authority (config authority)
+///   5. [] Config
+///   6. [] Token-2022 program
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct CloseStakingPool {
+    pub discriminator: u8,
+}
+
+impl_instruction_bytes!(CloseStakingPool);
+
+/// Close staker position instruction data (rent reclamation)
+///
+/// Closes a staker position account when empty.
+///
+/// Conditions (all must be met):
+/// - staked_amount == 0 (all stake withdrawn)
+/// - rewards_claimed == 0 (all rewards claimed)
+///
+/// Accounts:
+///   0. [writable] Staker position PDA (will be closed)
+///   1. [writable] Beneficiary (receives lamports, typically the staker)
+///   2. [signer] Staker (must own the position)
+///   3. [] Staking pool (for validation)
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct CloseStakerPosition {
+    pub discriminator: u8,
+}
+
+impl_instruction_bytes!(CloseStakerPosition);

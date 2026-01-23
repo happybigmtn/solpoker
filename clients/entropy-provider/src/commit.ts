@@ -11,8 +11,6 @@
 
 import {
   address,
-  createDefaultRpcTransport,
-  createSolanaRpcFromTransport,
   createTransactionMessage,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -28,6 +26,12 @@ import {
 
 import type { HashChain } from "./hash-chain.js";
 import { getCurrentCommitment } from "./hash-chain.js";
+import { recordCommitLatency, recordRpcError, recordTxResult } from "./metrics.js";
+import {
+  createFailoverRpc,
+  resolveRpcUrls,
+  type RpcFailoverOptions,
+} from "./rpc-failover.js";
 
 /**
  * Configuration for the entropy provider
@@ -35,6 +39,8 @@ import { getCurrentCommitment } from "./hash-chain.js";
 export interface EntropyProviderConfig {
   /** Solana RPC URL */
   rpcUrl: string;
+  /** Additional RPC URLs for failover */
+  rpcUrls?: string[];
   /** WebSocket URL for subscriptions */
   wsUrl: string;
   /** Entropy program ID */
@@ -45,6 +51,8 @@ export interface EntropyProviderConfig {
   providerSigner: KeyPairSigner;
   /** Minimum bond amount in lamports */
   minBond: bigint;
+  /** RPC failover configuration */
+  rpcFailover?: RpcFailoverOptions;
 }
 
 /**
@@ -133,20 +141,31 @@ function buildCommitInstructionData(hash: Uint8Array, sequence: bigint, bondAmou
 /**
  * Create an RPC client from a URL
  */
-function createRpc(url: string) {
-  const transport = createDefaultRpcTransport({ url });
-  return createSolanaRpcFromTransport(transport);
+function createRpcFromConfig(config: EntropyProviderConfig) {
+  const urls = resolveRpcUrls(config);
+  return createFailoverRpc(urls, config.rpcFailover);
+}
+
+function createRpcFromUrls(urls: string[], options?: RpcFailoverOptions) {
+  return createFailoverRpc(urls, options);
+}
+
+function isBlockhashNotFound(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("blockhash not found");
 }
 
 /**
  * Send a transaction and wait for confirmation
  */
 async function sendAndConfirmTransaction(
-  rpcUrl: string,
+  rpcUrl: string | string[],
   signedTx: any,
-  commitment: "processed" | "confirmed" | "finalized" = "confirmed"
+  commitment: "processed" | "confirmed" | "finalized" = "confirmed",
+  rpcFailover?: RpcFailoverOptions
 ): Promise<string> {
-  const rpc = createRpc(rpcUrl);
+  const urls = Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl];
+  const rpc = createRpcFromUrls(urls, rpcFailover);
 
   // Get the wire format
   const encodedTx = getBase64EncodedWireTransaction(signedTx);
@@ -214,7 +233,7 @@ export async function postCommitment(
   chain: HashChain,
   state: CommitmentState
 ): Promise<PendingCommitment> {
-  const rpc = createRpc(config.rpcUrl);
+  const rpc = createRpcFromConfig(config);
 
   // Get current commitment hash from chain
   const hash = getCurrentCommitment(chain);
@@ -226,9 +245,6 @@ export async function postCommitment(
     config.providerSigner.address,
     sequence
   );
-
-  // Get recent blockhash
-  const { value: latestBlockhash } = await (rpc as any).getLatestBlockhash().send();
 
   // Build the commit instruction
   // The program will create the commitment account via CPI using invoke_signed_unchecked
@@ -243,28 +259,60 @@ export async function postCommitment(
     data: buildCommitInstructionData(hash, sequence, config.minBond),
   };
 
-  // Build and sign transaction
-  const message = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(config.providerSigner, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstruction(commitInstruction, m)
-  );
+  let signature: string | undefined;
+  let commitSlot = 0n;
+  let lastError: unknown;
 
-  const signedTx = await signTransactionMessageWithSigners(message);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // Get recent blockhash
+    const { value: latestBlockhash } = await (rpc as any).getLatestBlockhash().send();
 
-  // Send and confirm
-  const signature = await sendAndConfirmTransaction(config.rpcUrl, signedTx, "confirmed");
+    // Build and sign transaction
+    const message = pipe(
+      createTransactionMessage({ version: 0 }),
+      (m) => setTransactionMessageFeePayerSigner(config.providerSigner, m),
+      (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
+      (m) => appendTransactionMessageInstruction(commitInstruction, m)
+    );
 
-  // Get the slot from the confirmed transaction
-  const txInfo = await (rpc as any)
-    .getTransaction(signature, {
-      commitment: "confirmed",
-      encoding: "json",
-      maxSupportedTransactionVersion: 0,
-    })
-    .send();
-  const commitSlot = BigInt(txInfo?.slot ?? 0);
+    const signedTx = await signTransactionMessageWithSigners(message);
+
+    try {
+      const startTime = Date.now();
+      signature = await sendAndConfirmTransaction(
+        resolveRpcUrls(config),
+        signedTx,
+        "confirmed",
+        config.rpcFailover
+      );
+      recordCommitLatency(Date.now() - startTime);
+      recordTxResult(true);
+
+      // Get the slot from the confirmed transaction
+      const txInfo = await (rpc as any)
+        .getTransaction(signature, {
+          commitment: "confirmed",
+          encoding: "json",
+          maxSupportedTransactionVersion: 0,
+        })
+        .send();
+      commitSlot = BigInt(txInfo?.slot ?? 0);
+      break;
+    } catch (err) {
+      lastError = err;
+      recordRpcError();
+      if (isBlockhashNotFound(err) && attempt < 1) {
+        continue;
+      }
+      recordTxResult(false);
+      throw err;
+    }
+  }
+
+  if (!signature) {
+    recordTxResult(false);
+    throw lastError ?? new Error("Failed to post commitment");
+  }
 
   // Create pending commitment record (AC-EP2.3)
   const pending: PendingCommitment = {
@@ -285,17 +333,19 @@ export async function postCommitment(
 /**
  * Verify a commitment exists on-chain with the expected hash
  *
- * @param rpcUrl - Solana RPC URL
+ * @param rpcUrl - Solana RPC URL(s)
  * @param commitmentAddress - PDA address of the commitment
  * @param expectedHash - Expected hash value
  * @returns true if commitment exists with correct hash
  */
 export async function verifyCommitmentOnChain(
-  rpcUrl: string,
+  rpcUrl: string | string[],
   commitmentAddress: Address,
-  expectedHash: Uint8Array
+  expectedHash: Uint8Array,
+  rpcFailover?: RpcFailoverOptions
 ): Promise<boolean> {
-  const rpc = createRpc(rpcUrl);
+  const urls = Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl];
+  const rpc = createRpcFromUrls(urls, rpcFailover);
   const accountInfo = await (rpc as any).getAccountInfo(commitmentAddress, { encoding: "base64" }).send();
 
   if (!accountInfo.value) {
@@ -333,17 +383,19 @@ export async function verifyCommitmentOnChain(
  *
  * Scans for existing commitments to determine the next sequence number
  *
- * @param rpcUrl - Solana RPC URL
+ * @param rpcUrl - Solana RPC URL(s)
  * @param entropyProgramId - Entropy program ID
  * @param provider - Provider address
  * @returns Initial commitment state
  */
 export async function initCommitmentState(
-  rpcUrl: string,
+  rpcUrl: string | string[],
   entropyProgramId: Address,
-  provider: Address
+  provider: Address,
+  rpcFailover?: RpcFailoverOptions
 ): Promise<CommitmentState> {
-  const rpc = createRpc(rpcUrl);
+  const urls = Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl];
+  const rpc = createRpcFromUrls(urls, rpcFailover);
 
   // Start with sequence 0 and scan for existing commitments
   let nextSequence = 0n;

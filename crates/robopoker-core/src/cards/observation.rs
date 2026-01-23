@@ -109,7 +109,7 @@ impl From<(Hand, Hand)> for Observation {
 }
 
 impl Observation {
-    /// Generate an observation for a given street using a seed for deterministic shuffling (AC-1.1).
+    /// Generate an observation for a given street using a seed for deterministic shuffling (AC-POK1.1).
     pub fn from_street_with_seed(street: Street, seed: &[u8; 32]) -> Self {
         let mut deck = Deck::new();
         deck.shuffle_with_seed(seed);

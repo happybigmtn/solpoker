@@ -56,8 +56,11 @@ vi.mock('@/hooks/use-table-subscription', () => ({
   useSeat: vi.fn(),
   usePot: vi.fn(),
   useCurrentActor: vi.fn(),
+  useTableStatus: vi.fn(),
   useStreet: vi.fn(),
-  useTableState: vi.fn(),
+  useDealerPosition: vi.fn(),
+  useRevealedSeed: vi.fn(),
+  useSeatStatuses: vi.fn(),
 }));
 
 // Mock use-keyboard-shortcuts
@@ -74,10 +77,14 @@ vi.mock('@/hooks/use-keyboard-shortcuts', () => ({
 }));
 
 import {
-  useTableState,
   useSeat,
   usePot,
   useCurrentActor,
+  useTableStatus,
+  useStreet,
+  useDealerPosition,
+  useRevealedSeed,
+  useSeatStatuses,
 } from '@/hooks/use-table-subscription';
 import { deriveBoardCards, deriveHoleCards } from '@/lib/card-derivation';
 import { PokerTable } from './poker-table';
@@ -86,12 +93,30 @@ import { PokerActions } from './poker-actions';
 import { CommandPalette } from './command-palette';
 import type { TableStore } from '@/hooks/use-table-subscription';
 
-const mockUseTableState = useTableState as ReturnType<typeof vi.fn>;
 const mockUseSeat = useSeat as ReturnType<typeof vi.fn>;
 const mockUsePot = usePot as ReturnType<typeof vi.fn>;
 const mockUseCurrentActor = useCurrentActor as ReturnType<typeof vi.fn>;
+const mockUseTableStatus = useTableStatus as ReturnType<typeof vi.fn>;
+const mockUseStreet = useStreet as ReturnType<typeof vi.fn>;
+const mockUseDealerPosition = useDealerPosition as ReturnType<typeof vi.fn>;
+const mockUseRevealedSeed = useRevealedSeed as ReturnType<typeof vi.fn>;
+const mockUseSeatStatuses = useSeatStatuses as ReturnType<typeof vi.fn>;
 const mockDeriveBoardCards = deriveBoardCards as ReturnType<typeof vi.fn>;
 const mockDeriveHoleCards = deriveHoleCards as ReturnType<typeof vi.fn>;
+
+const setTableContext = (params: {
+  currentStreet: number;
+  revealedSeed: string;
+  dealerPosition: number;
+  seats: { status: number }[];
+  status: number;
+}) => {
+  mockUseStreet.mockReturnValue(params.currentStreet);
+  mockUseRevealedSeed.mockReturnValue(params.revealedSeed);
+  mockUseDealerPosition.mockReturnValue(params.dealerPosition);
+  mockUseSeatStatuses.mockReturnValue(params.seats.map((seat) => seat.status));
+  mockUseTableStatus.mockReturnValue(params.status);
+};
 
 describe('AC-3.1: Seat layout with active/inactive state and turn indicator', () => {
   const mockStore = {} as TableStore;
@@ -117,20 +142,17 @@ describe('AC-3.1: Seat layout with active/inactive state and turn indicator', ()
   });
 
   const emptySeats = Array.from({ length: 10 }, createEmptySeat);
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockUsePot.mockReturnValue(0n);
     mockUseCurrentActor.mockReturnValue(-1);
+    mockUseTableStatus.mockReturnValue(1);
+    mockUseStreet.mockReturnValue(0);
+    mockUseDealerPosition.mockReturnValue(0);
+    mockUseRevealedSeed.mockReturnValue('');
+    mockUseSeatStatuses.mockReturnValue(emptySeats.map((seat) => seat.status));
     mockDeriveBoardCards.mockReturnValue(null);
     mockDeriveHoleCards.mockReturnValue(null);
-    mockUseTableState.mockReturnValue({
-      currentStreet: 0,
-      revealedSeed: '',
-      dealerPosition: 0,
-      seats: emptySeats,
-      status: 0,
-    });
     mockUseSeat.mockImplementation(() => createEmptySeat());
   });
 
@@ -144,7 +166,7 @@ describe('AC-3.1: Seat layout with active/inactive state and turn indicator', ()
 
   it('distinguishes active (occupied) from inactive (empty) seats', () => {
     const seats = [createOccupiedSeat('player1', 1000n), ...emptySeats.slice(1)];
-    mockUseTableState.mockReturnValue({
+    setTableContext({
       currentStreet: 0,
       revealedSeed: '',
       dealerPosition: 0,
@@ -165,7 +187,7 @@ describe('AC-3.1: Seat layout with active/inactive state and turn indicator', ()
 
   it('shows turn indicator (yellow ring) on current actor', () => {
     const seats = [createOccupiedSeat('player1', 1000n), createOccupiedSeat('player2', 1000n), ...emptySeats.slice(2)];
-    mockUseTableState.mockReturnValue({
+    setTableContext({
       currentStreet: 1,
       revealedSeed: '',
       dealerPosition: 0,
@@ -187,7 +209,7 @@ describe('AC-3.1: Seat layout with active/inactive state and turn indicator', ()
   it('highlights player seat with blue ring', () => {
     const playerAddr = 'TestPlayerAddress123';
     const seats = [createOccupiedSeat(playerAddr, 1000n), ...emptySeats.slice(1)];
-    mockUseTableState.mockReturnValue({
+    setTableContext({
       currentStreet: 0,
       revealedSeed: '',
       dealerPosition: 0,
@@ -203,6 +225,52 @@ describe('AC-3.1: Seat layout with active/inactive state and turn indicator', ()
     // Player's seat should have blue ring class
     const blueRings = container.querySelectorAll('.ring-blue-500');
     expect(blueRings.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('marks dealer seat with data attribute', () => {
+    const seats = [createOccupiedSeat('player1', 1000n), ...emptySeats.slice(1)];
+    setTableContext({
+      currentStreet: 0,
+      revealedSeed: '',
+      dealerPosition: 0,
+      seats,
+      status: 1,
+    });
+    mockUseSeat.mockImplementation((_: unknown, index: number) =>
+      index === 0 ? seats[0] : createEmptySeat()
+    );
+
+    render(<PokerTable store={mockStore} />);
+
+    const dealerSeat = screen.getByLabelText('Seat 1');
+    expect(dealerSeat).toHaveAttribute('data-dealer', 'true');
+  });
+
+  it('stacks hero hand cards on xs and side-by-side on sm+', () => {
+    const playerAddr = 'HeroPlayer';
+    const heroSeat = {
+      ...createOccupiedSeat(playerAddr, 1000n),
+      holeCardHash: 'abc123',
+    };
+    const seats = [heroSeat, ...emptySeats.slice(1)];
+    setTableContext({
+      currentStreet: 3,
+      revealedSeed: 'a'.repeat(64),
+      dealerPosition: 0,
+      seats,
+      status: 3, // SHOWDOWN
+    });
+    mockUseSeat.mockImplementation((_: unknown, index: number) =>
+      index === 0 ? heroSeat : createEmptySeat()
+    );
+    mockDeriveHoleCards.mockReturnValue([51, 50]);
+
+    render(<PokerTable store={mockStore} playerAddress={playerAddr} />);
+
+    const heroHand = screen.getAllByText('A')[0].closest('[data-hero-hand="true"]');
+    expect(heroHand).toBeTruthy();
+    expect(heroHand?.className).toContain('flex-col');
+    expect(heroHand?.className).toContain('sm:flex-row');
   });
 });
 
@@ -222,9 +290,10 @@ describe('AC-3.2: Board, pot visible without scrolling', () => {
     vi.clearAllMocks();
     mockUsePot.mockReturnValue(5000n);
     mockUseCurrentActor.mockReturnValue(-1);
+    mockUseTableStatus.mockReturnValue(1);
     mockDeriveBoardCards.mockReturnValue([0, 1, 2, 3, 4]);
     mockDeriveHoleCards.mockReturnValue(null);
-    mockUseTableState.mockReturnValue({
+    setTableContext({
       currentStreet: 3, // RIVER
       revealedSeed: 'a'.repeat(64),
       dealerPosition: 0,
@@ -347,9 +416,10 @@ describe('AC-4.1: Selective re-rendering (integration pattern)', () => {
     vi.clearAllMocks();
     mockUsePot.mockReturnValue(0n);
     mockUseCurrentActor.mockReturnValue(-1);
+    mockUseTableStatus.mockReturnValue(1);
     mockDeriveBoardCards.mockReturnValue(null);
     mockDeriveHoleCards.mockReturnValue(null);
-    mockUseTableState.mockReturnValue({
+    setTableContext({
       currentStreet: 0,
       revealedSeed: '',
       dealerPosition: 0,

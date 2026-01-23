@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, type ChangeEvent } from 'react';
 import {
   type PokerAction,
   formatShortcut,
@@ -27,6 +27,8 @@ export interface PokerActionsProps {
   minRaise: number;
   /** Maximum raise amount (player's remaining stack) */
   maxRaise: number;
+  /** Current pot size (for quick bet shortcuts) */
+  potSize?: number | bigint;
   /** Current raise amount (controlled) */
   raiseAmount: number;
   /** Callback when raise amount changes */
@@ -41,16 +43,16 @@ export interface PokerActionsProps {
 
 /**
  * Poker action buttons with keyboard shortcuts.
- * Per AC-2.2: Primary actions have single-key shortcuts (F/X/C/R/S).
- * Per AC-2.3: Raise amount adjustable with +/-/arrows, confirmed with Enter.
- * Per AC-3.3: Mobile view prioritizes current player actions.
- * Per AC-5.12: Buttons stay enabled until request starts, show spinner during.
+ * Per AC-UI4.1: Touch targets meet minimum size with clear disabled states.
+ * Per AC-UI4.2: Raise control supports drag and quick bet shortcuts.
+ * Per AC-UI4.3: Keyboard shortcuts (F/X/C/R/S) work when focused.
  */
 export function PokerActions({
   isPlayerTurn,
   toCall,
   minRaise,
   maxRaise,
+  potSize,
   raiseAmount,
   onRaiseAmountChange,
   onAction,
@@ -136,6 +138,43 @@ export function PokerActions({
     },
   });
 
+  const potValue =
+    typeof potSize === 'bigint' ? Number(potSize) : potSize ?? 0;
+  const quickBetBase = Math.max(potValue, minRaise);
+  const quickBetOptions = [
+    { label: '½', multiplier: 0.5 },
+    { label: '⅔', multiplier: 0.67 },
+    { label: 'POT', multiplier: 1 },
+    { label: '2×', multiplier: 2 },
+  ];
+
+  const handleQuickBet = useCallback(
+    (multiplier: number) => {
+      const next = Math.min(
+        Math.max(Math.round(quickBetBase * multiplier), minRaise),
+        maxRaise,
+      );
+      onRaiseAmountChange(next);
+      if (navigator?.vibrate) {
+        navigator.vibrate(5);
+      }
+    },
+    [quickBetBase, minRaise, maxRaise, onRaiseAmountChange],
+  );
+
+  const handleSliderChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const val = Number(event.target.value);
+      if (!Number.isNaN(val)) {
+        onRaiseAmountChange(val);
+        if (navigator?.vibrate) {
+          navigator.vibrate(3);
+        }
+      }
+    },
+    [onRaiseAmountChange],
+  );
+
   // Get shortcut display strings
   const foldShortcut = formatShortcut(SHORTCUT_DEFINITIONS.find((d) => d.action === 'fold')!);
   const checkShortcut = formatShortcut(SHORTCUT_DEFINITIONS.find((d) => d.action === 'check')!);
@@ -153,18 +192,19 @@ export function PokerActions({
 
   // AC-3.3: Mobile-responsive button sizing
   const baseButtonClass =
-    'h-10 sm:h-12 px-3 sm:px-6 rounded-lg font-medium transition-colors touch-action-manipulation focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 text-sm sm:text-base';
+    'min-h-[44px] min-w-[44px] h-11 sm:h-12 px-3 sm:px-6 rounded-lg font-medium transition-colors touch-action-manipulation focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 text-sm sm:text-base';
 
   return (
     <div className="flex flex-col gap-2 sm:gap-4 p-2 sm:p-4">
       {/* Raise amount input (AC-2.3, AC-5.9, AC-5.10, AC-5.11, AC-5.15) */}
       {isRaiseMode && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleDecreaseRaise}
             disabled={raiseAmount <= minRaise || isSubmitting}
-            className="h-10 w-10 rounded-lg border border-zinc-300 text-lg font-medium transition-colors hover:bg-zinc-100 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
+            className="h-11 w-11 rounded-lg border border-zinc-300 text-lg font-medium transition-colors hover:bg-zinc-100 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
             aria-label="Decrease raise amount"
           >
             −
@@ -197,7 +237,7 @@ export function PokerActions({
                   }
                 }}
                 disabled={isSubmitting}
-                className="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-center font-mono tabular-nums text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-center font-mono tabular-nums text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                 name="raise-amount"
                 autoComplete="off"
                 spellCheck={false}
@@ -211,11 +251,40 @@ export function PokerActions({
             type="button"
             onClick={handleIncreaseRaise}
             disabled={raiseAmount >= maxRaise || isSubmitting}
-            className="h-10 w-10 rounded-lg border border-zinc-300 text-lg font-medium transition-colors hover:bg-zinc-100 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
+            className="h-11 w-11 rounded-lg border border-zinc-300 text-lg font-medium transition-colors hover:bg-zinc-100 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
             aria-label="Increase raise amount"
           >
             +
           </button>
+          </div>
+
+          <input
+            type="range"
+            min={minRaise}
+            max={maxRaise}
+            step={Math.max(1, Math.floor(maxRaise / 100))}
+            value={raiseAmount}
+            onChange={handleSliderChange}
+            disabled={isSubmitting}
+            aria-label="Raise amount slider"
+            className="w-full accent-[var(--accent-gold)] touch-action-manipulation"
+          />
+
+          {potValue > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickBetOptions.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => handleQuickBet(option.multiplier)}
+                  disabled={isSubmitting}
+                  className="h-9 min-w-[44px] rounded-full border border-zinc-300 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

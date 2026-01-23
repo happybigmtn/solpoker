@@ -69,3 +69,14 @@ export {
   type ProviderDaemonConfig,
   type DaemonStatus,
 } from "./reliability.js";
+
+export {
+  exportProviderMetrics,
+  recordCommitLatency,
+  recordRevealLatency,
+  recordRpcError,
+  recordTxResult,
+  resetProviderMetrics,
+  setQueueDepth,
+  type ProviderMetricsSnapshot,
+} from "./metrics.js";

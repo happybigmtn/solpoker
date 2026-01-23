@@ -1,8 +1,8 @@
 //! Mollusk tests for the entropy program.
 //!
 //! These tests verify:
-//! 1. Commit -> Reveal -> Randomness derivation flow (AC-2.1, AC-2.2)
-//! 2. Missed reveal -> Slash mechanism (AC-2.3)
+//! 1. Commit -> Reveal -> Randomness derivation flow (AC-POK2.1, AC-POK2.2)
+//! 2. Missed reveal -> Slash mechanism (AC-POK2.3)
 
 use mollusk_svm::{
     file,
@@ -13,6 +13,7 @@ use sha2::{Sha256, Digest};
 use solana_account::Account;
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
+use std::{path::PathBuf, sync::Once};
 
 use robopoker_entropy::{
     instruction::discriminator as ix_disc,
@@ -170,16 +171,32 @@ fn derive_request_pda(program_id: &Address, requester: &Address, request_id: u64
 }
 
 fn new_mollusk(program_id: &Address) -> Mollusk {
+    ensure_sbf_out_dir();
     Mollusk::new(program_id, "robopoker_entropy")
 }
 
 fn program_accounts(program_id: &Address) -> Vec<(Address, Account)> {
+    ensure_sbf_out_dir();
     let elf = file::load_program_elf("robopoker_entropy");
     let (program_account, programdata_account) =
         create_program_account_pair_loader_v3(program_id, &elf);
     let programdata_address =
         Address::find_program_address(&[program_id.as_ref()], &loader_keys::LOADER_V3).0;
     vec![(*program_id, program_account), (programdata_address, programdata_account)]
+}
+
+fn ensure_sbf_out_dir() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        if std::env::var("SBF_OUT_DIR").is_ok() {
+            return;
+        }
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let out_dir = manifest_dir.join("..").join("..").join("target").join("deploy");
+        if out_dir.is_dir() {
+            std::env::set_var("SBF_OUT_DIR", out_dir);
+        }
+    });
 }
 
 /// Test: Commit -> Reveal -> Randomness derivation
@@ -391,6 +408,7 @@ fn test_missed_reveal_slash() {
     let provider = new_unique_address();
     let authority = new_unique_address();
     let slasher = new_unique_address();
+    let requester = new_unique_address();
     let clock_key = new_unique_address();
 
     // Test parameters
@@ -402,9 +420,13 @@ fn test_missed_reveal_slash() {
     let reveal_window = 100u64;
     let slash_bp = 5000u64; // 50%
     let commit_slot = 100u64;
+    let request_id = 42u64;
+    let request_slot = commit_slot + 1;
+    let deadline_slot = request_slot + reveal_window;
 
     let config_key = derive_config_pda(&program_id);
     let commitment_key = derive_commitment_pda(&program_id, &provider, sequence);
+    let request_key = derive_request_pda(&program_id, &requester, request_id);
 
     // Expected slash calculation: 50% of 1_000_000 = 500_000
     let expected_slash = (bond_amount * slash_bp) / 10000;
@@ -413,12 +435,20 @@ fn test_missed_reveal_slash() {
     // Create mollusk instance
     let mut mollusk = new_mollusk(&program_id);
 
-    // Warp to slot past deadline (commit_slot + reveal_window + 1)
-    mollusk.warp_to_slot(commit_slot + reveal_window + 10);
+    // Warp to slot past deadline (request_slot + reveal_window + 1)
+    mollusk.warp_to_slot(deadline_slot + 10);
 
     // Create account data
     let config_data = create_config_data(&provider, &authority, min_bond, reveal_window, slash_bp);
     let pending_commitment_data = create_pending_commitment_data(&provider, hash, bond_amount, commit_slot, sequence);
+    let pending_request_data = create_pending_request_data(
+        &requester,
+        &commitment_key,
+        request_id,
+        request_slot,
+        deadline_slot,
+        [0u8; 32],
+    );
 
     // Initial lamport balances
     let initial_commitment_lamports = bond_amount + 1_000_000; // bond + rent
@@ -429,6 +459,7 @@ fn test_missed_reveal_slash() {
         program_id,
         accounts: vec![
             AccountMeta { pubkey: commitment_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: request_key, is_signer: false, is_writable: false },
             AccountMeta { pubkey: provider, is_signer: false, is_writable: true },
             AccountMeta { pubkey: slasher, is_signer: false, is_writable: true },
             AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
@@ -442,6 +473,13 @@ fn test_missed_reveal_slash() {
         (commitment_key, Account {
             lamports: initial_commitment_lamports,
             data: pending_commitment_data,
+            owner: program_id,
+            executable: false,
+            rent_epoch: 0,
+        }),
+        (request_key, Account {
+            lamports: 1_000_000,
+            data: pending_request_data,
             owner: program_id,
             executable: false,
             rent_epoch: 0,
@@ -565,7 +603,7 @@ fn test_invalid_preimage_fails() {
     assert!(result.program_result.is_err(), "Reveal with wrong preimage should fail");
 }
 
-/// Test: Non-provider cannot commit (AC-2.5)
+/// Test: Non-provider cannot commit (AC-POK2.5)
 #[test]
 fn test_non_provider_cannot_commit() {
     let program_id = Address::from(robopoker_entropy::ID);
