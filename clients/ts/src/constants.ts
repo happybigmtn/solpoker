@@ -31,7 +31,7 @@ export const ENTROPY_DISCRIMINATOR = {
   UPDATE_CONFIG: 6,
 } as const;
 
-// Player action types for betting rounds (AC-5.1, AC-5.2)
+// Player action types for betting rounds (AC-POK5.1, AC-POK5.2)
 export const ACTION_TYPE = {
   FOLD: 0,
   CHECK: 1,
@@ -75,7 +75,7 @@ export const STREET = {
 
 // Account sizes (matching Rust constants)
 export const CONFIG_SIZE = 128;
-export const TABLE_SIZE = 1136;
+export const TABLE_SIZE = 1144;
 export const STAKING_POOL_SIZE = 96;
 export const STAKER_POSITION_SIZE = 64;
 export const MAX_SEATS = 10;

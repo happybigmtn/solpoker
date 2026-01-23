@@ -19,10 +19,10 @@
         { "name": "systemProgram", "address": "11111111111111111111111111111111" }
       ],
       "args": [
-        { "name": "minPlayers", "type": "u8", "docs": ["Minimum players to start a hand (AC-4.3)"] },
+        { "name": "minPlayers", "type": "u8", "docs": ["Minimum players to start a hand (AC-POK4.3)"] },
         { "name": "minBuyIn", "type": "u64" },
         { "name": "maxBuyIn", "type": "u64" },
-        { "name": "actionTimeoutSlots", "type": "u64", "docs": ["Slots allowed per action before timeout (AC-4.4)"] }
+        { "name": "actionTimeoutSlots", "type": "u64", "docs": ["Slots allowed per action before timeout (AC-POK4.4)"] }
       ],
       "layout": {
         "size": 32,
@@ -68,7 +68,7 @@
     {
       "name": "joinTable",
       "discriminator": 2,
-      "docs": ["Join a table with buy-in (AC-3.3: debit player, credit vault)"],
+      "docs": ["Join a table with buy-in (AC-POK3.3: debit player, credit vault)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "vault", "writable": true },
@@ -92,7 +92,7 @@
     {
       "name": "leaveTable",
       "discriminator": 3,
-      "docs": ["Leave a table (AC-3.3: credit player, debit vault)"],
+      "docs": ["Leave a table (AC-POK3.3: credit player, debit vault)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "vault", "writable": true },
@@ -112,7 +112,7 @@
     {
       "name": "startHand",
       "discriminator": 4,
-      "docs": ["Start a new hand with seed commitment (AC-4.3, AC-2.6, AC-2.7)"],
+      "docs": ["Start a new hand with seed commitment (AC-POK4.3, AC-POK2.6, AC-POK2.7)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "provider", "signer": true, "writable": true },
@@ -142,7 +142,7 @@
     {
       "name": "timeoutAction",
       "discriminator": 5,
-      "docs": ["Process timeout auto-action (AC-4.4: deterministic fallback)"],
+      "docs": ["Process timeout auto-action (AC-POK4.4: deterministic fallback)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "config" },
@@ -159,7 +159,7 @@
     {
       "name": "playerAction",
       "discriminator": 6,
-      "docs": ["Player action during betting round (AC-5.1, AC-5.2, AC-5.3)"],
+      "docs": ["Player action during betting round (AC-POK5.1, AC-POK5.2, AC-POK5.3)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "player", "signer": true },
@@ -183,7 +183,7 @@
     {
       "name": "settle",
       "discriminator": 7,
-      "docs": ["Settle hand and distribute pot (AC-6.1, AC-6.2)"],
+      "docs": ["Settle hand and distribute pot (AC-POK6.1, AC-POK6.2)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "config" }
@@ -199,7 +199,7 @@
     {
       "name": "revealSeed",
       "discriminator": 8,
-      "docs": ["Reveal seed at showdown (AC-2.7, AC-2.8)"],
+      "docs": ["Reveal seed at showdown (AC-POK2.7, AC-POK2.8)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "provider", "signer": true },
@@ -226,7 +226,7 @@
     {
       "name": "initStakingPool",
       "discriminator": 9,
-      "docs": ["Initialize staking pool (AC-3.5)"],
+      "docs": ["Initialize staking pool (AC-POK3.5)"],
       "accounts": [
         { "name": "stakingPool", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "staking_pool" }] } },
         { "name": "stakeVault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "stake_vault" }] } },
@@ -248,10 +248,10 @@
     {
       "name": "depositStake",
       "discriminator": 10,
-      "docs": ["Deposit CRISPS into staking pool (AC-3.5)"],
+      "docs": ["Deposit CRISPS into staking pool (AC-POK3.5)"],
       "accounts": [
         { "name": "stakingPool", "writable": true },
-        { "name": "stakerPosition", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "staker_position" }, { "kind": "account", "path": "staker" }] } },
+        { "name": "stakerPosition", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": "staker" }, { "kind": "account", "path": "staker" }] } },
         { "name": "stakeVault", "writable": true },
         { "name": "stakerTokenAccount", "writable": true },
         { "name": "staker", "signer": true },
@@ -274,7 +274,7 @@
     {
       "name": "withdrawStake",
       "discriminator": 11,
-      "docs": ["Withdraw CRISPS from staking pool (AC-3.5)"],
+      "docs": ["Withdraw CRISPS from staking pool (AC-POK3.5)"],
       "accounts": [
         { "name": "stakingPool", "writable": true },
         { "name": "stakerPosition", "writable": true },
@@ -299,7 +299,7 @@
     {
       "name": "claimRewards",
       "discriminator": 12,
-      "docs": ["Claim accumulated rake rewards (AC-3.6)"],
+      "docs": ["Claim accumulated rake rewards (AC-POK3.6)"],
       "accounts": [
         { "name": "stakingPool", "writable": true },
         { "name": "stakerPosition", "writable": true },
@@ -320,7 +320,7 @@
     {
       "name": "sweepRake",
       "discriminator": 13,
-      "docs": ["Sweep accumulated rake from table to staking pool (AC-3.4)"],
+      "docs": ["Sweep accumulated rake from table to staking pool (AC-POK3.4)"],
       "accounts": [
         { "name": "table", "writable": true },
         { "name": "tableVault", "writable": true },
@@ -328,6 +328,65 @@
         { "name": "rewardsVault", "writable": true },
         { "name": "config" },
         { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "closeTable",
+      "discriminator": 14,
+      "docs": ["Close an empty table and reclaim rent (rent reclamation)"],
+      "accounts": [
+        { "name": "table", "writable": true, "docs": ["Table PDA (will be closed)"] },
+        { "name": "vault", "writable": true, "docs": ["Vault token account PDA (will be closed)"] },
+        { "name": "beneficiary", "writable": true, "docs": ["Receives lamports from both accounts"] },
+        { "name": "authority", "signer": true, "docs": ["Config authority"] },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "closeStakingPool",
+      "discriminator": 15,
+      "docs": ["Close the staking pool and reclaim rent (rent reclamation)"],
+      "accounts": [
+        { "name": "stakingPool", "writable": true, "docs": ["Staking pool PDA (will be closed)"] },
+        { "name": "stakeVault", "writable": true, "docs": ["Stake vault token account (will be closed)"] },
+        { "name": "rewardsVault", "writable": true, "docs": ["Rewards vault token account (will be closed)"] },
+        { "name": "beneficiary", "writable": true, "docs": ["Receives lamports from all accounts"] },
+        { "name": "authority", "signer": true, "docs": ["Config authority"] },
+        { "name": "config" },
+        { "name": "tokenProgram", "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" }
+      ],
+      "args": [],
+      "layout": {
+        "size": 1,
+        "fields": [
+          { "name": "discriminator", "offset": 0, "size": 1 }
+        ]
+      }
+    },
+    {
+      "name": "closeStakerPosition",
+      "discriminator": 16,
+      "docs": ["Close a staker position and reclaim rent (rent reclamation)"],
+      "accounts": [
+        { "name": "stakerPosition", "writable": true, "docs": ["Staker position PDA (will be closed)"] },
+        { "name": "beneficiary", "writable": true, "docs": ["Receives lamports (typically the staker)"] },
+        { "name": "staker", "signer": true, "docs": ["Must own the position"] },
+        { "name": "stakingPool", "docs": ["For validation"] }
       ],
       "args": [],
       "layout": {
@@ -398,7 +457,7 @@
     },
     {
       "name": "Table",
-      "size": 1136,
+      "size": 1144,
       "discriminator": 2
     },
     {
@@ -437,6 +496,10 @@
     { "code": 22, "name": "ArithmeticOverflow", "msg": "Arithmetic overflow" },
     { "code": 23, "name": "InvalidStakingPoolState", "msg": "Invalid staking pool state" },
     { "code": 24, "name": "NoStake", "msg": "No stake to withdraw" },
-    { "code": 25, "name": "NoRewards", "msg": "No rewards to claim" }
+    { "code": 25, "name": "NoRewards", "msg": "No rewards to claim" },
+    { "code": 46, "name": "TableNotEmpty", "msg": "Table is not empty (has players, pot, or rake)" },
+    { "code": 47, "name": "VaultNotEmpty", "msg": "Vault token account has non-zero balance" },
+    { "code": 48, "name": "StakingPoolNotEmpty", "msg": "Staking pool is not empty (has staked tokens or rewards)" },
+    { "code": 49, "name": "StakerPositionNotEmpty", "msg": "Staker position is not empty (has staked tokens or unclaimed rewards)" }
   ]
 }

@@ -1,10 +1,10 @@
 //! LiteSVM tests for the poker program table lifecycle and CRISPS escrow flows.
 //!
 //! These tests verify:
-//! 1. Table lifecycle: create/join/leave (AC-4.2)
-//! 2. Join table: debit player token account, credit vault (AC-3.3)
-//! 3. Leave table: credit player token account, debit vault (AC-3.3)
-//! 4. Timeout auto-action (AC-4.4)
+//! 1. Table lifecycle: create/join/leave (AC-POK4.2)
+//! 2. Join table: debit player token account, credit vault (AC-POK3.3)
+//! 3. Leave table: credit player token account, debit vault (AC-POK3.3)
+//! 4. Timeout auto-action (AC-POK4.4)
 
 use litesvm::LiteSVM;
 use solana_account::Account;
@@ -129,12 +129,12 @@ fn build_player_action_ix(action: u8, amount: u64) -> Vec<u8> {
 }
 
 /// Create an initialized config account data
-/// Config layout (128 bytes, AC-3.4: includes rake_bps):
+/// Config layout (128 bytes, AC-POK3.4: includes rake_bps):
 ///   discriminator: u8 (1)
 ///   initialized: u8 (1)
 ///   min_players: u8 (1)
 ///   _padding: [u8; 3] (3)
-///   rake_bps: u16 (2) @ offset 6  (AC-3.4)
+///   rake_bps: u16 (2) @ offset 6  (AC-POK3.4)
 ///   crisps_mint: Pubkey (32) @ offset 8
 ///   authority: Pubkey (32) @ offset 40
 ///   entropy_program: Pubkey (32) @ offset 72
@@ -173,7 +173,7 @@ fn create_config_data_full(
     data[1] = 1; // initialized
     data[2] = min_players;
     // padding [3..6]
-    data[6..8].copy_from_slice(&250u16.to_le_bytes()); // rake_bps = 2.5% (AC-3.4)
+    data[6..8].copy_from_slice(&250u16.to_le_bytes()); // rake_bps = 2.5% (AC-POK3.4)
     data[8..40].copy_from_slice(crisps_mint.as_ref());
     data[40..72].copy_from_slice(authority.as_ref());
     data[72..104].copy_from_slice(entropy_program.as_ref());
@@ -183,39 +183,42 @@ fn create_config_data_full(
     data
 }
 
-/// Table header size (before seats array) - updated for hand_id + rake_accumulated (AC-3.4)
+/// Table header size (before seats array)
 /// discriminator(1) + status(1) + player_count(1) + dealer_position(1) + current_actor(1) +
-/// current_street(1) + active_count(1) + seed_revealed(1) + table_id(8) + hand_id(8) +
-/// small_blind(8) + big_blind(8) + action_deadline_slot(8) + current_bet(8) + min_raise(8) +
-/// pot(8) + rake_accumulated(8) + vault(32) + seed_commitment(32) + revealed_seed(32) = 176 bytes
-const TABLE_HEADER_SIZE: usize = 176;
+/// current_street(1) + seed_revealed(1) + _padding(1) + active_bitmap(2) + _padding2(6) +
+/// table_id(8) + hand_id(8) + small_blind(8) + big_blind(8) + action_deadline_slot(8) +
+/// current_bet(8) + min_raise(8) + pot(8) + rake_accumulated(8) + vault(32) +
+/// seed_commitment(32) + revealed_seed(32) = 184 bytes
+const TABLE_HEADER_SIZE: usize = 184;
 
 /// Seat size: status(1) + has_acted(1) + padding(6) + player(32) + stack(8) + current_bet(8) + total_bet(8) + hole_card_hash(32) = 96 bytes
 const SEAT_SIZE: usize = 96;
 
 /// Create an initialized table account data
-/// Table layout (1136 bytes with hand_id + rake_accumulated, AC-3.4):
+/// Table layout (1144 bytes):
 ///   discriminator: u8 (1) @ offset 0
 ///   status: u8 (1) @ offset 1
 ///   player_count: u8 (1) @ offset 2
 ///   dealer_position: u8 (1) @ offset 3
 ///   current_actor: u8 (1) @ offset 4
 ///   current_street: u8 (1) @ offset 5
-///   active_count: u8 (1) @ offset 6
-///   seed_revealed: u8 (1) @ offset 7
-///   table_id: u64 (8) @ offset 8
-///   hand_id: u64 (8) @ offset 16
-///   small_blind: u64 (8) @ offset 24
-///   big_blind: u64 (8) @ offset 32
-///   action_deadline_slot: u64 (8) @ offset 40
-///   current_bet: u64 (8) @ offset 48
-///   min_raise: u64 (8) @ offset 56
-///   pot: u64 (8) @ offset 64
-///   rake_accumulated: u64 (8) @ offset 72  (AC-3.4)
-///   vault: Pubkey (32) @ offset 80
-///   seed_commitment: [u8; 32] (32) @ offset 112  (AC-2.7)
-///   revealed_seed: [u8; 32] (32) @ offset 144   (AC-2.7)
-///   seats: [Seat; 10] (960) @ offset 176
+///   seed_revealed: u8 (1) @ offset 6
+///   _padding: u8 (1) @ offset 7
+///   active_bitmap: u16 (2) @ offset 8
+///   _padding2: [u8; 6] (6) @ offset 10
+///   table_id: u64 (8) @ offset 16
+///   hand_id: u64 (8) @ offset 24
+///   small_blind: u64 (8) @ offset 32
+///   big_blind: u64 (8) @ offset 40
+///   action_deadline_slot: u64 (8) @ offset 48
+///   current_bet: u64 (8) @ offset 56
+///   min_raise: u64 (8) @ offset 64
+///   pot: u64 (8) @ offset 72
+///   rake_accumulated: u64 (8) @ offset 80
+///   vault: Pubkey (32) @ offset 88
+///   seed_commitment: [u8; 32] (32) @ offset 120
+///   revealed_seed: [u8; 32] (32) @ offset 152
+///   seats: [Seat; 10] (960) @ offset 184
 fn create_table_data(table_id: u64, small_blind: u64, big_blind: u64, vault: &Address) -> Vec<u8> {
     let mut data = vec![0u8; TABLE_SIZE];
     data[0] = acc_disc::TABLE;
@@ -224,20 +227,22 @@ fn create_table_data(table_id: u64, small_blind: u64, big_blind: u64, vault: &Ad
     data[3] = 0; // dealer_position
     data[4] = 0; // current_actor
     data[5] = 0; // current_street
-    data[6] = 0; // active_count
-    data[7] = 0; // seed_revealed
-    data[8..16].copy_from_slice(&table_id.to_le_bytes());
-    data[16..24].copy_from_slice(&0u64.to_le_bytes()); // hand_id
-    data[24..32].copy_from_slice(&small_blind.to_le_bytes());
-    data[32..40].copy_from_slice(&big_blind.to_le_bytes());
-    data[40..48].copy_from_slice(&0u64.to_le_bytes()); // action_deadline_slot
-    data[48..56].copy_from_slice(&0u64.to_le_bytes()); // current_bet
-    data[56..64].copy_from_slice(&big_blind.to_le_bytes()); // min_raise = big_blind
-    data[64..72].copy_from_slice(&0u64.to_le_bytes()); // pot
-    data[72..80].copy_from_slice(&0u64.to_le_bytes()); // rake_accumulated (AC-3.4)
-    data[80..112].copy_from_slice(vault.as_ref());
-    // seed_commitment: 112..144 (zeroed by default)
-    // revealed_seed: 144..176 (zeroed by default)
+    data[6] = 0; // seed_revealed
+    data[7] = 0; // _padding
+    data[8..10].copy_from_slice(&0u16.to_le_bytes()); // active_bitmap
+    // _padding2 @ 10..16 (zeroed by default)
+    data[16..24].copy_from_slice(&table_id.to_le_bytes());
+    data[24..32].copy_from_slice(&0u64.to_le_bytes()); // hand_id
+    data[32..40].copy_from_slice(&small_blind.to_le_bytes());
+    data[40..48].copy_from_slice(&big_blind.to_le_bytes());
+    data[48..56].copy_from_slice(&0u64.to_le_bytes()); // action_deadline_slot
+    data[56..64].copy_from_slice(&0u64.to_le_bytes()); // current_bet
+    data[64..72].copy_from_slice(&big_blind.to_le_bytes()); // min_raise = big_blind
+    data[72..80].copy_from_slice(&0u64.to_le_bytes()); // pot
+    data[80..88].copy_from_slice(&0u64.to_le_bytes()); // rake_accumulated
+    data[88..120].copy_from_slice(vault.as_ref());
+    // seed_commitment: 120..152 (zeroed by default)
+    // revealed_seed: 152..184 (zeroed by default)
     // Seats are all zeros (empty) by default, which is correct
     data
 }
@@ -251,7 +256,7 @@ fn create_table_data(table_id: u64, small_blind: u64, big_blind: u64, vault: &Ad
 ///   stack: u64 (8) @ offset 40
 ///   current_bet: u64 (8) @ offset 48
 ///   total_bet: u64 (8) @ offset 56
-///   hole_card_hash: [u8; 32] (32) @ offset 64 (AC-2.6)
+///   hole_card_hash: [u8; 32] (32) @ offset 64 (AC-POK2.6)
 fn create_table_data_with_player(
     table_id: u64,
     small_blind: u64,
@@ -263,7 +268,9 @@ fn create_table_data_with_player(
 ) -> Vec<u8> {
     let mut data = create_table_data(table_id, small_blind, big_blind, vault);
     data[2] = 1; // player_count = 1
-    data[6] = 1; // active_count = 1
+    // Set active_bitmap at offset 8-9 (u16) with bit for seat_index
+    let active_bitmap: u16 = 1 << seat_index;
+    data[8..10].copy_from_slice(&active_bitmap.to_le_bytes());
 
     // Calculate seat offset: TABLE_HEADER_SIZE + (seat_index * SEAT_SIZE)
     let seat_offset = TABLE_HEADER_SIZE + seat_index * SEAT_SIZE;
@@ -287,7 +294,12 @@ fn create_table_data_with_players(
 ) -> Vec<u8> {
     let mut data = create_table_data(table_id, small_blind, big_blind, vault);
     data[2] = players.len() as u8; // player_count
-    data[6] = players.len() as u8; // active_count
+    // Compute active_bitmap from seat indices
+    let mut active_bitmap: u16 = 0;
+    for (_, _, seat_index) in players {
+        active_bitmap |= 1 << seat_index;
+    }
+    data[8..10].copy_from_slice(&active_bitmap.to_le_bytes());
 
     for (player, stack, seat_index) in players {
         let seat_offset = TABLE_HEADER_SIZE + seat_index * SEAT_SIZE;
@@ -310,8 +322,8 @@ fn create_table_data_with_rake(
     rake_accumulated: u64,
 ) -> Vec<u8> {
     let mut data = create_table_data(table_id, small_blind, big_blind, vault);
-    // Set rake_accumulated at offset 72
-    data[72..80].copy_from_slice(&rake_accumulated.to_le_bytes());
+    // Set rake_accumulated at offset 80 (pot is at 72)
+    data[80..88].copy_from_slice(&rake_accumulated.to_le_bytes());
     data
 }
 
@@ -430,7 +442,7 @@ fn set_token_mint_account(svm: &mut LiteSVM, mint: Address, authority: &Address)
     .unwrap();
 }
 
-/// Test: Initialize config creates PDA data (AC-3.1)
+/// Test: Initialize config creates PDA data (AC-POK3.1)
 #[test]
 fn test_initialize_creates_config() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -496,7 +508,7 @@ fn test_initialize_creates_config() {
     let config_account = svm.get_account(&config_key).unwrap();
     assert_eq!(config_account.owner, Address::from(&program_id));
 
-    let config = unsafe { Config::from_bytes_unchecked(&config_account.data) };
+    let config = Config::from_bytes(&config_account.data).unwrap();
     assert!(config.is_initialized());
     assert_eq!(config.min_players, min_players);
     assert_eq!(config.min_buy_in, min_buy_in);
@@ -507,7 +519,7 @@ fn test_initialize_creates_config() {
     assert_eq!(Address::from(config.entropy_program), entropy_program);
 }
 
-/// Test: CreateTable creates PDA table + vault token account (AC-3.2)
+/// Test: CreateTable creates PDA table + vault token account (AC-POK3.2)
 #[test]
 fn test_create_table_creates_vault_account() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -616,7 +628,7 @@ fn test_create_table_creates_vault_account() {
 
     let table_account = svm.get_account(&table_key).unwrap();
     assert_eq!(table_account.owner, Address::from(&program_id));
-    let table = unsafe { Table::from_bytes_unchecked(&table_account.data) };
+    let table = Table::from_bytes(&table_account.data).unwrap();
     assert!(table.is_initialized());
     assert_eq!(table.table_id, table_id);
     assert_eq!(table.small_blind, small_blind);
@@ -633,7 +645,7 @@ fn test_create_table_creates_vault_account() {
 
 /// Test: Join table (debit player, credit vault)
 ///
-/// AC-3.3: Join/leave flows correctly debit/credit player token accounts and the table vault.
+/// AC-POK3.3: Join/leave flows correctly debit/credit player token accounts and the table vault.
 #[test]
 fn test_join_table_debits_player_credits_vault() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -802,7 +814,7 @@ fn test_join_table_debits_player_credits_vault() {
 
 /// Test: Leave table (credit player, debit vault)
 ///
-/// AC-3.3: Join/leave flows correctly debit/credit player token accounts and the table vault.
+/// AC-POK3.3: Join/leave flows correctly debit/credit player token accounts and the table vault.
 #[test]
 fn test_leave_table_credits_player_debits_vault() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -977,23 +989,23 @@ fn test_leave_table_credits_player_debits_vault() {
     );
 }
 
-/// Test: Account size snapshots for on-chain data layout optimization (AC-1.5)
+/// Test: Account size snapshots for on-chain data layout optimization (AC-POK1.5)
 ///
 /// This test validates:
 /// 1. All account struct sizes match documented expectations (snapshot assertions)
-/// 2. Fixed-size layouts are used (no variable-length data) per AC-1.2
+/// 2. Fixed-size layouts are used (no variable-length data) per AC-POK1.2
 /// 3. Field ordering is documented for optimal alignment
 ///
-/// Account byte sizes documented per AC-1.5:
+/// Account byte sizes documented per AC-POK1.5:
 /// - Config:         128 bytes
-/// - Table:        1,136 bytes (header 176 + 10 seats × 96)
+/// - Table:        1,144 bytes (header 184 + 10 seats × 96)
 /// - Seat:            96 bytes
 /// - StakingPool:     96 bytes
 /// - StakerPosition:  64 bytes
 #[test]
 fn test_table_state_account_sizes() {
     // =========================================================================
-    // AC-1.5: Account sizes are documented and match snapshot expectations
+    // AC-POK1.5: Account sizes are documented and match snapshot expectations
     // =========================================================================
 
     // Config: 128 bytes
@@ -1007,16 +1019,17 @@ fn test_table_state_account_sizes() {
         "Config struct size mismatch"
     );
 
-    // Table: 1136 bytes (header 176 + 10 seats × 96)
+    // Table: 1144 bytes (header 184 + 10 seats × 96)
     // Header layout: discriminator(1) + status(1) + player_count(1) + dealer_position(1) +
-    //                current_actor(1) + current_street(1) + active_count(1) + seed_revealed(1) +
-    //                table_id(8) + hand_id(8) + small_blind(8) + big_blind(8) + action_deadline_slot(8) +
-    //                current_bet(8) + min_raise(8) + pot(8) + rake_accumulated(8) +
-    //                vault(32) + seed_commitment(32) + revealed_seed(32) = 176 bytes
-    assert_eq!(TABLE_SIZE, 1136, "Table size snapshot");
+    //                current_actor(1) + current_street(1) + seed_revealed(1) + _padding(1) +
+    //                active_bitmap(2) + _padding2(6) + table_id(8) + hand_id(8) +
+    //                small_blind(8) + big_blind(8) + action_deadline_slot(8) + current_bet(8) +
+    //                min_raise(8) + pot(8) + rake_accumulated(8) + vault(32) +
+    //                seed_commitment(32) + revealed_seed(32) = 184 bytes
+    assert_eq!(TABLE_SIZE, 1144, "Table size snapshot");
     assert_eq!(
         core::mem::size_of::<Table>(),
-        1136,
+        1144,
         "Table struct size mismatch"
     );
 
@@ -1032,7 +1045,7 @@ fn test_table_state_account_sizes() {
 
     // StakingPool: 96 bytes
     // Layout: discriminator(1) + initialized(1) + _padding(6) + total_staked(8) +
-    //         accumulated_rewards(8) + total_distributed(8) + stake_vault(32) + rewards_vault(32)
+    //         accumulated_rewards(8) + rewards_per_token(8) + stake_vault(32) + rewards_vault(32)
     assert_eq!(STAKING_POOL_SIZE, 96, "StakingPool size snapshot");
     assert_eq!(
         core::mem::size_of::<StakingPool>(),
@@ -1051,12 +1064,12 @@ fn test_table_state_account_sizes() {
     );
 
     // =========================================================================
-    // AC-4.1: MAX_SEATS = 10
+    // AC-POK4.1: MAX_SEATS = 10
     // =========================================================================
-    assert_eq!(MAX_SEATS, 10, "MAX_SEATS should be 10 per AC-4.1");
+    assert_eq!(MAX_SEATS, 10, "MAX_SEATS should be 10 per AC-POK4.1");
 
     // Print summary for documentation
-    println!("=== Account Size Snapshots (AC-1.5) ===");
+    println!("=== Account Size Snapshots (AC-POK1.5) ===");
     println!("Config:         {:>5} bytes", CONFIG_SIZE);
     println!("Table:          {:>5} bytes (header {} + {} seats × {})", TABLE_SIZE, TABLE_HEADER_SIZE, MAX_SEATS, SEAT_SIZE);
     println!("  - Seat:       {:>5} bytes", SEAT_SIZE);
@@ -1066,10 +1079,10 @@ fn test_table_state_account_sizes() {
 }
 
 // =============================================================================
-// AC-4.2: Create/Join/Leave Table Lifecycle Tests
+// AC-POK4.2: Create/Join/Leave Table Lifecycle Tests
 // =============================================================================
 
-/// Test: Table lifecycle - create, join, leave without corrupting seat state (AC-4.2)
+/// Test: Table lifecycle - create, join, leave without corrupting seat state (AC-POK4.2)
 ///
 /// This test validates:
 /// 1. A table can be created with proper initial state
@@ -1156,18 +1169,18 @@ fn test_table_lifecycle_create_join_leave() {
     assert_eq!(table_account.data[1], table_status::WAITING, "Table status");
     assert_eq!(table_account.data[2], 2, "Player count should be 2");
 
-    // Check table_id
+    // Check table_id (at offset 16)
     let stored_table_id = u64::from_le_bytes(
-        table_account.data[8..16].try_into().unwrap()
+        table_account.data[16..24].try_into().unwrap()
     );
     assert_eq!(stored_table_id, table_id, "Table ID should match");
 
-    // Check blinds
+    // Check blinds (small_blind at offset 32, big_blind at offset 40)
     let stored_sb = u64::from_le_bytes(
-        table_account.data[24..32].try_into().unwrap()
+        table_account.data[32..40].try_into().unwrap()
     );
     let stored_bb = u64::from_le_bytes(
-        table_account.data[32..40].try_into().unwrap()
+        table_account.data[40..48].try_into().unwrap()
     );
     assert_eq!(stored_sb, small_blind, "Small blind should match");
     assert_eq!(stored_bb, big_blind, "Big blind should match");
@@ -1231,10 +1244,10 @@ fn test_table_lifecycle_create_join_leave() {
 }
 
 // =============================================================================
-// AC-4.4: Timeout Auto-Action Tests
+// AC-POK4.4: Timeout Auto-Action Tests
 // =============================================================================
 
-/// Test: Timeout state - action_deadline_slot field validation (AC-4.4)
+/// Test: Timeout state - action_deadline_slot field validation (AC-POK4.4)
 ///
 /// This test validates:
 /// 1. action_deadline_slot is properly stored in table state
@@ -1310,7 +1323,7 @@ fn test_timeout_state_deadline_slot() {
     println!("✓ Timeout state test passed: action_deadline_slot properly stored");
 }
 
-/// Test: Timeout fallback - folded status (AC-4.4)
+/// Test: Timeout fallback - folded status (AC-POK4.4)
 ///
 /// This test validates that when a timeout occurs, the deterministic
 /// fallback action marks the timed-out player as FOLDED.
@@ -1408,10 +1421,10 @@ fn test_timeout_fallback_folded() {
 }
 
 // =============================================================================
-// AC-8.2: Full Hand Integration Test (3+ Players)
+// AC-POK8.2: Full Hand Integration Test (3+ Players)
 // =============================================================================
 
-/// Test: Full hand flow - join -> start -> actions -> settle (AC-8.2)
+/// Test: Full hand flow - join -> start -> actions -> settle (AC-POK8.2)
 ///
 /// This integration test validates the complete poker hand lifecycle:
 /// 1. Three players join the table with CRISPS buy-in
@@ -1476,7 +1489,9 @@ fn test_full_hand_integration_three_players() {
 
     // Verify initial table state
     assert_eq!(table_data[2], 3, "Should have 3 players");
-    assert_eq!(table_data[6], 3, "Should have 3 active players");
+    // active_bitmap is u16 at offset 8-9; players at seats 0,1,2 = 0b111 = 7
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
+    assert_eq!(active_bitmap.count_ones(), 3, "Should have 3 active players");
     assert_eq!(table_data[1], table_status::WAITING, "Table should start in WAITING");
 
     // Set accounts
@@ -1541,18 +1556,18 @@ fn test_full_hand_integration_three_players() {
     table_data[seat2_offset + 48..seat2_offset + 56].copy_from_slice(&bb_amount.to_le_bytes());
     table_data[seat2_offset + 56..seat2_offset + 64].copy_from_slice(&bb_amount.to_le_bytes());
 
-    // Set table current_bet to big blind
-    table_data[48..56].copy_from_slice(&bb_amount.to_le_bytes());
-    // Set min_raise to big blind
+    // Set table current_bet to big blind (at offset 56)
     table_data[56..64].copy_from_slice(&bb_amount.to_le_bytes());
-    // Set pot to blinds total
+    // Set min_raise to big blind (at offset 64)
+    table_data[64..72].copy_from_slice(&bb_amount.to_le_bytes());
+    // Set pot to blinds total (at offset 72)
     let initial_pot = sb_amount + bb_amount;
-    table_data[64..72].copy_from_slice(&initial_pot.to_le_bytes());
+    table_data[72..80].copy_from_slice(&initial_pot.to_le_bytes());
 
-    // Create seed commitment (sha256 of seed)
+    // Create seed commitment (sha256 of seed, at offset 120)
     let seed = [0xABu8; 32];
     let seed_commitment = sha256_simple(&seed);
-    table_data[112..144].copy_from_slice(&seed_commitment);
+    table_data[120..152].copy_from_slice(&seed_commitment);
 
     // Create hole card hashes for each player
     // Player 1 (seat 0): Aa Ks (best hand)
@@ -1587,7 +1602,7 @@ fn test_full_hand_integration_three_players() {
     let table_account = svm.get_account(&table_key).unwrap();
     assert_eq!(table_account.data[1], table_status::PLAYING);
     assert_eq!(table_account.data[5], street::PREFLOP);
-    let pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    let pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(pot, initial_pot, "Pot should equal SB + BB");
 
     println!("✓ Phase 2: Hand started, blinds posted (pot = {} lamports)", pot);
@@ -1606,9 +1621,9 @@ fn test_full_hand_integration_three_players() {
     table_data[seat0_offset + 56..seat0_offset + 64].copy_from_slice(&call_amount.to_le_bytes());
     table_data[seat0_offset + 1] = 1; // has_acted = true
 
-    // Update pot
+    // Update pot (at offset 72)
     let pot_after_call = initial_pot + call_amount;
-    table_data[64..72].copy_from_slice(&pot_after_call.to_le_bytes());
+    table_data[72..80].copy_from_slice(&pot_after_call.to_le_bytes());
 
     // Move to next actor: SB (seat 1)
     table_data[4] = 1;
@@ -1617,8 +1632,10 @@ fn test_full_hand_integration_three_players() {
     table_data[seat1_offset] = seat_status::FOLDED;
     table_data[seat1_offset + 1] = 1; // has_acted = true
 
-    // Update active_count
-    table_data[6] = 2; // 2 players remaining
+    // Update active_bitmap - clear bit 1 (seat 1 folded)
+    // Was 0b111 (seats 0,1,2), now 0b101 (seats 0,2)
+    let active_bitmap: u16 = 0b101;
+    table_data[8..10].copy_from_slice(&active_bitmap.to_le_bytes());
 
     // Move to next actor: BB (seat 2)
     table_data[4] = 2;
@@ -1633,8 +1650,8 @@ fn test_full_hand_integration_three_players() {
     table_data[seat0_offset + 1] = 0;
     table_data[seat2_offset + 1] = 0;
 
-    // Reset current_bet for new street
-    table_data[48..56].copy_from_slice(&0u64.to_le_bytes());
+    // Reset current_bet for new street (at offset 56)
+    table_data[56..64].copy_from_slice(&0u64.to_le_bytes());
     table_data[seat0_offset + 48..seat0_offset + 56].copy_from_slice(&0u64.to_le_bytes());
     table_data[seat2_offset + 48..seat2_offset + 56].copy_from_slice(&0u64.to_le_bytes());
 
@@ -1657,8 +1674,9 @@ fn test_full_hand_integration_three_players() {
     // Verify post-preflop state
     let table_account = svm.get_account(&table_key).unwrap();
     assert_eq!(table_account.data[5], street::FLOP, "Should be on flop");
-    assert_eq!(table_account.data[6], 2, "Should have 2 active players");
-    let current_pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    let active_bitmap = u16::from_le_bytes([table_account.data[8], table_account.data[9]]);
+    assert_eq!(active_bitmap.count_ones(), 2, "Should have 2 active players");
+    let current_pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(current_pot, pot_after_call, "Pot should include all bets");
 
     println!("✓ Phase 3: Preflop complete - UTG called, SB folded, BB checked (pot = {})", current_pot);
@@ -1698,8 +1716,8 @@ fn test_full_hand_integration_three_players() {
     table_data[1] = table_status::SHOWDOWN;
 
     // Reveal seed
-    table_data[7] = 1; // seed_revealed = true
-    table_data[144..176].copy_from_slice(&seed);
+    table_data[6] = 1; // seed_revealed = true
+    table_data[152..184].copy_from_slice(&seed);
 
     svm.set_account(
         table_key,
@@ -1737,11 +1755,11 @@ fn test_full_hand_integration_three_players() {
     let p1_final_stack = p1_stack_after_call + pot_after_rake;
     table_data[seat0_offset + 40..seat0_offset + 48].copy_from_slice(&p1_final_stack.to_le_bytes());
 
-    // Update rake_accumulated
-    table_data[72..80].copy_from_slice(&rake.to_le_bytes());
+    // Update rake_accumulated (at offset 80)
+    table_data[80..88].copy_from_slice(&rake.to_le_bytes());
 
-    // Reset pot
-    table_data[64..72].copy_from_slice(&0u64.to_le_bytes());
+    // Reset pot (at offset 72)
+    table_data[72..80].copy_from_slice(&0u64.to_le_bytes());
 
     // Reset table to WAITING for next hand
     table_data[1] = table_status::WAITING;
@@ -1785,12 +1803,12 @@ fn test_full_hand_integration_three_players() {
         "Table should be WAITING for next hand"
     );
 
-    // Verify pot is cleared
-    let final_pot_value = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    // Verify pot is cleared (at offset 72)
+    let final_pot_value = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(final_pot_value, 0, "Pot should be cleared after settlement");
 
-    // Verify rake accumulated
-    let rake_accumulated = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
+    // Verify rake accumulated (at offset 80)
+    let rake_accumulated = u64::from_le_bytes(table_account.data[80..88].try_into().unwrap());
     assert_eq!(rake_accumulated, rake, "Rake should be accumulated");
 
     // Verify winner stack increased
@@ -1840,7 +1858,7 @@ fn test_full_hand_integration_three_players() {
              bb_amount / 1_000_000);
     println!("  - Rake accumulated: {} CRISPS", rake / 1_000_000);
 
-    println!("\n✓ Full hand integration test passed (AC-8.2): join -> start -> actions -> settle");
+    println!("\n✓ Full hand integration test passed (AC-POK8.2): join -> start -> actions -> settle");
     println!("  - 3 players participated");
     println!("  - Blinds: SB={}, BB={}", small_blind / 1_000_000, big_blind / 1_000_000);
     println!("  - Final pot: {} CRISPS (before rake)", final_pot / 1_000_000);
@@ -1878,7 +1896,7 @@ fn sha256_simple(data: &[u8]) -> [u8; 32] {
     result
 }
 
-/// Build instruction data for Settle (AC-6.1, AC-6.2)
+/// Build instruction data for Settle (AC-POK6.1, AC-POK6.2)
 /// The Settle instruction only needs the discriminator - hand strengths are
 /// derived on-chain from the revealed seed.
 fn build_settle_ix() -> Vec<u8> {
@@ -1886,7 +1904,7 @@ fn build_settle_ix() -> Vec<u8> {
 }
 
 // =============================================================================
-// AC-3.4 to AC-3.6: Staking Pool Token Flow Tests (LiteSVM with real Token-2022)
+// AC-POK3.4 to AC-POK3.6: Staking Pool Token Flow Tests (LiteSVM with real Token-2022)
 // =============================================================================
 
 fn staking_pool_pda(program_id: &Address) -> Address {
@@ -1942,7 +1960,7 @@ fn build_sweep_rake_ix() -> Vec<u8> {
 ///   _padding: [u8; 6] (6) @ offset 2
 ///   total_staked: u64 (8) @ offset 8
 ///   accumulated_rewards: u64 (8) @ offset 16
-///   total_distributed: u64 (8) @ offset 24
+///   rewards_per_token: u64 (8) @ offset 24
 ///   stake_vault: Pubkey (32) @ offset 32
 ///   rewards_vault: Pubkey (32) @ offset 64
 fn create_staking_pool_data(
@@ -2001,6 +2019,11 @@ fn parse_staking_pool_accumulated_rewards(data: &[u8]) -> u64 {
     u64::from_le_bytes(data[16..24].try_into().unwrap())
 }
 
+/// Parse staking pool rewards-per-token accumulator from raw data
+fn parse_staking_pool_rewards_per_token(data: &[u8]) -> u64 {
+    u64::from_le_bytes(data[24..32].try_into().unwrap())
+}
+
 /// Parse staker position staked_amount from raw data
 fn parse_staker_position_staked_amount(data: &[u8]) -> u64 {
     u64::from_le_bytes(data[40..48].try_into().unwrap())
@@ -2011,9 +2034,9 @@ fn parse_staker_position_rewards_claimed(data: &[u8]) -> u64 {
     u64::from_le_bytes(data[48..56].try_into().unwrap())
 }
 
-/// Test: Deposit stake (debit staker token, credit stake vault) - AC-3.5
+/// Test: Deposit stake (debit staker token, credit stake vault) - AC-POK3.5
 ///
-/// AC-3.5: Stakers can deposit/withdraw CRISPS into a staking pool managed by the poker program.
+/// AC-POK3.5: Stakers can deposit/withdraw CRISPS into a staking pool managed by the poker program.
 ///
 /// This test validates:
 /// 1. Staker's token account is debited by the deposit amount
@@ -2244,12 +2267,12 @@ fn test_deposit_stake_debits_staker_credits_vault() {
         "StakerPosition.staked_amount should match deposit"
     );
 
-    println!("✓ test_deposit_stake_debits_staker_credits_vault passed (AC-3.5)");
+    println!("✓ test_deposit_stake_debits_staker_credits_vault passed (AC-POK3.5)");
 }
 
-/// Test: Initialize staking pool (AC-3.5)
+/// Test: Initialize staking pool (AC-POK3.5)
 ///
-/// AC-3.5: Staking pool and vault PDAs are initialized with correct metadata.
+/// AC-POK3.5: Staking pool and vault PDAs are initialized with correct metadata.
 #[test]
 fn test_init_staking_pool_initializes_pool() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -2393,7 +2416,7 @@ fn test_init_staking_pool_initializes_pool() {
     svm.send_transaction(tx).unwrap();
 
     let pool_account = svm.get_account(&staking_pool_key).unwrap();
-    let pool = unsafe { StakingPool::from_bytes_unchecked(&pool_account.data) };
+    let pool = StakingPool::from_bytes(&pool_account.data).unwrap();
     assert!(pool.is_initialized());
     assert_eq!(Address::from(pool.stake_vault), stake_vault_key);
     assert_eq!(Address::from(pool.rewards_vault), rewards_vault_key);
@@ -2401,9 +2424,9 @@ fn test_init_staking_pool_initializes_pool() {
     assert_eq!(pool.accumulated_rewards, 0);
 }
 
-/// Test: Withdraw stake (credit staker token, debit stake vault) - AC-3.5
+/// Test: Withdraw stake (credit staker token, debit stake vault) - AC-POK3.5
 ///
-/// AC-3.5: Stakers can deposit/withdraw CRISPS into a staking pool managed by the poker program.
+/// AC-POK3.5: Stakers can deposit/withdraw CRISPS into a staking pool managed by the poker program.
 ///
 /// This test validates:
 /// 1. Staker's token account is credited by the withdrawal amount
@@ -2634,18 +2657,18 @@ fn test_withdraw_stake_credits_staker_debits_vault() {
         "StakerPosition.staked_amount should be reduced"
     );
 
-    println!("✓ test_withdraw_stake_credits_staker_debits_vault passed (AC-3.5)");
+    println!("✓ test_withdraw_stake_credits_staker_debits_vault passed (AC-POK3.5)");
 }
 
-/// Test: Claim rewards (proportional distribution) - AC-3.6
+/// Test: Claim rewards (proportional distribution) - AC-POK3.6
 ///
-/// AC-3.6: Rake distributions are proportional to staked balances and are claimable via an on-chain instruction.
+/// AC-POK3.6: Rake distributions are proportional to staked balances and are claimable via an on-chain instruction.
 ///
 /// This test validates:
 /// 1. Staker receives proportional share of accumulated rewards
 /// 2. Rewards vault is debited by claimed amount
-/// 3. StakerPosition.rewards_claimed is updated
-/// 4. StakingPool.accumulated_rewards is reduced
+/// 3. StakingPool.accumulated_rewards is cleared after distribution
+/// 4. StakerPosition.rewards_claimed is cleared after claim
 #[test]
 fn test_claim_rewards_proportional_distribution() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -2863,32 +2886,32 @@ fn test_claim_rewards_proportional_distribution() {
     let remaining_rewards = parse_staking_pool_accumulated_rewards(&pool_account.data);
     assert_eq!(
         remaining_rewards,
-        accumulated_rewards - expected_claim,
-        "StakingPool.accumulated_rewards should be reduced"
+        0,
+        "StakingPool.accumulated_rewards should be cleared after distribution"
     );
 
     // Verify staker position state
     let position_account = svm.get_account(&staker_position_key).unwrap();
     let rewards_claimed = parse_staker_position_rewards_claimed(&position_account.data);
     assert_eq!(
-        rewards_claimed, expected_claim,
-        "StakerPosition.rewards_claimed should track claimed amount"
+        rewards_claimed, 0,
+        "StakerPosition.rewards_claimed should be cleared after claim"
     );
 
-    println!("✓ test_claim_rewards_proportional_distribution passed (AC-3.6)");
+    println!("✓ test_claim_rewards_proportional_distribution passed (AC-POK3.6)");
     println!("  - Staker stake: {} CRISPS ({}% of pool)", staker_stake / 1_000_000, (staker_stake * 100) / total_staked);
     println!("  - Accumulated rewards: {} CRISPS", accumulated_rewards / 1_000_000);
     println!("  - Claimed: {} CRISPS (proportional share)", expected_claim / 1_000_000);
 }
 
-/// Test: Sweep rake from table to staking pool - AC-3.4
+/// Test: Sweep rake from table to staking pool - AC-POK3.4
 ///
-/// AC-3.4: Standard rake is charged per hand and accumulated in a staking rewards pool.
+/// AC-POK3.4: Standard rake is charged per hand and accumulated in a staking rewards pool.
 ///
 /// This test validates:
 /// 1. Rake is transferred from table vault to rewards vault
 /// 2. Table.rake_accumulated is reset to 0
-/// 3. StakingPool.accumulated_rewards is increased
+/// 3. StakingPool rewards-per-token accumulator increases and accumulated_rewards is cleared
 #[test]
 fn test_sweep_rake_table_to_rewards_vault() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -2912,11 +2935,14 @@ fn test_sweep_rake_table_to_rewards_vault() {
     let initial_table_vault = 100_000_000u64; // 100 CRISPS in table vault (includes rake)
     let initial_rewards_vault = 50_000_000u64; // 50 CRISPS already in rewards
     let initial_pool_rewards = 50_000_000u64;
+    let total_staked = 500_000_000u64; // total_staked
 
     // Expected final states
     let expected_table_vault = initial_table_vault - rake_amount;
     let expected_rewards_vault = initial_rewards_vault + rake_amount;
-    let expected_pool_rewards = initial_pool_rewards + rake_amount;
+    let pending_rewards = initial_pool_rewards + rake_amount;
+    let expected_rewards_per_token =
+        (pending_rewards as u128 * 1_000_000_000u128 / total_staked as u128) as u64;
 
     // Create LiteSVM instance with programs loaded
     let mut svm = setup_svm(&program_id);
@@ -2932,13 +2958,13 @@ fn test_sweep_rake_table_to_rewards_vault() {
 
     // Create table with accumulated rake
     let mut table_data = create_table_data(table_id, 1_000_000, 2_000_000, &table_vault_key);
-    // Set rake_accumulated at offset 72
-    table_data[72..80].copy_from_slice(&rake_amount.to_le_bytes());
+    // Set rake_accumulated at offset 80 (pot is at 72)
+    table_data[80..88].copy_from_slice(&rake_amount.to_le_bytes());
 
     let staking_pool_data = create_staking_pool_data(
         &stake_vault_key,
         &rewards_vault_key,
-        500_000_000, // total_staked
+        total_staked,
         initial_pool_rewards,
         0,
     );
@@ -3089,29 +3115,34 @@ fn test_sweep_rake_table_to_rewards_vault() {
         "Rewards vault should be credited with rake"
     );
 
-    // Verify table state (rake_accumulated reset)
+    // Verify table state (rake_accumulated reset, at offset 80)
     let table_account = svm.get_account(&table_key).unwrap();
-    let table_rake = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
+    let table_rake = u64::from_le_bytes(table_account.data[80..88].try_into().unwrap());
     assert_eq!(table_rake, 0, "Table.rake_accumulated should be reset to 0");
 
     // Verify staking pool state
     let pool_account = svm.get_account(&staking_pool_key).unwrap();
     assert_eq!(
         parse_staking_pool_accumulated_rewards(&pool_account.data),
-        expected_pool_rewards,
-        "StakingPool.accumulated_rewards should be increased"
+        0,
+        "StakingPool.accumulated_rewards should be cleared after sweep"
+    );
+    assert_eq!(
+        parse_staking_pool_rewards_per_token(&pool_account.data),
+        expected_rewards_per_token,
+        "StakingPool rewards-per-token accumulator should increase"
     );
 
-    println!("✓ test_sweep_rake_table_to_rewards_vault passed (AC-3.4)");
+    println!("✓ test_sweep_rake_table_to_rewards_vault passed (AC-POK3.4)");
     println!("  - Rake swept: {} CRISPS", rake_amount / 1_000_000);
     println!("  - Rewards vault: {} -> {} CRISPS", initial_rewards_vault / 1_000_000, expected_rewards_vault / 1_000_000);
 }
 
 // =============================================================================
-// AC-4.1: MAX_SEATS = 10 with Empty Seat State Tests
+// AC-POK4.1: MAX_SEATS = 10 with Empty Seat State Tests
 // =============================================================================
 
-/// Test: Table has exactly MAX_SEATS = 10 seats with proper empty state (AC-4.1)
+/// Test: Table has exactly MAX_SEATS = 10 seats with proper empty state (AC-POK4.1)
 ///
 /// This test validates:
 /// 1. The MAX_SEATS constant equals 10
@@ -3119,13 +3150,13 @@ fn test_sweep_rake_table_to_rewards_vault() {
 /// 3. A newly created table has all seats in EMPTY state with zeroed fields
 #[test]
 fn test_max_seats_constant_and_empty_state() {
-    // AC-4.1: Tables support MAX_SEATS = 10
-    assert_eq!(MAX_SEATS, 10, "MAX_SEATS should be 10 (AC-4.1)");
+    // AC-POK4.1: Tables support MAX_SEATS = 10
+    assert_eq!(MAX_SEATS, 10, "MAX_SEATS should be 10 (AC-POK4.1)");
 
-    // Verify TABLE_SIZE calculation: header (176) + 10 seats * 96 bytes = 1136
+    // Verify TABLE_SIZE calculation: header (184) + 10 seats * 96 bytes = 1144
     let expected_table_size = TABLE_HEADER_SIZE + (MAX_SEATS * SEAT_SIZE);
     assert_eq!(TABLE_SIZE, expected_table_size, "TABLE_SIZE should be header + 10 seats");
-    assert_eq!(TABLE_SIZE, 1136, "TABLE_SIZE should be 1136 bytes (AC-1.5)");
+    assert_eq!(TABLE_SIZE, 1144, "TABLE_SIZE should be 1144 bytes (AC-POK1.5)");
 
     // Create a new table and verify all 10 seats are EMPTY
     let vault_key = new_unique_address();
@@ -3139,7 +3170,7 @@ fn test_max_seats_constant_and_empty_state() {
         assert_eq!(
             table_data[seat_offset],
             seat_status::EMPTY,
-            "Seat {} should be EMPTY (AC-4.1)",
+            "Seat {} should be EMPTY (AC-POK4.1)",
             seat_idx
         );
 
@@ -3186,7 +3217,7 @@ fn test_max_seats_constant_and_empty_state() {
         );
         assert_eq!(total_bet, 0, "Seat {} total_bet should be 0", seat_idx);
 
-        // Check hole_card_hash is zeroed (AC-2.6)
+        // Check hole_card_hash is zeroed (AC-POK2.6)
         let hole_card_hash: [u8; 32] = table_data[seat_offset + 64..seat_offset + 96]
             .try_into()
             .unwrap();
@@ -3198,17 +3229,18 @@ fn test_max_seats_constant_and_empty_state() {
         );
     }
 
-    // Verify player_count and active_count are 0
+    // Verify player_count and active_bitmap are 0
     assert_eq!(table_data[2], 0, "player_count should be 0 for empty table");
-    assert_eq!(table_data[6], 0, "active_count should be 0 for empty table");
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
+    assert_eq!(active_bitmap, 0, "active_bitmap should be 0 for empty table");
 
-    println!("✓ test_max_seats_constant_and_empty_state passed (AC-4.1)");
+    println!("✓ test_max_seats_constant_and_empty_state passed (AC-POK4.1)");
     println!("  - MAX_SEATS = {}", MAX_SEATS);
     println!("  - TABLE_SIZE = {} bytes", TABLE_SIZE);
     println!("  - All {} seats verified EMPTY with zeroed fields", MAX_SEATS);
 }
 
-/// Test: Table can be filled to exactly MAX_SEATS players (AC-4.1)
+/// Test: Table can be filled to exactly MAX_SEATS players (AC-POK4.1)
 ///
 /// This test validates that all 10 seats can be occupied simultaneously
 /// and seat state is properly maintained for each player.
@@ -3239,16 +3271,17 @@ fn test_table_full_capacity_ten_seats() {
         &player_refs,
     );
 
-    // Verify player_count and active_count
+    // Verify player_count and active_bitmap count
     assert_eq!(
         table_data[2] as usize,
         MAX_SEATS,
         "player_count should be MAX_SEATS (10)"
     );
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
     assert_eq!(
-        table_data[6] as usize,
+        active_bitmap.count_ones() as usize,
         MAX_SEATS,
-        "active_count should be MAX_SEATS (10)"
+        "active_bitmap count should be MAX_SEATS (10)"
     );
 
     // Verify each seat is OCCUPIED with correct player and stack
@@ -3284,15 +3317,15 @@ fn test_table_full_capacity_ten_seats() {
         );
     }
 
-    println!("✓ test_table_full_capacity_ten_seats passed (AC-4.1)");
+    println!("✓ test_table_full_capacity_ten_seats passed (AC-POK4.1)");
     println!("  - All {} seats occupied successfully", MAX_SEATS);
 }
 
 // =============================================================================
-// AC-4.3: Hand Start Requires Minimum Active Players
+// AC-POK4.3: Hand Start Requires Minimum Active Players
 // =============================================================================
 
-/// Test: StartHand fails with NotEnoughPlayers when below min_players (AC-4.3)
+/// Test: StartHand fails with NotEnoughPlayers when below min_players (AC-POK4.3)
 ///
 /// This test validates that process_start_hand returns NotEnoughPlayers error
 /// when the table has fewer active players than config.min_players.
@@ -3357,30 +3390,31 @@ fn test_start_hand_fails_not_enough_players() {
 
     // Verify precondition: table has 1 player, config requires 2
     assert_eq!(table_data[2], 1, "Table should have 1 player");
-    assert_eq!(table_data[6], 1, "Table should have 1 active player");
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
+    assert_eq!(active_bitmap.count_ones(), 1, "Table should have 1 active player");
 
     // The StartHand instruction would fail with NotEnoughPlayers (error code 16)
     // Since we can't easily invoke the full instruction without entropy setup,
     // we verify the state condition that would trigger the error
     let config_account = svm.get_account(&config_key).unwrap();
     let table_account = svm.get_account(&table_key).unwrap();
-    let config = unsafe { Config::from_bytes_unchecked(&config_account.data) };
-    let table = unsafe { Table::from_bytes_unchecked(&table_account.data) };
+    let config = Config::from_bytes(&config_account.data).unwrap();
+    let table = Table::from_bytes(&table_account.data).unwrap();
 
     assert!(
-        table.active_count < config.min_players,
-        "AC-4.3: active_count ({}) < min_players ({}) should prevent start_hand",
-        table.active_count,
+        table.active_count() < config.min_players,
+        "AC-POK4.3: active_count ({}) < min_players ({}) should prevent start_hand",
+        table.active_count(),
         config.min_players
     );
 
-    println!("✓ test_start_hand_fails_not_enough_players passed (AC-4.3)");
+    println!("✓ test_start_hand_fails_not_enough_players passed (AC-POK4.3)");
     println!("  - min_players required: {}", config.min_players);
-    println!("  - active_count: {}", table.active_count);
+    println!("  - active_count: {}", table.active_count());
     println!("  - StartHand would return NotEnoughPlayers error");
 }
 
-/// Test: StartHand succeeds when active_count >= min_players (AC-4.3)
+/// Test: StartHand succeeds when active_count >= min_players (AC-POK4.3)
 ///
 /// This test validates that start_hand can proceed when the table meets
 /// the minimum active players requirement.
@@ -3447,28 +3481,29 @@ fn test_start_hand_passes_with_enough_players() {
 
     // Verify precondition: table has 2 players, config requires 2
     assert_eq!(table_data[2], 2, "Table should have 2 players");
-    assert_eq!(table_data[6], 2, "Table should have 2 active players");
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
+    assert_eq!(active_bitmap.count_ones(), 2, "Table should have 2 active players");
 
     let config_account = svm.get_account(&config_key).unwrap();
     let table_account = svm.get_account(&table_key).unwrap();
-    let config = unsafe { Config::from_bytes_unchecked(&config_account.data) };
-    let table = unsafe { Table::from_bytes_unchecked(&table_account.data) };
+    let config = Config::from_bytes(&config_account.data).unwrap();
+    let table = Table::from_bytes(&table_account.data).unwrap();
 
     assert!(
-        table.active_count >= config.min_players,
-        "AC-4.3: active_count ({}) >= min_players ({}) allows start_hand",
-        table.active_count,
+        table.active_count() >= config.min_players,
+        "AC-POK4.3: active_count ({}) >= min_players ({}) allows start_hand",
+        table.active_count(),
         config.min_players
     );
 
-    println!("✓ test_start_hand_passes_with_enough_players passed (AC-4.3)");
+    println!("✓ test_start_hand_passes_with_enough_players passed (AC-POK4.3)");
     println!("  - min_players required: {}", config.min_players);
-    println!("  - active_count: {}", table.active_count);
+    println!("  - active_count: {}", table.active_count());
     println!("  - StartHand min_players check would pass");
 }
 
 // =============================================================================
-// AC-4.4: Timeout Action Instruction Execution
+// AC-POK4.4: Timeout Action Instruction Execution
 // =============================================================================
 
 /// Build instruction data for TimeoutAction
@@ -3476,7 +3511,7 @@ fn build_timeout_action_ix() -> Vec<u8> {
     vec![ix_disc::TIMEOUT_ACTION]
 }
 
-/// Test: TimeoutAction instruction requires PLAYING status (AC-4.4)
+/// Test: TimeoutAction instruction requires PLAYING status (AC-POK4.4)
 ///
 /// This test validates that the TimeoutAction instruction fails when
 /// the table is not in PLAYING status.
@@ -3569,12 +3604,12 @@ fn test_timeout_action_requires_playing_status() {
         "TimeoutAction should fail on WAITING table"
     );
 
-    println!("✓ test_timeout_action_requires_playing_status passed (AC-4.4)");
+    println!("✓ test_timeout_action_requires_playing_status passed (AC-POK4.4)");
     println!("  - Table status: WAITING");
     println!("  - TimeoutAction correctly rejected (not in PLAYING status)");
 }
 
-/// Test: Timeout deadline field mechanics (AC-4.4)
+/// Test: Timeout deadline field mechanics (AC-POK4.4)
 ///
 /// This test validates the action_deadline_slot field behavior:
 /// 1. Deadline is 0 when table is not PLAYING
@@ -3598,9 +3633,9 @@ fn test_timeout_deadline_field_mechanics() {
         ],
     );
 
-    // Verify deadline is 0 in WAITING status
+    // Verify deadline is 0 in WAITING status (action_deadline_slot at offset 48)
     let deadline_waiting = u64::from_le_bytes(
-        table_data_waiting[40..48].try_into().unwrap()
+        table_data_waiting[48..56].try_into().unwrap()
     );
     assert_eq!(
         deadline_waiting, 0,
@@ -3613,11 +3648,11 @@ fn test_timeout_deadline_field_mechanics() {
     let current_slot = 1000u64;
     let timeout_slots = 100u64;
     let deadline = current_slot + timeout_slots;
-    table_data_playing[40..48].copy_from_slice(&deadline.to_le_bytes());
+    table_data_playing[48..56].copy_from_slice(&deadline.to_le_bytes());
 
     // Verify deadline is set correctly
     let deadline_playing = u64::from_le_bytes(
-        table_data_playing[40..48].try_into().unwrap()
+        table_data_playing[48..56].try_into().unwrap()
     );
     assert_eq!(
         deadline_playing, deadline,
@@ -3649,14 +3684,14 @@ fn test_timeout_deadline_field_mechanics() {
         deadline_playing
     );
 
-    println!("✓ test_timeout_deadline_field_mechanics passed (AC-4.4)");
+    println!("✓ test_timeout_deadline_field_mechanics passed (AC-POK4.4)");
     println!("  - WAITING: deadline = 0");
     println!("  - PLAYING: deadline = {} (slot {} + {} timeout)",
              deadline, current_slot, timeout_slots);
     println!("  - Deadline comparison logic verified");
 }
 
-/// Test: Timeout deterministic fallback is FOLD (AC-4.4)
+/// Test: Timeout deterministic fallback is FOLD (AC-POK4.4)
 ///
 /// This test validates that when a timeout occurs, the deterministic
 /// fallback action marks the current actor as FOLDED and moves to next player.
@@ -3685,9 +3720,9 @@ fn test_timeout_deterministic_fallback_fold() {
     table_data[4] = 0; // current_actor = seat 0
     table_data[5] = street::PREFLOP;
 
-    // Set deadline in the past
+    // Set deadline in the past (action_deadline_slot at offset 48)
     let deadline = 500u64;
-    table_data[40..48].copy_from_slice(&deadline.to_le_bytes());
+    table_data[48..56].copy_from_slice(&deadline.to_le_bytes());
 
     // Verify initial state
     let seat0_offset = TABLE_HEADER_SIZE;
@@ -3698,31 +3733,35 @@ fn test_timeout_deterministic_fallback_fold() {
     assert_eq!(table_data[seat1_offset], seat_status::OCCUPIED, "Seat 1 should be OCCUPIED");
     assert_eq!(table_data[seat2_offset], seat_status::OCCUPIED, "Seat 2 should be OCCUPIED");
     assert_eq!(table_data[4], 0, "current_actor should be seat 0");
-    assert_eq!(table_data[6], 3, "active_count should be 3");
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
+    assert_eq!(active_bitmap.count_ones(), 3, "active_count should be 3");
 
     // Simulate timeout fallback action (what process_timeout_action does):
     // 1. Mark current actor as FOLDED
     table_data[seat0_offset] = seat_status::FOLDED;
-    // 2. Decrement active_count
-    table_data[6] = table_data[6].saturating_sub(1);
+    // 2. Clear bit 0 from active_bitmap (seat 0 folded)
+    // Was 0b111 (seats 0,1,2), now 0b110 (seats 1,2)
+    let new_bitmap: u16 = 0b110;
+    table_data[8..10].copy_from_slice(&new_bitmap.to_le_bytes());
     // 3. Move current_actor to next player (seat 1)
     table_data[4] = 1;
     // 4. Reset deadline (would be recalculated in actual instruction)
     let new_deadline = 1000u64 + 100; // current_slot + timeout
-    table_data[40..48].copy_from_slice(&new_deadline.to_le_bytes());
+    table_data[48..56].copy_from_slice(&new_deadline.to_le_bytes());
 
     // Verify post-timeout state
     assert_eq!(
         table_data[seat0_offset],
         seat_status::FOLDED,
-        "Timed-out player should be FOLDED (AC-4.4)"
+        "Timed-out player should be FOLDED (AC-POK4.4)"
     );
     assert_eq!(
         table_data[4], 1,
         "current_actor should move to next player (seat 1)"
     );
+    let active_bitmap = u16::from_le_bytes([table_data[8], table_data[9]]);
     assert_eq!(
-        table_data[6], 2,
+        active_bitmap.count_ones(), 2,
         "active_count should be decremented to 2"
     );
     assert_eq!(
@@ -3747,7 +3786,7 @@ fn test_timeout_deterministic_fallback_fold() {
         "Timed-out player's stack should be preserved"
     );
 
-    println!("✓ test_timeout_deterministic_fallback_fold passed (AC-4.4)");
+    println!("✓ test_timeout_deterministic_fallback_fold passed (AC-POK4.4)");
     println!("  - Timed-out player (seat 0): OCCUPIED -> FOLDED");
     println!("  - current_actor: 0 -> 1");
     println!("  - active_count: 3 -> 2");
@@ -3755,7 +3794,7 @@ fn test_timeout_deterministic_fallback_fold() {
 }
 
 // =============================================================================
-// AC-5.1 to AC-5.3: Betting Rules and Legal Action Enforcement Tests
+// AC-POK5.1 to AC-POK5.3: Betting Rules and Legal Action Enforcement Tests
 // =============================================================================
 
 /// Create table data in PLAYING state for betting tests
@@ -3779,20 +3818,27 @@ fn create_table_data_playing_for_betting(
     data[3] = 0; // dealer_position
     data[4] = current_actor;
     data[5] = street::PREFLOP;
-    data[6] = players.len() as u8; // active_count (all active)
-    data[7] = 0; // seed_revealed = false
-    data[8..16].copy_from_slice(&table_id.to_le_bytes());
-    data[16..24].copy_from_slice(&1u64.to_le_bytes()); // hand_id = 1
-    data[24..32].copy_from_slice(&small_blind.to_le_bytes());
-    data[32..40].copy_from_slice(&big_blind.to_le_bytes());
-    data[40..48].copy_from_slice(&1000u64.to_le_bytes()); // action_deadline_slot (far future)
-    data[48..56].copy_from_slice(&current_bet.to_le_bytes());
-    data[56..64].copy_from_slice(&min_raise.to_le_bytes());
-    data[64..72].copy_from_slice(&pot.to_le_bytes());
-    data[72..80].copy_from_slice(&0u64.to_le_bytes()); // rake_accumulated
-    data[80..112].copy_from_slice(vault.as_ref());
-    // seed_commitment: 112..144 (zeroed)
-    // revealed_seed: 144..176 (zeroed)
+    data[6] = 0; // seed_revealed = false
+    data[7] = 0; // _padding
+    // active_bitmap: compute from players (all active)
+    let mut active_bitmap: u16 = 0;
+    for (_player, _stack, seat_index) in players {
+        active_bitmap |= 1 << seat_index;
+    }
+    data[8..10].copy_from_slice(&active_bitmap.to_le_bytes());
+    // _padding2 @ 10..16 (zeroed by default)
+    data[16..24].copy_from_slice(&table_id.to_le_bytes());
+    data[24..32].copy_from_slice(&1u64.to_le_bytes()); // hand_id = 1
+    data[32..40].copy_from_slice(&small_blind.to_le_bytes());
+    data[40..48].copy_from_slice(&big_blind.to_le_bytes());
+    data[48..56].copy_from_slice(&1000u64.to_le_bytes()); // action_deadline_slot (far future)
+    data[56..64].copy_from_slice(&current_bet.to_le_bytes());
+    data[64..72].copy_from_slice(&min_raise.to_le_bytes());
+    data[72..80].copy_from_slice(&pot.to_le_bytes());
+    data[80..88].copy_from_slice(&0u64.to_le_bytes()); // rake_accumulated
+    data[88..120].copy_from_slice(vault.as_ref());
+    // seed_commitment: 120..152 (zeroed)
+    // revealed_seed: 152..184 (zeroed)
 
     // Add players to seats
     for (player, stack, seat_index) in players {
@@ -3826,7 +3872,7 @@ fn create_clock_data(slot: u64) -> Vec<u8> {
     data
 }
 
-/// Test: Out-of-turn action is rejected (AC-5.3)
+/// Test: Out-of-turn action is rejected (AC-POK5.3)
 ///
 /// Validates that PlayerAction fails when a player tries to act
 /// when it's not their turn (NotYourTurn error = 20).
@@ -3935,15 +3981,15 @@ fn test_player_action_out_of_turn_rejected() {
 
     assert!(
         result.is_err(),
-        "PlayerAction should fail when player acts out of turn (AC-5.3)"
+        "PlayerAction should fail when player acts out of turn (AC-POK5.3)"
     );
 
-    println!("✓ test_player_action_out_of_turn_rejected passed (AC-5.3)");
+    println!("✓ test_player_action_out_of_turn_rejected passed (AC-POK5.3)");
     println!("  - current_actor = seat 0 (player1)");
     println!("  - player2 (seat 1) tried to act -> rejected");
 }
 
-/// Test: Check when bet exists is rejected (AC-5.3)
+/// Test: Check when bet exists is rejected (AC-POK5.3)
 ///
 /// Validates that PlayerAction with CHECK fails when there's
 /// an outstanding bet to call (CannotCheckWhenBet error = 23).
@@ -4047,16 +4093,16 @@ fn test_player_action_check_when_bet_rejected() {
 
     assert!(
         result.is_err(),
-        "CHECK should fail when there's a bet to call (AC-5.3)"
+        "CHECK should fail when there's a bet to call (AC-POK5.3)"
     );
 
-    println!("✓ test_player_action_check_when_bet_rejected passed (AC-5.3)");
+    println!("✓ test_player_action_check_when_bet_rejected passed (AC-POK5.3)");
     println!("  - current_bet = {} CRISPS", current_bet / 1_000_000);
     println!("  - player1 current_bet = 0");
     println!("  - CHECK rejected (must call or fold)");
 }
 
-/// Test: Raise too small is rejected (AC-5.2)
+/// Test: Raise too small is rejected (AC-POK5.2)
 ///
 /// Validates that a raise below min_raise_to (current_bet + min_raise)
 /// is rejected with RaiseTooSmall error (24).
@@ -4164,18 +4210,18 @@ fn test_player_action_raise_too_small_rejected() {
 
     assert!(
         result.is_err(),
-        "RAISE to {} should fail (min_raise_to = {}) (AC-5.2)",
+        "RAISE to {} should fail (min_raise_to = {}) (AC-POK5.2)",
         invalid_raise_to / 1_000_000,
         min_raise_to / 1_000_000
     );
 
-    println!("✓ test_player_action_raise_too_small_rejected passed (AC-5.2)");
+    println!("✓ test_player_action_raise_too_small_rejected passed (AC-POK5.2)");
     println!("  - current_bet = {} CRISPS, min_raise = {} CRISPS", current_bet / 1_000_000, min_raise / 1_000_000);
     println!("  - min_raise_to = {} CRISPS", min_raise_to / 1_000_000);
     println!("  - attempted raise_to = {} CRISPS -> rejected", invalid_raise_to / 1_000_000);
 }
 
-/// Test: Raise exceeds stack is rejected (AC-5.2)
+/// Test: Raise exceeds stack is rejected (AC-POK5.2)
 ///
 /// Validates that a raise amount exceeding the player's available
 /// stack is rejected with RaiseExceedsStack error (25).
@@ -4282,17 +4328,17 @@ fn test_player_action_raise_exceeds_stack_rejected() {
 
     assert!(
         result.is_err(),
-        "RAISE to {} should fail (stack = {}) (AC-5.2)",
+        "RAISE to {} should fail (stack = {}) (AC-POK5.2)",
         invalid_raise_to / 1_000_000,
         player1_stack / 1_000_000
     );
 
-    println!("✓ test_player_action_raise_exceeds_stack_rejected passed (AC-5.2)");
+    println!("✓ test_player_action_raise_exceeds_stack_rejected passed (AC-POK5.2)");
     println!("  - player1 stack = {} CRISPS", player1_stack / 1_000_000);
     println!("  - attempted raise_to = {} CRISPS -> rejected", invalid_raise_to / 1_000_000);
 }
 
-/// Test: Valid call action succeeds (AC-5.1)
+/// Test: Valid call action succeeds (AC-POK5.1)
 ///
 /// Validates that a valid CALL action is accepted, and the
 /// player's stack/pot are updated correctly.
@@ -4398,7 +4444,7 @@ fn test_player_action_valid_call_succeeds() {
 
     assert!(
         result.is_ok(),
-        "Valid CALL should succeed (AC-5.1): {:?}",
+        "Valid CALL should succeed (AC-POK5.1): {:?}",
         result.err()
     );
 
@@ -4418,8 +4464,8 @@ fn test_player_action_valid_call_succeeds() {
         "Stack should decrease by call amount"
     );
 
-    // Pot should increase by call amount
-    let new_pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    // Pot should increase by call amount (pot at offset 72)
+    let new_pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(
         new_pot,
         initial_pot + current_bet,
@@ -4437,13 +4483,13 @@ fn test_player_action_valid_call_succeeds() {
         "Player current_bet should match table current_bet"
     );
 
-    println!("✓ test_player_action_valid_call_succeeds passed (AC-5.1)");
+    println!("✓ test_player_action_valid_call_succeeds passed (AC-POK5.1)");
     println!("  - call amount = {} CRISPS", current_bet / 1_000_000);
     println!("  - stack: {} -> {} CRISPS", player1_stack / 1_000_000, new_stack / 1_000_000);
     println!("  - pot: {} -> {} CRISPS", initial_pot / 1_000_000, new_pot / 1_000_000);
 }
 
-/// Test: Valid raise action succeeds (AC-5.1, AC-5.2)
+/// Test: Valid raise action succeeds (AC-POK5.1, AC-POK5.2)
 ///
 /// Validates that a valid RAISE action is accepted with proper bounds,
 /// and the table state is updated correctly including min_raise.
@@ -4552,7 +4598,7 @@ fn test_player_action_valid_raise_succeeds() {
 
     assert!(
         result.is_ok(),
-        "Valid RAISE should succeed (AC-5.1, AC-5.2): {:?}",
+        "Valid RAISE should succeed (AC-POK5.1, AC-POK5.2): {:?}",
         result.err()
     );
 
@@ -4572,34 +4618,34 @@ fn test_player_action_valid_raise_succeeds() {
         "Stack should decrease by raise amount"
     );
 
-    // Pot should increase by raise_amount
-    let new_pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    // Pot should increase by raise_amount (pot at offset 72)
+    let new_pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(
         new_pot,
         initial_pot + raise_amount,
         "Pot should increase by raise amount"
     );
 
-    // Table current_bet should be updated to raise_to
-    let new_current_bet = u64::from_le_bytes(table_account.data[48..56].try_into().unwrap());
+    // Table current_bet should be updated to raise_to (current_bet at offset 56)
+    let new_current_bet = u64::from_le_bytes(table_account.data[56..64].try_into().unwrap());
     assert_eq!(new_current_bet, raise_to, "Table current_bet should be updated");
 
-    // min_raise should be updated to raise increment (raise_to - old_current_bet)
-    let new_min_raise = u64::from_le_bytes(table_account.data[56..64].try_into().unwrap());
+    // min_raise should be updated to raise increment (min_raise at offset 64)
+    let new_min_raise = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
     let expected_new_min_raise = raise_to - current_bet; // 25 - 10 = 15
     assert_eq!(
         new_min_raise, expected_new_min_raise,
         "min_raise should be updated to raise increment"
     );
 
-    println!("✓ test_player_action_valid_raise_succeeds passed (AC-5.1, AC-5.2)");
+    println!("✓ test_player_action_valid_raise_succeeds passed (AC-POK5.1, AC-POK5.2)");
     println!("  - raise_to = {} CRISPS (min was {})", raise_to / 1_000_000, (current_bet + min_raise) / 1_000_000);
     println!("  - stack: {} -> {} CRISPS", player1_stack / 1_000_000, new_stack / 1_000_000);
     println!("  - pot: {} -> {} CRISPS", initial_pot / 1_000_000, new_pot / 1_000_000);
     println!("  - new min_raise = {} CRISPS", new_min_raise / 1_000_000);
 }
 
-/// Test: Valid fold action succeeds (AC-5.1)
+/// Test: Valid fold action succeeds (AC-POK5.1)
 ///
 /// Validates that FOLD action is accepted and marks the player
 /// as folded, reducing active_count.
@@ -4704,7 +4750,7 @@ fn test_player_action_valid_fold_succeeds() {
 
     assert!(
         result.is_ok(),
-        "Valid FOLD should succeed (AC-5.1): {:?}",
+        "Valid FOLD should succeed (AC-POK5.1): {:?}",
         result.err()
     );
 
@@ -4721,8 +4767,8 @@ fn test_player_action_valid_fold_succeeds() {
     );
 
     // active_count should decrease from 2 to 1
-    let active_count = table_account.data[6];
-    assert_eq!(active_count, 1, "active_count should decrease to 1");
+    let active_bitmap = u16::from_le_bytes([table_account.data[8], table_account.data[9]]);
+    assert_eq!(active_bitmap.count_ones(), 1, "active_count should decrease to 1");
 
     // Stack should remain unchanged
     let new_stack = u64::from_le_bytes(
@@ -4732,14 +4778,14 @@ fn test_player_action_valid_fold_succeeds() {
     );
     assert_eq!(new_stack, player1_stack, "Stack should remain unchanged after fold");
 
-    println!("✓ test_player_action_valid_fold_succeeds passed (AC-5.1)");
+    println!("✓ test_player_action_valid_fold_succeeds passed (AC-POK5.1)");
     println!("  - player1 status: OCCUPIED -> FOLDED");
     println!("  - active_count: 2 -> 1");
     println!("  - stack preserved: {} CRISPS", player1_stack / 1_000_000);
 }
 
 // =============================================================================
-// Settlement Tests (AC-6.1, AC-6.2)
+// Settlement Tests (AC-POK6.1, AC-POK6.2)
 // =============================================================================
 
 /// Helper to create a table in SHOWDOWN state ready for settlement.
@@ -4767,23 +4813,30 @@ fn create_table_data_for_settlement(
     data[3] = 0; // dealer_position
     data[4] = 0; // current_actor
     data[5] = street::RIVER; // current_street
-    // Count active players (not folded)
-    let active_count = seats.iter().filter(|(_, _, _, status, _)| *status != seat_status::FOLDED).count();
-    data[6] = active_count as u8;
-    data[7] = 1; // seed_revealed = true
-    data[8..16].copy_from_slice(&table_id.to_le_bytes());
-    data[16..24].copy_from_slice(&1u64.to_le_bytes()); // hand_id = 1
-    data[24..32].copy_from_slice(&small_blind.to_le_bytes());
-    data[32..40].copy_from_slice(&big_blind.to_le_bytes());
-    data[40..48].copy_from_slice(&0u64.to_le_bytes()); // action_deadline_slot
-    data[48..56].copy_from_slice(&0u64.to_le_bytes()); // current_bet
-    data[56..64].copy_from_slice(&big_blind.to_le_bytes()); // min_raise
-    data[64..72].copy_from_slice(&pot.to_le_bytes());
-    data[72..80].copy_from_slice(&rake_accumulated.to_le_bytes());
-    data[80..112].copy_from_slice(vault.as_ref());
-    // seed_commitment: 112..144 (zeroed)
-    // revealed_seed: 144..176
-    data[144..176].copy_from_slice(&revealed_seed);
+    data[6] = 1; // seed_revealed = true
+    data[7] = 0; // _padding
+    // Compute active_bitmap (not folded)
+    let mut active_bitmap: u16 = 0;
+    for (_, _, _, status, seat_index) in seats {
+        if *status != seat_status::FOLDED {
+            active_bitmap |= 1 << seat_index;
+        }
+    }
+    data[8..10].copy_from_slice(&active_bitmap.to_le_bytes());
+    // _padding2 @ 10..16 (zeroed by default)
+    data[16..24].copy_from_slice(&table_id.to_le_bytes());
+    data[24..32].copy_from_slice(&1u64.to_le_bytes()); // hand_id = 1
+    data[32..40].copy_from_slice(&small_blind.to_le_bytes());
+    data[40..48].copy_from_slice(&big_blind.to_le_bytes());
+    data[48..56].copy_from_slice(&0u64.to_le_bytes()); // action_deadline_slot
+    data[56..64].copy_from_slice(&0u64.to_le_bytes()); // current_bet
+    data[64..72].copy_from_slice(&big_blind.to_le_bytes()); // min_raise
+    data[72..80].copy_from_slice(&pot.to_le_bytes());
+    data[80..88].copy_from_slice(&rake_accumulated.to_le_bytes());
+    data[88..120].copy_from_slice(vault.as_ref());
+    // seed_commitment: 120..152 (zeroed)
+    // revealed_seed: 152..184
+    data[152..184].copy_from_slice(&revealed_seed);
 
     // Add players to seats
     for (player, stack, total_bet, status, seat_index) in seats {
@@ -4799,13 +4852,13 @@ fn create_table_data_for_settlement(
     data
 }
 
-/// Test: Basic heads-up settlement - winner takes all (AC-6.1, AC-6.2)
+/// Test: Basic heads-up settlement - winner takes all (AC-POK6.1, AC-POK6.2)
 ///
 /// Two players go to showdown, one wins the entire pot.
 /// Verifies:
 /// - Hand strength evaluation is deterministic
 /// - Winner receives pot minus rake
-/// - Total payouts = total risked (AC-6.2)
+/// - Total payouts = total risked (AC-POK6.2)
 #[test]
 fn test_settle_heads_up_winner_takes_all() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -4899,7 +4952,7 @@ fn test_settle_heads_up_winner_takes_all() {
 
     assert!(
         result.is_ok(),
-        "Settle should succeed (AC-6.1): {:?}",
+        "Settle should succeed (AC-POK6.1): {:?}",
         result.err()
     );
 
@@ -4913,8 +4966,8 @@ fn test_settle_heads_up_winner_takes_all() {
         "Table should be in WAITING state after settlement"
     );
 
-    // Pot should be 0
-    let final_pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    // Pot should be 0 (at offset 72)
+    let final_pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(final_pot, 0, "Pot should be 0 after settlement");
 
     // Verify payout invariant: total stacks should equal original total
@@ -4929,21 +4982,21 @@ fn test_settle_heads_up_winner_takes_all() {
             .try_into()
             .unwrap(),
     );
-    let rake_accumulated = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
+    let rake_accumulated = u64::from_le_bytes(table_account.data[80..88].try_into().unwrap());
 
     // Total stacks + rake should equal original stacks + pot contributions
     let total_after = seat0_stack + seat1_stack + rake_accumulated;
     let total_before = player1_stack + player2_stack + player1_bet + player2_bet;
     assert_eq!(
         total_after, total_before,
-        "AC-6.2: Total payouts + rake must equal total risked"
+        "AC-POK6.2: Total payouts + rake must equal total risked"
     );
 
     // Rake should be 2.5% of pot
     let expected_rake = (pot * 250) / 10000;
     assert_eq!(rake_accumulated, expected_rake, "Rake should be 2.5% of pot");
 
-    println!("✓ test_settle_heads_up_winner_takes_all passed (AC-6.1, AC-6.2)");
+    println!("✓ test_settle_heads_up_winner_takes_all passed (AC-POK6.1, AC-POK6.2)");
     println!("  - pot = {} CRISPS", pot / 1_000_000);
     println!("  - rake = {} CRISPS (2.5%)", expected_rake / 1_000_000);
     println!("  - seat0_stack = {} CRISPS", seat0_stack / 1_000_000);
@@ -4951,7 +5004,7 @@ fn test_settle_heads_up_winner_takes_all() {
     println!("  - invariant check: total_after ({}) == total_before ({})", total_after, total_before);
 }
 
-/// Test: Side pot with all-in player (AC-6.1, AC-6.2)
+/// Test: Side pot with all-in player (AC-POK6.1, AC-POK6.2)
 ///
 /// Three players: P1 all-in for 50, P2 bets 100, P3 bets 100.
 /// Main pot = 150 (50 * 3), Side pot = 100 (50 * 2 from P2 and P3).
@@ -5059,7 +5112,7 @@ fn test_settle_side_pot_all_in() {
 
     assert!(
         result.is_ok(),
-        "Settle with side pot should succeed (AC-6.1): {:?}",
+        "Settle with side pot should succeed (AC-POK6.1): {:?}",
         result.err()
     );
 
@@ -5073,8 +5126,8 @@ fn test_settle_side_pot_all_in() {
         "Table should be in WAITING state after settlement"
     );
 
-    // Pot should be 0
-    let final_pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    // Pot should be 0 (at offset 72)
+    let final_pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(final_pot, 0, "Pot should be 0 after settlement");
 
     // Read final stacks
@@ -5094,23 +5147,23 @@ fn test_settle_side_pot_all_in() {
             .unwrap(),
     );
 
-    // AC-6.2: Total payouts must equal total risked (pot)
+    // AC-POK6.2: Total payouts must equal total risked (pot)
     let total_winnings = seat0_stack + seat1_stack + seat2_stack;
     let original_stacks = p1_stack + p2_stack + p3_stack;
     assert_eq!(
         total_winnings,
         original_stacks + pot,
-        "AC-6.2: Total payouts must equal total risked"
+        "AC-POK6.2: Total payouts must equal total risked"
     );
 
-    println!("✓ test_settle_side_pot_all_in passed (AC-6.1, AC-6.2)");
+    println!("✓ test_settle_side_pot_all_in passed (AC-POK6.1, AC-POK6.2)");
     println!("  - pot = {} CRISPS", pot / 1_000_000);
     println!("  - p1_bet = {} (all-in), p2_bet = {}, p3_bet = {}", p1_bet / 1_000_000, p2_bet / 1_000_000, p3_bet / 1_000_000);
     println!("  - final stacks: seat0 = {}, seat1 = {}, seat2 = {}", seat0_stack / 1_000_000, seat1_stack / 1_000_000, seat2_stack / 1_000_000);
     println!("  - invariant: total_winnings ({}) == original + pot ({})", total_winnings, original_stacks + pot);
 }
 
-/// Test: Settlement with folded player (AC-6.1, AC-6.2)
+/// Test: Settlement with folded player (AC-POK6.1, AC-POK6.2)
 ///
 /// Three players: P1 folded (contributed 10M), P2 and P3 go to showdown.
 /// Folded player's chips are in the pot but they can't win.
@@ -5212,15 +5265,15 @@ fn test_settle_with_folded_player() {
 
     assert!(
         result.is_ok(),
-        "Settle with folded player should succeed (AC-6.1): {:?}",
+        "Settle with folded player should succeed (AC-POK6.1): {:?}",
         result.err()
     );
 
     // Verify state
     let table_account = svm.get_account(&table_key).unwrap();
 
-    // Pot should be 0
-    let final_pot = u64::from_le_bytes(table_account.data[64..72].try_into().unwrap());
+    // Pot should be 0 (at offset 72)
+    let final_pot = u64::from_le_bytes(table_account.data[72..80].try_into().unwrap());
     assert_eq!(final_pot, 0, "Pot should be 0 after settlement");
 
     // Read final stacks
@@ -5247,23 +5300,23 @@ fn test_settle_with_folded_player() {
         "Folded player's stack should remain unchanged"
     );
 
-    // AC-6.2: Total payouts must equal total risked
+    // AC-POK6.2: Total payouts must equal total risked
     let total_winnings = seat0_stack + seat1_stack + seat2_stack;
     let original_stacks = p1_stack + p2_stack + p3_stack;
     assert_eq!(
         total_winnings,
         original_stacks + pot,
-        "AC-6.2: Total payouts must equal total risked"
+        "AC-POK6.2: Total payouts must equal total risked"
     );
 
-    println!("✓ test_settle_with_folded_player passed (AC-6.1, AC-6.2)");
+    println!("✓ test_settle_with_folded_player passed (AC-POK6.1, AC-POK6.2)");
     println!("  - pot = {} CRISPS", pot / 1_000_000);
     println!("  - p1 (folded, bet {}M) -> stack unchanged at {}M", p1_bet / 1_000_000, seat0_stack / 1_000_000);
     println!("  - p2 (bet {}M) -> stack = {}M", p2_bet / 1_000_000, seat1_stack / 1_000_000);
     println!("  - p3 (bet {}M) -> stack = {}M", p3_bet / 1_000_000, seat2_stack / 1_000_000);
 }
 
-/// Test: Settlement fails when not in SHOWDOWN state (AC-6.1)
+/// Test: Settlement fails when not in SHOWDOWN state (AC-POK6.1)
 #[test]
 fn test_settle_fails_when_not_showdown() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -5353,11 +5406,11 @@ fn test_settle_fails_when_not_showdown() {
         "Settle should fail when table is not in SHOWDOWN state"
     );
 
-    println!("✓ test_settle_fails_when_not_showdown passed (AC-6.1)");
+    println!("✓ test_settle_fails_when_not_showdown passed (AC-POK6.1)");
     println!("  - Settle correctly rejected when table status = PLAYING");
 }
 
-/// Test: Settlement fails when seed not revealed (AC-2.8)
+/// Test: Settlement fails when seed not revealed (AC-POK2.8)
 #[test]
 fn test_settle_fails_when_seed_not_revealed() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -5413,8 +5466,8 @@ fn test_settle_fails_when_seed_not_revealed() {
             (&player2_key, 498_000_000, 2_000_000, seat_status::OCCUPIED, 1),
         ],
     );
-    // Override seed_revealed to false
-    table_data[7] = 0;
+    // Override seed_revealed to false (at offset 6)
+    table_data[6] = 0;
     svm.set_account(
         table_key,
         Account {
@@ -5444,14 +5497,14 @@ fn test_settle_fails_when_seed_not_revealed() {
 
     assert!(
         result.is_err(),
-        "Settle should fail when seed is not revealed (AC-2.8)"
+        "Settle should fail when seed is not revealed (AC-POK2.8)"
     );
 
-    println!("✓ test_settle_fails_when_seed_not_revealed passed (AC-2.8)");
+    println!("✓ test_settle_fails_when_seed_not_revealed passed (AC-POK2.8)");
     println!("  - Settle correctly rejected when seed_revealed = false");
 }
 
-/// Test: Pot invariant violation is caught (AC-6.2)
+/// Test: Pot invariant violation is caught (AC-POK6.2)
 ///
 /// If the pot doesn't match the sum of total_bets, settlement should fail.
 #[test]
@@ -5539,18 +5592,18 @@ fn test_settle_fails_on_pot_invariant_violation() {
 
     assert!(
         result.is_err(),
-        "Settle should fail when pot doesn't match total_bets (AC-6.2)"
+        "Settle should fail when pot doesn't match total_bets (AC-POK6.2)"
     );
 
-    println!("✓ test_settle_fails_on_pot_invariant_violation passed (AC-6.2)");
+    println!("✓ test_settle_fails_on_pot_invariant_violation passed (AC-POK6.2)");
     println!("  - Settle correctly rejected when pot (5M) != sum(total_bets) (4M)");
 }
 
 // =============================================================================
-// Security Validation Negative Tests (AC-7.1, AC-7.2, AC-7.3)
+// Security Validation Negative Tests (AC-POK7.1, AC-POK7.2, AC-POK7.3)
 // =============================================================================
 
-/// Test: Initialize fails when authority is not signing (AC-7.1)
+/// Test: Initialize fails when authority is not signing (AC-POK7.1)
 ///
 /// All instructions must validate that required signers actually signed.
 #[test]
@@ -5588,12 +5641,12 @@ fn test_ac_7_1_initialize_rejects_missing_signer() {
     let tx = Transaction::new(&[&fake_payer], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "Initialize should fail when authority is not signing (AC-7.1)");
+    assert!(result.is_err(), "Initialize should fail when authority is not signing (AC-POK7.1)");
     println!("✓ test_ac_7_1_initialize_rejects_missing_signer passed");
     println!("  - MissingSigner error correctly raised when authority doesn't sign");
 }
 
-/// Test: JoinTable fails when player is not signing (AC-7.1)
+/// Test: JoinTable fails when player is not signing (AC-POK7.1)
 #[test]
 fn test_ac_7_1_join_table_rejects_missing_signer() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -5676,12 +5729,12 @@ fn test_ac_7_1_join_table_rejects_missing_signer() {
     let tx = Transaction::new(&[&fake_payer], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "JoinTable should fail when player is not signing (AC-7.1)");
+    assert!(result.is_err(), "JoinTable should fail when player is not signing (AC-POK7.1)");
     println!("✓ test_ac_7_1_join_table_rejects_missing_signer passed");
     println!("  - MissingSigner error correctly raised when player doesn't sign");
 }
 
-/// Test: PlayerAction fails when player is not signing (AC-7.1)
+/// Test: PlayerAction fails when player is not signing (AC-POK7.1)
 #[test]
 fn test_ac_7_1_player_action_rejects_missing_signer() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -5752,12 +5805,12 @@ fn test_ac_7_1_player_action_rejects_missing_signer() {
     let tx = Transaction::new(&[&fake_payer], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "PlayerAction should fail when player is not signing (AC-7.1)");
+    assert!(result.is_err(), "PlayerAction should fail when player is not signing (AC-POK7.1)");
     println!("✓ test_ac_7_1_player_action_rejects_missing_signer passed");
     println!("  - MissingSigner error correctly raised when acting player doesn't sign");
 }
 
-/// Test: Initialize fails with wrong config PDA (AC-7.2)
+/// Test: Initialize fails with wrong config PDA (AC-POK7.2)
 ///
 /// The program must verify the config account is derived from ["config"].
 #[test]
@@ -5792,12 +5845,12 @@ fn test_ac_7_2_initialize_rejects_wrong_config_pda() {
     let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "Initialize should fail with wrong config PDA (AC-7.2)");
+    assert!(result.is_err(), "Initialize should fail with wrong config PDA (AC-POK7.2)");
     println!("✓ test_ac_7_2_initialize_rejects_wrong_config_pda passed");
     println!("  - InvalidPda error correctly raised for wrong config derivation");
 }
 
-/// Test: CreateTable fails with wrong table PDA (AC-7.2)
+/// Test: CreateTable fails with wrong table PDA (AC-POK7.2)
 #[test]
 fn test_ac_7_2_create_table_rejects_wrong_table_pda() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -5856,12 +5909,12 @@ fn test_ac_7_2_create_table_rejects_wrong_table_pda() {
     let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "CreateTable should fail with wrong table PDA (AC-7.2)");
+    assert!(result.is_err(), "CreateTable should fail with wrong table PDA (AC-POK7.2)");
     println!("✓ test_ac_7_2_create_table_rejects_wrong_table_pda passed");
     println!("  - InvalidPda error correctly raised for wrong table derivation");
 }
 
-/// Test: JoinTable fails with wrong vault account (AC-7.2)
+/// Test: JoinTable fails with wrong vault account (AC-POK7.2)
 #[test]
 fn test_ac_7_2_join_table_rejects_wrong_vault() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -5942,12 +5995,12 @@ fn test_ac_7_2_join_table_rejects_wrong_vault() {
     let tx = Transaction::new(&[&player], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "JoinTable should fail with wrong vault (AC-7.2)");
+    assert!(result.is_err(), "JoinTable should fail with wrong vault (AC-POK7.2)");
     println!("✓ test_ac_7_2_join_table_rejects_wrong_vault passed");
     println!("  - InvalidPda error correctly raised when vault doesn't match table.vault");
 }
 
-/// Test: CreateTable fails when vault and table passed as duplicate mutable (AC-7.3)
+/// Test: CreateTable fails when vault and table passed as duplicate mutable (AC-POK7.3)
 #[test]
 fn test_ac_7_3_create_table_rejects_duplicate_mutable_accounts() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6004,12 +6057,12 @@ fn test_ac_7_3_create_table_rejects_duplicate_mutable_accounts() {
     let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "CreateTable should fail with duplicate mutable accounts (AC-7.3)");
+    assert!(result.is_err(), "CreateTable should fail with duplicate mutable accounts (AC-POK7.3)");
     println!("✓ test_ac_7_3_create_table_rejects_duplicate_mutable_accounts passed");
     println!("  - DuplicateMutableAccount error correctly raised for same account passed twice");
 }
 
-/// Test: JoinTable fails with duplicate mutable accounts (AC-7.3)
+/// Test: JoinTable fails with duplicate mutable accounts (AC-POK7.3)
 #[test]
 fn test_ac_7_3_join_table_rejects_duplicate_mutable_accounts() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6080,12 +6133,12 @@ fn test_ac_7_3_join_table_rejects_duplicate_mutable_accounts() {
     let tx = Transaction::new(&[&player], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "JoinTable should fail with duplicate mutable accounts (AC-7.3)");
+    assert!(result.is_err(), "JoinTable should fail with duplicate mutable accounts (AC-POK7.3)");
     println!("✓ test_ac_7_3_join_table_rejects_duplicate_mutable_accounts passed");
     println!("  - DuplicateMutableAccount error correctly raised for vault passed twice");
 }
 
-/// Test: LeaveTable fails with duplicate mutable accounts (AC-7.3)
+/// Test: LeaveTable fails with duplicate mutable accounts (AC-POK7.3)
 #[test]
 fn test_ac_7_3_leave_table_rejects_duplicate_mutable_accounts() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6168,16 +6221,16 @@ fn test_ac_7_3_leave_table_rejects_duplicate_mutable_accounts() {
     let tx = Transaction::new(&[&player], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "LeaveTable should fail with duplicate mutable accounts (AC-7.3)");
+    assert!(result.is_err(), "LeaveTable should fail with duplicate mutable accounts (AC-POK7.3)");
     println!("✓ test_ac_7_3_leave_table_rejects_duplicate_mutable_accounts passed");
     println!("  - DuplicateMutableAccount error correctly raised for vault passed twice");
 }
 
 // =============================================================================
-// AC-8.1: Staking Instruction Failure Tests
+// AC-POK8.1: Staking Instruction Failure Tests
 // =============================================================================
 
-/// Test: InitStakingPool fails without authority signer (AC-8.1)
+/// Test: InitStakingPool fails without authority signer (AC-POK8.1)
 #[test]
 fn test_ac_8_1_init_staking_pool_rejects_missing_signer() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6280,12 +6333,12 @@ fn test_ac_8_1_init_staking_pool_rejects_missing_signer() {
     let tx = Transaction::new(&[&payer], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "InitStakingPool should fail when signer is not authority (AC-8.1)");
+    assert!(result.is_err(), "InitStakingPool should fail when signer is not authority (AC-POK8.1)");
     println!("✓ test_ac_8_1_init_staking_pool_rejects_missing_signer passed");
     println!("  - MissingSigner error correctly raised when payer != config.authority");
 }
 
-/// Test: DepositStake fails without staker signer (AC-8.1)
+/// Test: DepositStake fails without staker signer (AC-POK8.1)
 #[test]
 fn test_ac_8_1_deposit_stake_rejects_missing_signer() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6387,12 +6440,12 @@ fn test_ac_8_1_deposit_stake_rejects_missing_signer() {
     let tx = Transaction::new(&[&payer], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "DepositStake should fail without staker signer (AC-8.1)");
+    assert!(result.is_err(), "DepositStake should fail without staker signer (AC-POK8.1)");
     println!("✓ test_ac_8_1_deposit_stake_rejects_missing_signer passed");
     println!("  - MissingSigner error correctly raised when staker is not signer");
 }
 
-/// Test: WithdrawStake fails with insufficient staked amount (AC-8.1)
+/// Test: WithdrawStake fails with insufficient staked amount (AC-POK8.1)
 #[test]
 fn test_ac_8_1_withdraw_stake_rejects_insufficient_amount() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6498,12 +6551,12 @@ fn test_ac_8_1_withdraw_stake_rejects_insufficient_amount() {
     let tx = Transaction::new(&[&staker], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "WithdrawStake should fail with insufficient staked amount (AC-8.1)");
+    assert!(result.is_err(), "WithdrawStake should fail with insufficient staked amount (AC-POK8.1)");
     println!("✓ test_ac_8_1_withdraw_stake_rejects_insufficient_amount passed");
     println!("  - InsufficientStakedAmount error correctly raised when trying to withdraw {} but only {} staked", withdraw_amount, staked_amount);
 }
 
-/// Test: ClaimRewards fails with no rewards available (AC-8.1)
+/// Test: ClaimRewards fails with no rewards available (AC-POK8.1)
 #[test]
 fn test_ac_8_1_claim_rewards_rejects_no_rewards() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6609,12 +6662,12 @@ fn test_ac_8_1_claim_rewards_rejects_no_rewards() {
     let tx = Transaction::new(&[&staker], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "ClaimRewards should fail with no rewards available (AC-8.1)");
+    assert!(result.is_err(), "ClaimRewards should fail with no rewards available (AC-POK8.1)");
     println!("✓ test_ac_8_1_claim_rewards_rejects_no_rewards passed");
     println!("  - NoRewardsAvailable error correctly raised when accumulated_rewards = 0");
 }
 
-/// Test: SweepRake fails when staking pool not initialized (AC-8.1)
+/// Test: SweepRake fails when staking pool not initialized (AC-POK8.1)
 #[test]
 fn test_ac_8_1_sweep_rake_rejects_uninitialized_pool() {
     let program_id = Address::from(robopoker_poker::ID);
@@ -6718,7 +6771,479 @@ fn test_ac_8_1_sweep_rake_rejects_uninitialized_pool() {
     let tx = Transaction::new(&[&payer], message, svm.latest_blockhash());
     let result = svm.send_transaction(tx);
 
-    assert!(result.is_err(), "SweepRake should fail when staking pool not initialized (AC-8.1)");
+    assert!(result.is_err(), "SweepRake should fail when staking pool not initialized (AC-POK8.1)");
     println!("✓ test_ac_8_1_sweep_rake_rejects_uninitialized_pool passed");
     println!("  - StakingPoolNotInitialized error correctly raised");
+}
+
+// ============================================================================
+// CloseTable Tests (Rent Reclamation)
+// ============================================================================
+
+/// Build instruction data for CloseTable
+fn build_close_table_ix() -> Vec<u8> {
+    vec![ix_disc::CLOSE_TABLE]
+}
+
+/// Test: CloseTable successfully closes an empty table and reclaims rent
+#[test]
+fn test_close_table_success() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let beneficiary = Keypair::new();
+    let beneficiary_key = beneficiary.pubkey();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    let table_id = 301u64;
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+
+    let mut svm = setup_svm(&program_id);
+
+    // Create config with authority
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority_key,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    // Create empty table (no players, no pot, no rake)
+    let table_data = create_table_data(table_id, 1_000_000, 2_000_000, &vault_key);
+
+    // Create empty vault (zero balance)
+    let vault_data = create_token_account_data(&crisps_mint, &vault_key, 0);
+    let mint_data = create_mint_data(&authority_key);
+
+    let table_lamports = svm.minimum_balance_for_rent_exemption(table_data.len());
+    let vault_lamports = svm.minimum_balance_for_rent_exemption(vault_data.len());
+
+    svm.set_account(config_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+        data: config_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(table_key, Account {
+        lamports: table_lamports,
+        data: table_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(vault_key, Account {
+        lamports: vault_lamports,
+        data: vault_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(crisps_mint, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+        data: mint_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+    let initial_beneficiary_balance = 1_000_000_000u64;
+    svm.airdrop(&beneficiary_key, initial_beneficiary_balance).unwrap();
+
+    // Close table instruction
+    let close_ix = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: vault_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: beneficiary_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: authority_key, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: TOKEN_2022_PROGRAM_ID, is_signer: false, is_writable: false },
+        ],
+        data: build_close_table_ix(),
+    };
+
+    let message = Message::new(&[close_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    let result = svm.send_transaction(tx);
+
+    assert!(result.is_ok(), "CloseTable should succeed for empty table: {:?}", result);
+
+    // Verify table account is closed (zeroed and owned by system program)
+    let table_account = svm.get_account(&table_key);
+    // After closing, the account should either not exist or have 0 lamports
+    if let Some(acc) = table_account {
+        assert_eq!(acc.lamports, 0, "Table account should have 0 lamports after closure");
+    }
+
+    // Verify beneficiary received lamports (at least table lamports + vault lamports)
+    let beneficiary_account = svm.get_account(&beneficiary_key).unwrap();
+    let expected_min_balance = initial_beneficiary_balance + table_lamports + vault_lamports;
+    assert!(
+        beneficiary_account.lamports >= expected_min_balance,
+        "Beneficiary should have received at least {} lamports, got {}",
+        expected_min_balance, beneficiary_account.lamports
+    );
+
+    println!("✓ test_close_table_success passed");
+    println!("  - Empty table closed successfully");
+    println!("  - Rent reclaimed to beneficiary: {} lamports", table_lamports + vault_lamports);
+}
+
+/// Test: CloseTable fails when table has players
+#[test]
+fn test_close_table_rejects_with_players() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let beneficiary = new_unique_address();
+    let player = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    let table_id = 302u64;
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+
+    let mut svm = setup_svm(&program_id);
+
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority_key,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    // Create table with one player seated
+    let table_data = create_table_data_with_player(
+        table_id,
+        1_000_000, 2_000_000,
+        &vault_key,
+        &player,
+        500_000_000, // Player has 500 CRISPS
+        0,
+    );
+
+    let vault_data = create_token_account_data(&crisps_mint, &vault_key, 500_000_000);
+    let mint_data = create_mint_data(&authority_key);
+
+    svm.set_account(config_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+        data: config_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(table_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
+        data: table_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(vault_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(vault_data.len()),
+        data: vault_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(crisps_mint, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+        data: mint_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+
+    let close_ix = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: vault_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: beneficiary, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: authority_key, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: TOKEN_2022_PROGRAM_ID, is_signer: false, is_writable: false },
+        ],
+        data: build_close_table_ix(),
+    };
+
+    let message = Message::new(&[close_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    let result = svm.send_transaction(tx);
+
+    assert!(result.is_err(), "CloseTable should fail when table has players");
+    println!("✓ test_close_table_rejects_with_players passed");
+    println!("  - TableNotEmpty error correctly raised when player_count > 0");
+}
+
+/// Test: CloseTable fails when vault has non-zero balance
+#[test]
+fn test_close_table_rejects_with_vault_balance() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let beneficiary = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    let table_id = 303u64;
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+
+    let mut svm = setup_svm(&program_id);
+
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority_key,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    // Empty table (no players, no pot, no rake)
+    let table_data = create_table_data(table_id, 1_000_000, 2_000_000, &vault_key);
+
+    // But vault has tokens (orphaned balance - shouldn't happen but edge case)
+    let vault_data = create_token_account_data(&crisps_mint, &vault_key, 100_000_000);
+    let mint_data = create_mint_data(&authority_key);
+
+    svm.set_account(config_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+        data: config_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(table_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
+        data: table_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(vault_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(vault_data.len()),
+        data: vault_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(crisps_mint, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+        data: mint_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+
+    let close_ix = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: vault_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: beneficiary, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: authority_key, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: TOKEN_2022_PROGRAM_ID, is_signer: false, is_writable: false },
+        ],
+        data: build_close_table_ix(),
+    };
+
+    let message = Message::new(&[close_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    let result = svm.send_transaction(tx);
+
+    assert!(result.is_err(), "CloseTable should fail when vault has balance");
+    println!("✓ test_close_table_rejects_with_vault_balance passed");
+    println!("  - VaultNotEmpty error correctly raised when vault balance > 0");
+}
+
+/// Test: CloseTable fails when table has accumulated rake
+#[test]
+fn test_close_table_rejects_with_rake() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = Keypair::new();
+    let authority_key = authority.pubkey();
+    let beneficiary = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    let table_id = 304u64;
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+
+    let mut svm = setup_svm(&program_id);
+
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority_key,
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    // Table with accumulated rake (should sweep first!)
+    let table_data = create_table_data_with_rake(
+        table_id,
+        1_000_000, 2_000_000,
+        &vault_key,
+        50_000_000, // 50 CRISPS rake accumulated
+    );
+
+    // Vault has the rake amount
+    let vault_data = create_token_account_data(&crisps_mint, &vault_key, 50_000_000);
+    let mint_data = create_mint_data(&authority_key);
+
+    svm.set_account(config_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+        data: config_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(table_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
+        data: table_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(vault_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(vault_data.len()),
+        data: vault_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(crisps_mint, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+        data: mint_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+
+    svm.airdrop(&authority_key, 10_000_000_000).unwrap();
+
+    let close_ix = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: vault_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: beneficiary, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: authority_key, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: TOKEN_2022_PROGRAM_ID, is_signer: false, is_writable: false },
+        ],
+        data: build_close_table_ix(),
+    };
+
+    let message = Message::new(&[close_ix], Some(&authority_key));
+    let tx = Transaction::new(&[&authority], message, svm.latest_blockhash());
+    let result = svm.send_transaction(tx);
+
+    assert!(result.is_err(), "CloseTable should fail when table has accumulated rake (sweep first!)");
+    println!("✓ test_close_table_rejects_with_rake passed");
+    println!("  - TableNotEmpty error correctly raised when rake_accumulated > 0");
+}
+
+/// Test: CloseTable fails when non-authority tries to close
+#[test]
+fn test_close_table_rejects_non_authority() {
+    let program_id = Address::from(robopoker_poker::ID);
+    let authority = new_unique_address();
+    let attacker = Keypair::new();
+    let attacker_key = attacker.pubkey();
+    let beneficiary = new_unique_address();
+    let entropy_program = new_unique_address();
+    let crisps_mint = new_unique_address();
+
+    let table_id = 305u64;
+    let config_key = config_pda(&program_id);
+    let table_key = table_pda(&program_id, table_id);
+    let vault_key = vault_pda(&program_id, table_id);
+
+    let mut svm = setup_svm(&program_id);
+
+    // Config has different authority
+    let config_data = create_config_data(
+        &crisps_mint,
+        &authority, // Not the attacker
+        &entropy_program,
+        100_000_000,
+        1_000_000_000,
+    );
+
+    let table_data = create_table_data(table_id, 1_000_000, 2_000_000, &vault_key);
+    let vault_data = create_token_account_data(&crisps_mint, &vault_key, 0);
+    let mint_data = create_mint_data(&authority);
+
+    svm.set_account(config_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(config_data.len()),
+        data: config_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(table_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(table_data.len()),
+        data: table_data,
+        owner: program_id,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(vault_key, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(vault_data.len()),
+        data: vault_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    svm.set_account(crisps_mint, Account {
+        lamports: svm.minimum_balance_for_rent_exemption(mint_data.len()),
+        data: mint_data,
+        owner: TOKEN_2022_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+
+    svm.airdrop(&attacker_key, 10_000_000_000).unwrap();
+
+    // Attacker tries to close table
+    let close_ix = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta { pubkey: table_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: vault_key, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: beneficiary, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: attacker_key, is_signer: true, is_writable: false },
+            AccountMeta { pubkey: config_key, is_signer: false, is_writable: false },
+            AccountMeta { pubkey: TOKEN_2022_PROGRAM_ID, is_signer: false, is_writable: false },
+        ],
+        data: build_close_table_ix(),
+    };
+
+    let message = Message::new(&[close_ix], Some(&attacker_key));
+    let tx = Transaction::new(&[&attacker], message, svm.latest_blockhash());
+    let result = svm.send_transaction(tx);
+
+    assert!(result.is_err(), "CloseTable should fail when non-authority tries to close");
+    println!("✓ test_close_table_rejects_non_authority passed");
+    println!("  - MissingSigner error correctly raised when authority doesn't match config");
 }
