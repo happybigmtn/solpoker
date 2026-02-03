@@ -41,6 +41,9 @@ fi
 
 # Filter function to extract readable output from stream-json
 filter_output() {
+    local current_tool=""
+    local text_buffer=""
+
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
 
@@ -60,58 +63,153 @@ filter_output() {
                         ;;
                 esac
                 ;;
+            "user")
+                # User messages (usually tool results or prompts)
+                ;;
             "assistant")
                 # Show tool uses with details
                 tool_name=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .name // empty' 2>/dev/null | head -1)
                 if [[ -n "$tool_name" ]]; then
                     case "$tool_name" in
                         "Read")
-                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
-                            echo -e "${DIM}📖 Reading${NC} $file"
+                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | head -1)
+                            # Show full path for context, truncate if too long
+                            display_path="${file}"
+                            [[ ${#display_path} -gt 60 ]] && display_path="...${file: -57}"
+                            echo -e "${DIM}📖 Read${NC} ${display_path}"
                             ;;
                         "Write")
-                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
-                            echo -e "${GREEN}📝 Writing${NC} $file"
+                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | head -1)
+                            display_path="${file}"
+                            [[ ${#display_path} -gt 60 ]] && display_path="...${file: -57}"
+                            echo -e "${GREEN}📝 Write${NC} ${display_path}"
                             ;;
                         "Edit"|"MultiEdit")
-                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | xargs basename 2>/dev/null | head -1)
-                            echo -e "${GREEN}✏️  Editing${NC} $file"
+                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.file_path // empty' 2>/dev/null | head -1)
+                            old_str=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.old_string // empty' 2>/dev/null | head -c 40 | tr '\n' ' ')
+                            display_path="${file}"
+                            [[ ${#display_path} -gt 50 ]] && display_path="...${file: -47}"
+                            if [[ -n "$old_str" ]]; then
+                                echo -e "${GREEN}✏️  Edit${NC} ${display_path} ${DIM}\"${old_str}...\"${NC}"
+                            else
+                                echo -e "${GREEN}✏️  Edit${NC} ${display_path}"
+                            fi
                             ;;
                         "Bash")
-                            desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 60)
-                            [[ -z "$desc" ]] && desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.command // empty' 2>/dev/null | head -c 60)
-                            echo -e "${YELLOW}⚡ Running${NC} ${DIM}${desc}${NC}"
+                            desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 80)
+                            cmd=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.command // empty' 2>/dev/null | head -c 80)
+                            if [[ -n "$desc" ]]; then
+                                echo -e "${YELLOW}⚡ Bash${NC} ${desc}"
+                            else
+                                echo -e "${YELLOW}⚡ Bash${NC} ${DIM}${cmd}${NC}"
+                            fi
                             ;;
-                        "Grep"|"Glob")
+                        "Grep")
                             pattern=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.pattern // empty' 2>/dev/null | head -c 40)
-                            echo -e "${DIM}🔍 Searching${NC} $pattern"
+                            path=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.path // empty' 2>/dev/null | head -c 30)
+                            echo -e "${DIM}🔍 Grep${NC} \"${pattern}\" ${DIM}${path}${NC}"
+                            ;;
+                        "Glob")
+                            pattern=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.pattern // empty' 2>/dev/null | head -c 50)
+                            echo -e "${DIM}🔍 Glob${NC} ${pattern}"
                             ;;
                         "TodoWrite")
-                            echo -e "${CYAN}📋 Updating todos${NC}"
+                            # Show todo items being written
+                            todos=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.todos[]?.content // empty' 2>/dev/null | head -3 | tr '\n' ', ' | head -c 60)
+                            if [[ -n "$todos" ]]; then
+                                echo -e "${CYAN}📋 Todos${NC} ${DIM}${todos}...${NC}"
+                            else
+                                echo -e "${CYAN}📋 Todos${NC} updating..."
+                            fi
                             ;;
                         "Task")
-                            task_desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 50)
-                            echo -e "${CYAN}🤖 Agent${NC} ${DIM}${task_desc}${NC}"
+                            task_desc=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.description // empty' 2>/dev/null | head -c 60)
+                            agent_type=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.subagent_type // empty' 2>/dev/null)
+                            if [[ -n "$agent_type" ]]; then
+                                echo -e "${CYAN}🤖 Agent${NC} [${agent_type}] ${DIM}${task_desc}${NC}"
+                            else
+                                echo -e "${CYAN}🤖 Agent${NC} ${DIM}${task_desc}${NC}"
+                            fi
+                            ;;
+                        "LSP")
+                            op=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.operation // empty' 2>/dev/null)
+                            file=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.filePath // empty' 2>/dev/null | xargs basename 2>/dev/null)
+                            echo -e "${DIM}🔗 LSP${NC} ${op} ${file}"
+                            ;;
+                        "WebFetch"|"WebSearch")
+                            url=$(echo "$line" | jq -r '.message.content[]? | select(.type=="tool_use") | .input.url // .input.query // empty' 2>/dev/null | head -c 60)
+                            echo -e "${DIM}🌐 Web${NC} ${url}"
                             ;;
                         *)
                             echo -e "${DIM}🔧 ${tool_name}${NC}"
                             ;;
                     esac
                 else
-                    # Show assistant text (first 120 chars)
-                    text=$(echo "$line" | jq -r '.message.content[]? | select(.type=="text") | .text // empty' 2>/dev/null | tr '\n' ' ' | head -c 120)
+                    # Show assistant text - extract first meaningful line
+                    text=$(echo "$line" | jq -r '.message.content[]? | select(.type=="text") | .text // empty' 2>/dev/null)
                     if [[ -n "$text" ]]; then
-                        echo -e "${CYAN}▸${NC} ${text}..."
+                        # Get first non-empty line, clean it up
+                        first_line=$(echo "$text" | grep -v '^$' | head -1 | tr -s ' ' | head -c 100)
+                        if [[ -n "$first_line" ]]; then
+                            # Color based on content
+                            if [[ "$first_line" == *"✓"* ]] || [[ "$first_line" == *"complete"* ]] || [[ "$first_line" == *"Complete"* ]]; then
+                                echo -e "${GREEN}▸${NC} ${first_line}"
+                            elif [[ "$first_line" == *"Error"* ]] || [[ "$first_line" == *"error"* ]] || [[ "$first_line" == *"fail"* ]]; then
+                                echo -e "${RED}▸${NC} ${first_line}"
+                            elif [[ "$first_line" == *"TODO"* ]] || [[ "$first_line" == *"FIXME"* ]] || [[ "$first_line" == *"Warning"* ]]; then
+                                echo -e "${YELLOW}▸${NC} ${first_line}"
+                            else
+                                echo -e "${CYAN}▸${NC} ${first_line}"
+                            fi
+                        fi
                     fi
                 fi
+                ;;
+            "content_block_start")
+                # Track when a new content block starts
+                block_type=$(echo "$line" | jq -r '.content_block.type // empty' 2>/dev/null)
+                if [[ "$block_type" == "tool_use" ]]; then
+                    current_tool=$(echo "$line" | jq -r '.content_block.name // empty' 2>/dev/null)
+                fi
+                ;;
+            "content_block_delta")
+                # Streaming text/tool input - show progress dots for long operations
+                delta_type=$(echo "$line" | jq -r '.delta.type // empty' 2>/dev/null)
+                if [[ "$delta_type" == "text_delta" ]]; then
+                    # Accumulate text and show periodically
+                    delta_text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
+                    text_buffer+="$delta_text"
+                    # Show a dot every ~200 chars to indicate progress
+                    if [[ ${#text_buffer} -gt 200 ]]; then
+                        echo -n -e "${DIM}.${NC}"
+                        text_buffer=""
+                    fi
+                fi
+                ;;
+            "content_block_stop")
+                # Reset state when block ends
+                if [[ -n "$text_buffer" ]]; then
+                    echo ""  # Newline after progress dots
+                    text_buffer=""
+                fi
+                current_tool=""
                 ;;
             "result")
                 if [[ "$subtype" == "success" ]]; then
                     cost=$(echo "$line" | jq -r '.total_cost_usd // empty' 2>/dev/null)
                     turns=$(echo "$line" | jq -r '.num_turns // empty' 2>/dev/null)
+                    duration=$(echo "$line" | jq -r '.duration_ms // empty' 2>/dev/null)
                     if [[ -n "$cost" ]]; then
-                        echo -e "${GREEN}✓ Completed${NC} ${DIM}(${turns} turns, \$${cost})${NC}"
+                        if [[ -n "$duration" ]]; then
+                            dur_sec=$((duration / 1000))
+                            echo -e "${GREEN}✓ Done${NC} ${DIM}(${turns} turns, ${dur_sec}s, \$${cost})${NC}"
+                        else
+                            echo -e "${GREEN}✓ Done${NC} ${DIM}(${turns} turns, \$${cost})${NC}"
+                        fi
                     fi
+                elif [[ "$subtype" == "error" ]]; then
+                    msg=$(echo "$line" | jq -r '.error // empty' 2>/dev/null | head -c 100)
+                    [[ -n "$msg" ]] && echo -e "${RED}✗ Error: ${msg}${NC}"
                 fi
                 ;;
             "error")
