@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ralph loop runner using Codex CLI (gpt-5.2-codex)
+# Ralph loop runner using Codex CLI (gpt-5.3-codex-spark)
 # Usage: ./loopcodex.sh [mode] [max_iterations]
 # Examples:
 #   ./loopcodex.sh                        # Build mode, unlimited iterations
@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs"
 
 # Codex configuration
-CODEX_MODEL="${CODEX_MODEL:-gpt-5.2-codex}"
+CODEX_MODEL="${CODEX_MODEL:-gpt-5.3-codex-spark}"
 CODEX_REASONING="${CODEX_REASONING:-high}"
 
 # Find IMPLEMENTATION_PLAN.md - check repo root first, then ralph/ (matches loopclaude.sh)
@@ -197,6 +197,69 @@ count_blocked() {
     grep -c 'Blocked:' "$PLAN_FILE" 2>/dev/null || echo "0"
 }
 
+extract_next_unchecked_task_block() {
+    local next_unchecked_line
+    next_unchecked_line="$(awk 'BEGIN {found=0}
+        found {exit}
+        /^[[:space:]]*-[[:space:]]\[[[:space:]]\]/ {print NR; found=1}
+    ' "$PLAN_FILE")"
+
+    if [[ -z "$next_unchecked_line" ]]; then
+        return 0
+    fi
+
+    local header_context
+    header_context="$(awk -v target="$next_unchecked_line" '
+        {
+            if ($0 ~ /^## /) {h2 = $0}
+            if ($0 ~ /^### /) {h3 = $0}
+        }
+        NR == target {
+            if (h2 != "") print h2
+            if (h3 != "") print h3
+            exit
+        }
+    ' "$PLAN_FILE")"
+
+    local task_block
+    task_block="$(awk -v start="$next_unchecked_line" '
+        NR == start {
+            print
+            next
+        }
+        NR > start {
+            if ($0 ~ /^#/ || $0 ~ /^[[:space:]]*-[[:space:]]\[[[:space:]]\]/ || $0 ~ /^[[:space:]]*-[[:space:]]\[[xX]\]/) {
+                exit
+            }
+            print
+        }
+    ' "$PLAN_FILE")"
+
+    if [[ -n "$header_context" ]]; then
+        printf "## Focus context\n%s\n\n" "$header_context"
+    fi
+    printf "%s\n" "$task_block"
+}
+
+build_prompt_content() {
+    local mode="$MODE"
+    if [[ "$mode" == "plan-work" ]]; then
+        WORK_SCOPE="$WORK_SCOPE" envsubst < "$PROMPT_FILE"
+    elif [[ "$mode" == "build" ]]; then
+        local focus_task="$1"
+        local prompt_template
+        prompt_template="$(cat "$PROMPT_FILE")"
+        local task_token='${TASK_BLOCK}'
+        if [[ "$prompt_template" == *"$task_token"* ]]; then
+            TASK_BLOCK="$focus_task" envsubst < "$PROMPT_FILE"
+        else
+            printf "## Focus context\n%s\n\n%s\n" "$focus_task" "$prompt_template"
+        fi
+    else
+        cat "$PROMPT_FILE"
+    fi
+}
+
 # Verify files exist
 if [[ ! -f "$PROMPT_FILE" ]]; then
     echo -e "${RED}✗ Error: $PROMPT_FILE not found${NC}"
@@ -241,12 +304,20 @@ while true; do
         exit 1
     fi
 
+    focus_task_block=""
+    if [[ "$MODE" == "build" ]]; then
+        focus_task_block="$(extract_next_unchecked_task_block)"
+        if [[ "$focus_task_block" =~ ^[[:space:]]*$ ]]; then
+            echo -e "${RED}✗ Could not extract next unchecked task block from plan${NC}"
+            focus_task_block=""
+        fi
+    fi
+
     # Build prompt with scope substitution for plan-work mode
     if [[ "$MODE" == "plan-work" ]]; then
-        export WORK_SCOPE
-        prompt_content=$(envsubst < "$PROMPT_FILE")
+        prompt_content="$(build_prompt_content)"
     else
-        prompt_content=$(cat "$PROMPT_FILE")
+        prompt_content="$(build_prompt_content "$focus_task_block")"
     fi
 
     # Capture plan hash before run (for plan mode progress detection)

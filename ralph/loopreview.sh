@@ -20,7 +20,7 @@ fi
 LOG_DIR="$SCRIPT_DIR/logs"
 
 # Codex configuration (model name based on codex CLI docs/help in this environment)
-CODEX_MODEL="${CODEX_MODEL:-gpt-5.2-codex}"
+CODEX_MODEL="${CODEX_MODEL:-gpt-5.3-codex-spark}"
 CODEX_REASONING="${CODEX_REASONING:-xhigh}"
 
 mkdir -p "$LOG_DIR"
@@ -60,8 +60,14 @@ get_item_block() {
 	awk -v target="$item" '
     BEGIN { found=0 }
     {
+      if ($0 ~ /^## /) { h2 = $0 }
+      if ($0 ~ /^### /) { h3 = $0 }
+
       if (!found && $0 == target) {
         found=1;
+        print "## Focus context";
+        if (h2 != "") print h2;
+        if (h3 != "") print h3;
         print $0;
         next;
       }
