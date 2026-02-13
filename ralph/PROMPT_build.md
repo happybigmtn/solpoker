@@ -42,6 +42,14 @@ At the end of the iteration, print:
 - Tests/commands run and results
 - Which single plan checkbox is now complete
 
+### Marking Blocked
+
+If a task cannot be completed (needs human action, external dependency, missing credentials, hardware access):
+1. Change `- [ ] ...` to `- [!] ...` in @IMPLEMENTATION_PLAN.md
+2. Keep the **Blocked: reason** note on the task line
+3. Do NOT attempt to work around blockers that require human intervention
+4. The loop will skip `[!]` tasks and move to the next `[ ]` task
+
 ### Completion Signal (Critical)
 
 - Do **NOT** output `<promise>COMPLETE</promise>` unless ALL tasks in `IMPLEMENTATION_PLAN.md` are checked `[x]`

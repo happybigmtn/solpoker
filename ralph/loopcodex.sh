@@ -194,7 +194,7 @@ count_completed() {
 }
 
 count_blocked() {
-    grep -c 'Blocked:' "$PLAN_FILE" 2>/dev/null || echo "0"
+    grep -c '^[[:space:]]*- \[!\]' "$PLAN_FILE" 2>/dev/null || echo 0
 }
 
 extract_next_unchecked_task_block() {
@@ -228,7 +228,7 @@ extract_next_unchecked_task_block() {
             next
         }
         NR > start {
-            if ($0 ~ /^#/ || $0 ~ /^[[:space:]]*-[[:space:]]\[[[:space:]]\]/ || $0 ~ /^[[:space:]]*-[[:space:]]\[[xX]\]/) {
+            if ($0 ~ /^#/ || $0 ~ /^[[:space:]]*-[[:space:]]\[[[:space:]]\]/ || $0 ~ /^[[:space:]]*-[[:space:]]\[[xX]\]/ || $0 ~ /^[[:space:]]*-[[:space:]]\[!\]/) {
                 exit
             }
             print
